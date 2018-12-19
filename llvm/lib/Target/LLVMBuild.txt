@@ -19,6 +19,7 @@
 ; will typically require only insertion of a line.
 [common]
 subdirectories =
+ Alpha
  AMDGPU
  ARC
  ARM

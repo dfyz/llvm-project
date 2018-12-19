@@ -21,6 +21,7 @@ StringRef Triple::getArchTypeName(ArchType Kind) {
   switch (Kind) {
   case UnknownArch:    return "unknown";
 
+  case alpha:          return "alpha";
   case aarch64:        return "aarch64";
   case aarch64_be:     return "aarch64_be";
   case arm:            return "arm";
@@ -80,6 +81,8 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
   default:
     return StringRef();
 
+  case alpha:
+                    return "alpha";
   case aarch64:
   case aarch64_be:  return "aarch64";
 
@@ -258,6 +261,7 @@ static Triple::ArchType parseBPFArch(StringRef ArchName) {
 Triple::ArchType Triple::getArchTypeForLLVMName(StringRef Name) {
   Triple::ArchType BPFArch(parseBPFArch(Name));
   return StringSwitch<Triple::ArchType>(Name)
+    .Case("alpha", alpha)
     .Case("aarch64", aarch64)
     .Case("aarch64_be", aarch64_be)
     .Case("arc", arc)
@@ -387,6 +391,7 @@ static Triple::ArchType parseArch(StringRef ArchName) {
     .Cases("powerpc64le", "ppc64le", Triple::ppc64le)
     .Case("xscale", Triple::arm)
     .Case("xscaleeb", Triple::armeb)
+    .Case("alpha", Triple::alpha)
     .Case("aarch64", Triple::aarch64)
     .Case("aarch64_be", Triple::aarch64_be)
     .Case("arc", Triple::arc)
@@ -641,6 +646,7 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
       return Triple::COFF;
     return Triple::ELF;
 
+  case Triple::alpha:
   case Triple::aarch64_be:
   case Triple::arc:
   case Triple::amdgcn:
@@ -1241,6 +1247,7 @@ static unsigned getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   case llvm::Triple::renderscript32:
     return 32;
 
+  case llvm::Triple::alpha:
   case llvm::Triple::aarch64:
   case llvm::Triple::aarch64_be:
   case llvm::Triple::amdgcn:
@@ -1282,6 +1289,7 @@ Triple Triple::get32BitArchVariant() const {
   Triple T(*this);
   switch (getArch()) {
   case Triple::UnknownArch:
+  case Triple::alpha:
   case Triple::amdgcn:
   case Triple::avr:
   case Triple::bpfel:
@@ -1360,6 +1368,7 @@ Triple Triple::get64BitArchVariant() const {
     T.setArch(UnknownArch);
     break;
 
+  case Triple::alpha:
   case Triple::aarch64:
   case Triple::aarch64_be:
   case Triple::bpfel:

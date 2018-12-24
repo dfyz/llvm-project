@@ -32,9 +32,6 @@ namespace llvm {
   class formatted_raw_ostream;
 
   FunctionPass *createAlphaISelDag(AlphaTargetMachine &TM);
-  FunctionPass *createAlphaPatternInstructionSelector(TargetMachine &TM);
-  FunctionPass *createAlphaJITCodeEmitterPass(AlphaTargetMachine &TM,
-                                              JITCodeEmitter &JCE);
   FunctionPass *createAlphaLLRPPass(AlphaTargetMachine &tm);
   FunctionPass *createAlphaBranchSelectionPass();
 

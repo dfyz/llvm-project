@@ -19,5 +19,4 @@ AlphaMCAsmInfo::AlphaMCAsmInfo(const Target &T, StringRef TT) {
   PrivateGlobalPrefix = "$";
   GPRel32Directive = ".gprel32";
   WeakRefDirective = "\t.weak\t";
-  HasSetDirective = false;
 }

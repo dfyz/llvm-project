@@ -826,10 +826,10 @@ def CVTTQ : FPForm<0x16, 0x52F, "cvttq/svc $RB,$RC",
         [(set F8RC:$RC, (Alpha_cvttq F8RC:$RB))], s_fadd>;
 let OutOperandList = (outs F8RC:$RC), InOperandList = (ins F4RC:$RB), Fa = 31 in 
 def CVTST : FPForm<0x16, 0x6AC, "cvtst/s $RB,$RC",
-                   [(set F8RC:$RC, (fextend F4RC:$RB))], s_fadd>;
+                   [(set F8RC:$RC, (fpextend F4RC:$RB))], s_fadd>;
 let OutOperandList = (outs F4RC:$RC), InOperandList = (ins F8RC:$RB), Fa = 31 in 
 def CVTTS : FPForm<0x16, 0x7AC, "cvtts/sui $RB,$RC",
-                   [(set F4RC:$RC, (fround F8RC:$RB))], s_fadd>;
+                   [(set F4RC:$RC, (fpround F8RC:$RB))], s_fadd>;
 
 def :  Pat<(select GPRC:$RC, F8RC:$st, F8RC:$sf),
        (f64 (FCMOVEQT  F8RC:$st, F8RC:$sf, (ITOFT GPRC:$RC)))>; 

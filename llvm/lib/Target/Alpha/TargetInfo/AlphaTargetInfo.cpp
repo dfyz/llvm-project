@@ -8,13 +8,15 @@
 //===----------------------------------------------------------------------===//
 
 #include "Alpha.h"
-#include "llvm/Module.h"
 #include "llvm/Support/TargetRegistry.h"
 using namespace llvm;
 
-llvm::Target llvm::TheAlphaTarget;
+Target &getTheAlphaTarget() {
+  static Target TheAlphaTarget;
+  return TheAlphaTarget;
+}
 
 extern "C" void LLVMInitializeAlphaTargetInfo() { 
   RegisterTarget<Triple::alpha, /*HasJIT=*/true>
-    X(TheAlphaTarget, "alpha", "Alpha [experimental]");
+    X(getTheAlphaTarget(), "alpha", "Alpha [experimental]", "Alpha");
 }

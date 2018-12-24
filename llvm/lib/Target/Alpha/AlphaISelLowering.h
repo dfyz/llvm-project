@@ -15,9 +15,8 @@
 #ifndef LLVM_TARGET_ALPHA_ALPHAISELLOWERING_H
 #define LLVM_TARGET_ALPHA_ALPHAISELLOWERING_H
 
-#include "llvm/ADT/VectorExtras.h"
-#include "llvm/Target/TargetLowering.h"
 #include "llvm/CodeGen/SelectionDAG.h"
+#include "llvm/CodeGen/TargetLowering.h"
 #include "Alpha.h"
 
 namespace llvm {

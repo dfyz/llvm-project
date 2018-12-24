@@ -14,13 +14,13 @@
 #ifndef ALPHASELECTIONDAGINFO_H
 #define ALPHASELECTIONDAGINFO_H
 
-#include "llvm/Target/TargetSelectionDAGInfo.h"
+#include "llvm/CodeGen/SelectionDAGTargetInfo.h"
 
 namespace llvm {
 
 class AlphaTargetMachine;
 
-class AlphaSelectionDAGInfo : public TargetSelectionDAGInfo {
+class AlphaSelectionDAGInfo : public SelectionDAGTargetInfo {
 public:
   explicit AlphaSelectionDAGInfo(const AlphaTargetMachine &TM);
   ~AlphaSelectionDAGInfo();

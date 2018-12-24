@@ -14,7 +14,7 @@
 #ifndef ALPHAINSTRUCTIONINFO_H
 #define ALPHAINSTRUCTIONINFO_H
 
-#include "llvm/Target/TargetInstrInfo.h"
+#include "llvm/CodeGen/TargetInstrInfo.h"
 #include "AlphaRegisterInfo.h"
 
 #define GET_INSTRINFO_HEADER

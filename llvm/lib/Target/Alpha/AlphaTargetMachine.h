@@ -19,9 +19,9 @@
 #include "AlphaFrameLowering.h"
 #include "AlphaSelectionDAGInfo.h"
 #include "AlphaSubtarget.h"
+#include "llvm/CodeGen/TargetFrameLowering.h"
+#include "llvm/IR/DataLayout.h"
 #include "llvm/Target/TargetMachine.h"
-#include "llvm/Target/TargetData.h"
-#include "llvm/Target/TargetFrameLowering.h"
 
 namespace llvm {
 

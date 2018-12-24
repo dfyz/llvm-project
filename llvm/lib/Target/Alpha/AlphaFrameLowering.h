@@ -16,7 +16,7 @@
 
 #include "Alpha.h"
 #include "AlphaSubtarget.h"
-#include "llvm/Target/TargetFrameLowering.h"
+#include "llvm/CodeGen/TargetFrameLowering.h"
 
 namespace llvm {
   class AlphaSubtarget;

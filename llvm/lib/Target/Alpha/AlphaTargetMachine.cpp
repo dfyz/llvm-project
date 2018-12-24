@@ -12,7 +12,7 @@
 
 #include "Alpha.h"
 #include "AlphaTargetMachine.h"
-#include "llvm/PassManager.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/TargetRegistry.h"
 using namespace llvm;

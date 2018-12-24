@@ -14,10 +14,10 @@
 #include "AlphaFrameLowering.h"
 #include "AlphaInstrInfo.h"
 #include "AlphaMachineFunctionInfo.h"
-#include "llvm/Function.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/IR/Function.h"
 #include "llvm/ADT/Twine.h"
 
 using namespace llvm;

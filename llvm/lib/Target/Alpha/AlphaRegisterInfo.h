@@ -30,7 +30,7 @@ struct AlphaRegisterInfo : public AlphaGenRegisterInfo {
   AlphaRegisterInfo(const TargetInstrInfo &tii);
 
   /// Code Generation virtual methods...
-  const unsigned *getCalleeSavedRegs(const MachineFunction *MF = 0) const;
+  const MCPhysReg *getCalleeSavedRegs(const MachineFunction *MF = 0) const;
 
   BitVector getReservedRegs(const MachineFunction &MF) const;
 

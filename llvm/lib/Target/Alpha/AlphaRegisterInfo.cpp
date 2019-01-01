@@ -54,9 +54,9 @@ static long getLower16(long l) {
   return l - h * Alpha::IMM_MULT;
 }
 
-const unsigned* AlphaRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF)
+const MCPhysReg* AlphaRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF)
                                                                          const {
-  static const unsigned CalleeSavedRegs[] = {
+  static const MCPhysReg CalleeSavedRegs[] = {
     Alpha::R9, Alpha::R10,
     Alpha::R11, Alpha::R12,
     Alpha::R13, Alpha::R14,

@@ -21,7 +21,7 @@ namespace llvm {
   class Target;
 
   struct AlphaMCAsmInfo : public MCAsmInfo {
-    explicit AlphaMCAsmInfo(const Target &T, StringRef TT);
+    explicit AlphaMCAsmInfo(const Triple &TT);
   };
 
 } // namespace llvm

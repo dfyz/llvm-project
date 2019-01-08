@@ -36,34 +36,21 @@ static MCInstrInfo *createAlphaMCInstrInfo() {
   return X;
 }
 
-static MCRegisterInfo *createAlphaMCRegisterInfo(StringRef TT) {
+static MCRegisterInfo *createAlphaMCRegisterInfo(const Triple & /*TT*/) {
   MCRegisterInfo *X = new MCRegisterInfo();
   InitAlphaMCRegisterInfo(X, Alpha::R26);
   return X;
 }
 
-static MCSubtargetInfo *createAlphaMCSubtargetInfo(StringRef TT, StringRef CPU,
+static MCSubtargetInfo *createAlphaMCSubtargetInfo(const Triple &TT, StringRef CPU,
                                                    StringRef FS) {
-  MCSubtargetInfo *X = new MCSubtargetInfo();
-  InitAlphaMCSubtargetInfo(X, TT, CPU, FS);
-  return X;
-}
-
-static MCCodeGenInfo *createAlphaMCCodeGenInfo(StringRef TT, Reloc::Model RM,
-                                               CodeModel::Model CM) {
-  MCCodeGenInfo *X = new MCCodeGenInfo();
-  X->InitMCCodeGenInfo(Reloc::PIC_, CM);
-  return X;
+  return createAlphaMCSubtargetInfoImpl(TT, CPU, FS);
 }
 
 // Force static initialization.
 extern "C" void LLVMInitializeAlphaTargetMC() {
   // Register the MC asm info.
   RegisterMCAsmInfo<AlphaMCAsmInfo> X(TheAlphaTarget);
-
-  // Register the MC codegen info.
-  TargetRegistry::RegisterMCCodeGenInfo(TheAlphaTarget,
-                                        createAlphaMCCodeGenInfo);
 
   // Register the MC instruction info.
   TargetRegistry::RegisterMCInstrInfo(TheAlphaTarget, createAlphaMCInstrInfo);

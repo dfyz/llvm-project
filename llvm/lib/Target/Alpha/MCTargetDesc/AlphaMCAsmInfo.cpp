@@ -14,7 +14,7 @@
 #include "AlphaMCAsmInfo.h"
 using namespace llvm;
 
-AlphaMCAsmInfo::AlphaMCAsmInfo(const Target &T, StringRef TT) {
+AlphaMCAsmInfo::AlphaMCAsmInfo(const Triple & /*TT*/) {
   AlignmentIsInBytes = false;
   PrivateGlobalPrefix = "$";
   GPRel32Directive = ".gprel32";

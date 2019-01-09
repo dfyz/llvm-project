@@ -127,10 +127,10 @@ eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
 
 void
 AlphaRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
-                                       int SPAdj, RegScavenger *RS) const {
+                                       int SPAdj, unsigned FIOperandNum,
+                                       RegScavenger *RS) const {
   assert(SPAdj == 0 && "Unexpected");
 
-  unsigned i = 0;
   MachineInstr &MI = *II;
   MachineBasicBlock &MBB = *MI.getParent();
   MachineFunction &MF = *MBB.getParent();
@@ -138,15 +138,10 @@ AlphaRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
   bool FP = TFI->hasFP(MF);
 
-  while (!MI.getOperand(i).isFI()) {
-    ++i;
-    assert(i < MI.getNumOperands() && "Instr doesn't have FrameIndex operand!");
-  }
-
-  int FrameIndex = MI.getOperand(i).getIndex();
+  int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
 
   // Add the base register of R30 (SP) or R15 (FP).
-  MI.getOperand(i + 1).ChangeToRegister(FP ? Alpha::R15 : Alpha::R30, false);
+  MI.getOperand(FIOperandNum + 1).ChangeToRegister(FP ? Alpha::R15 : Alpha::R30, false);
 
   // Now add the frame object offset to the offset from the virtual frame index.
   int Offset = MF.getFrameInfo()->getObjectOffset(FrameIndex);
@@ -164,15 +159,15 @@ AlphaRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     //so in this case, we need to use a temporary register, and move the
     //original inst off the SP/FP
     //fix up the old:
-    MI.getOperand(i + 1).ChangeToRegister(Alpha::R28, false);
-    MI.getOperand(i).ChangeToImmediate(getLower16(Offset));
+    MI.getOperand(FIOperandNum + 1).ChangeToRegister(Alpha::R28, false);
+    MI.getOperand(FIOperandNum).ChangeToImmediate(getLower16(Offset));
     //insert the new
     MachineInstr* nMI=BuildMI(MF, MI.getDebugLoc(),
                               TII.get(Alpha::LDAH), Alpha::R28)
       .addImm(getUpper16(Offset)).addReg(FP ? Alpha::R15 : Alpha::R30);
     MBB.insert(II, nMI);
   } else {
-    MI.getOperand(i).ChangeToImmediate(Offset);
+    MI.getOperand(FIOperandNum).ChangeToImmediate(Offset);
   }
 }
 

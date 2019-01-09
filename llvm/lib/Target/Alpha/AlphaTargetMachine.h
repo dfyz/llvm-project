@@ -28,7 +28,6 @@ namespace llvm {
 class GlobalValue;
 
 class AlphaTargetMachine : public LLVMTargetMachine {
-  const TargetData DataLayout;       // Calculates type size & alignment
   AlphaInstrInfo InstrInfo;
   AlphaFrameLowering FrameLowering;
   AlphaSubtarget Subtarget;
@@ -54,8 +53,6 @@ public:
   virtual const AlphaSelectionDAGInfo* getSelectionDAGInfo() const {
     return &TSInfo;
   }
-  virtual const TargetData       *getTargetData() const { return &DataLayout; }
-
   // Pass Pipeline Configuration
   virtual bool addInstSelector(PassManagerBase &PM, CodeGenOpt::Level OptLevel);
   virtual bool addPreEmitPass(PassManagerBase &PM, CodeGenOpt::Level OptLevel);

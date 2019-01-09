@@ -43,7 +43,7 @@ bool AlphaFrameLowering::hasFP(const MachineFunction &MF) const {
   return MFI->hasVarSizedObjects();
 }
 
-void AlphaFrameLowering::emitPrologue(MachineFunction &MF) const {
+void AlphaFrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const {
   MachineBasicBlock &MBB = MF.front();   // Prolog goes in entry BB
   MachineBasicBlock::iterator MBBI = MBB.begin();
   MachineFrameInfo *MFI = MF.getFrameInfo();

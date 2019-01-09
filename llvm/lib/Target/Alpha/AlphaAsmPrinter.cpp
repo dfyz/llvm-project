@@ -107,7 +107,7 @@ void AlphaAsmPrinter::printOp(const MachineOperand &MO, raw_ostream &O) {
     return;
 
   case MachineOperand::MO_GlobalAddress:
-    O << *Mang->getSymbol(MO.getGlobal());
+    O << *getSymbol(MO.getGlobal());
     return;
 
   case MachineOperand::MO_JumpTableIndex:

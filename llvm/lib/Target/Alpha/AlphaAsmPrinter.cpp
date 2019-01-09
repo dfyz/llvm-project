@@ -35,10 +35,10 @@ namespace {
     /// Unique incrementer for label values for referencing Global values.
     ///
 
-    explicit AlphaAsmPrinter(TargetMachine &tm, MCStreamer &Streamer)
-      : AsmPrinter(tm, Streamer) {}
+    explicit AlphaAsmPrinter(TargetMachine &tm, std::unique_ptr<MCStreamer> Streamer)
+      : AsmPrinter(tm, std::move(Streamer)) {}
 
-    virtual const char *getPassName() const {
+    virtual StringRef getPassName() const {
       return "Alpha Assembly Printer";
     }
     void printInstruction(const MachineInstr *MI, raw_ostream &O);
@@ -46,7 +46,7 @@ namespace {
       SmallString<128> Str;
       raw_svector_ostream OS(Str);
       printInstruction(MI, OS);
-      OutStreamer.EmitRawText(OS.str());
+      OutStreamer->EmitRawText(OS.str());
     }
     static const char *getRegisterName(unsigned RegNo);
 
@@ -124,18 +124,18 @@ void AlphaAsmPrinter::printOp(const MachineOperand &MO, raw_ostream &O) {
 /// EmitFunctionBodyStart - Targets can override this to emit stuff before
 /// the first basic block in the function.
 void AlphaAsmPrinter::EmitFunctionBodyStart() {
-  OutStreamer.EmitRawText("\t.ent " + Twine(CurrentFnSym->getName()));
+  OutStreamer->EmitRawText("\t.ent " + Twine(CurrentFnSym->getName()));
 }
 
 /// EmitFunctionBodyEnd - Targets can override this to emit stuff after
 /// the last basic block in the function.
 void AlphaAsmPrinter::EmitFunctionBodyEnd() {
-  OutStreamer.EmitRawText("\t.end " + Twine(CurrentFnSym->getName()));
+  OutStreamer->EmitRawText("\t.end " + Twine(CurrentFnSym->getName()));
 }
 
 void AlphaAsmPrinter::EmitStartOfAsmFile(Module &M) {
-  OutStreamer.EmitRawText(StringRef("\t.arch ev6"));
-  OutStreamer.EmitRawText(StringRef("\t.set noat"));
+  OutStreamer->EmitRawText(StringRef("\t.arch ev6"));
+  OutStreamer->EmitRawText(StringRef("\t.set noat"));
 }
 
 /// PrintAsmOperand - Print out an operand for an inline asm expression.

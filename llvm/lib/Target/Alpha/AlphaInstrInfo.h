@@ -33,39 +33,41 @@ public:
   ///
   virtual const AlphaRegisterInfo &getRegisterInfo() const { return RI; }
 
-  virtual unsigned isLoadFromStackSlot(const MachineInstr *MI,
-                                       int &FrameIndex) const;
-  virtual unsigned isStoreToStackSlot(const MachineInstr *MI,
-                                      int &FrameIndex) const;
+  unsigned isLoadFromStackSlot(const MachineInstr &MI,
+                               int &FrameIndex) const override;
+  unsigned isStoreToStackSlot(const MachineInstr &MI,
+                              int &FrameIndex) const override;
   
-  virtual unsigned InsertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
-                                MachineBasicBlock *FBB,
-                                const SmallVectorImpl<MachineOperand> &Cond,
-                                DebugLoc DL) const;
-  virtual void copyPhysReg(MachineBasicBlock &MBB,
-                           MachineBasicBlock::iterator MI, DebugLoc DL,
-                           unsigned DestReg, unsigned SrcReg,
-                           bool KillSrc) const;
-  virtual void storeRegToStackSlot(MachineBasicBlock &MBB,
-                                   MachineBasicBlock::iterator MBBI,
-                                   unsigned SrcReg, bool isKill, int FrameIndex,
-                                   const TargetRegisterClass *RC,
-                                   const TargetRegisterInfo *TRI) const;
+  unsigned insertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
+                        MachineBasicBlock *FBB,
+                        ArrayRef<MachineOperand> Cond,
+                        const DebugLoc &DL,
+                        int *BytesAdded) const override;
+  void copyPhysReg(MachineBasicBlock &MBB,
+                   MachineBasicBlock::iterator MI, const DebugLoc &DL,
+                   unsigned DestReg, unsigned SrcReg,
+                   bool KillSrc) const override;
+  void storeRegToStackSlot(MachineBasicBlock &MBB,
+                           MachineBasicBlock::iterator MBBI,
+                           unsigned SrcReg, bool isKill, int FrameIndex,
+                           const TargetRegisterClass *RC,
+                           const TargetRegisterInfo *TRI) const override;
 
-  virtual void loadRegFromStackSlot(MachineBasicBlock &MBB,
-                                    MachineBasicBlock::iterator MBBI,
-                                    unsigned DestReg, int FrameIndex,
-                                    const TargetRegisterClass *RC,
-                                    const TargetRegisterInfo *TRI) const;
+  void loadRegFromStackSlot(MachineBasicBlock &MBB,
+                            MachineBasicBlock::iterator MBBI,
+                            unsigned DestReg, int FrameIndex,
+                            const TargetRegisterClass *RC,
+                            const TargetRegisterInfo *TRI) const override;
   
-  bool AnalyzeBranch(MachineBasicBlock &MBB,MachineBasicBlock *&TBB,
+  bool analyzeBranch(MachineBasicBlock &MBB,MachineBasicBlock *&TBB,
                      MachineBasicBlock *&FBB,
                      SmallVectorImpl<MachineOperand> &Cond,
-                     bool AllowModify) const;
-  unsigned RemoveBranch(MachineBasicBlock &MBB) const;
+                     bool AllowModify) const override;
+  unsigned removeBranch(MachineBasicBlock &MBB,
+                        int *BytesRemoved) const override;
   void insertNoop(MachineBasicBlock &MBB, 
-                  MachineBasicBlock::iterator MI) const;
-  bool ReverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const;
+                  MachineBasicBlock::iterator MI) const override;
+  bool reverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const override;
 
   /// getGlobalBaseReg - Return a virtual register initialized with the
   /// the global base register value. Output instructions required to

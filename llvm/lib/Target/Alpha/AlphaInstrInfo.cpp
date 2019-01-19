@@ -31,18 +31,18 @@ AlphaInstrInfo::AlphaInstrInfo()
 
 
 unsigned 
-AlphaInstrInfo::isLoadFromStackSlot(const MachineInstr *MI,
+AlphaInstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
                                     int &FrameIndex) const {
-  switch (MI->getOpcode()) {
+  switch (MI.getOpcode()) {
   case Alpha::LDL:
   case Alpha::LDQ:
   case Alpha::LDBU:
   case Alpha::LDWU:
   case Alpha::LDS:
   case Alpha::LDT:
-    if (MI->getOperand(1).isFI()) {
-      FrameIndex = MI->getOperand(1).getIndex();
-      return MI->getOperand(0).getReg();
+    if (MI.getOperand(1).isFI()) {
+      FrameIndex = MI.getOperand(1).getIndex();
+      return MI.getOperand(0).getReg();
     }
     break;
   }
@@ -50,18 +50,18 @@ AlphaInstrInfo::isLoadFromStackSlot(const MachineInstr *MI,
 }
 
 unsigned 
-AlphaInstrInfo::isStoreToStackSlot(const MachineInstr *MI,
+AlphaInstrInfo::isStoreToStackSlot(const MachineInstr &MI,
                                    int &FrameIndex) const {
-  switch (MI->getOpcode()) {
+  switch (MI.getOpcode()) {
   case Alpha::STL:
   case Alpha::STQ:
   case Alpha::STB:
   case Alpha::STW:
   case Alpha::STS:
   case Alpha::STT:
-    if (MI->getOperand(1).isFI()) {
-      FrameIndex = MI->getOperand(1).getIndex();
-      return MI->getOperand(0).getReg();
+    if (MI.getOperand(1).isFI()) {
+      FrameIndex = MI.getOperand(1).getIndex();
+      return MI.getOperand(0).getReg();
     }
     break;
   }
@@ -84,11 +84,12 @@ static bool isAlphaIntCondCode(unsigned Opcode) {
   }
 }
 
-unsigned AlphaInstrInfo::InsertBranch(MachineBasicBlock &MBB,
+unsigned AlphaInstrInfo::insertBranch(MachineBasicBlock &MBB,
                                       MachineBasicBlock *TBB,
                                       MachineBasicBlock *FBB,
-                                      const SmallVectorImpl<MachineOperand> &Cond,
-                                      DebugLoc DL) const {
+                                      ArrayRef<MachineOperand> Cond,
+                                      const DebugLoc &DL,
+                                      int *BytesAdded) const {
   assert(TBB && "InsertBranch must not be told to insert a fallthrough");
   assert((Cond.size() == 2 || Cond.size() == 0) && 
          "Alpha branch conditions have two components!");
@@ -119,7 +120,7 @@ unsigned AlphaInstrInfo::InsertBranch(MachineBasicBlock &MBB,
 }
 
 void AlphaInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
-                                 MachineBasicBlock::iterator MI, DebugLoc DL,
+                                 MachineBasicBlock::iterator MI, const DebugLoc &DL,
                                  unsigned DestReg, unsigned SrcReg,
                                  bool KillSrc) const {
   if (Alpha::GPRCRegClass.contains(DestReg, SrcReg)) {
@@ -215,7 +216,7 @@ static unsigned AlphaRevCondCode(unsigned Opcode) {
 }
 
 // Branch analysis.
-bool AlphaInstrInfo::AnalyzeBranch(MachineBasicBlock &MBB,MachineBasicBlock *&TBB,
+bool AlphaInstrInfo::analyzeBranch(MachineBasicBlock &MBB,MachineBasicBlock *&TBB,
                                    MachineBasicBlock *&FBB,
                                    SmallVectorImpl<MachineOperand> &Cond,
                                    bool AllowModify) const {
@@ -285,7 +286,8 @@ bool AlphaInstrInfo::AnalyzeBranch(MachineBasicBlock &MBB,MachineBasicBlock *&TB
   return true;
 }
 
-unsigned AlphaInstrInfo::RemoveBranch(MachineBasicBlock &MBB) const {
+unsigned AlphaInstrInfo::removeBranch(MachineBasicBlock &MBB,
+                                      int *BytesRemoved) const {
   MachineBasicBlock::iterator I = MBB.end();
   if (I == MBB.begin()) return 0;
   --I;
@@ -324,7 +326,7 @@ void AlphaInstrInfo::insertNoop(MachineBasicBlock &MBB,
 }
 
 bool AlphaInstrInfo::
-ReverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const {
+reverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const {
   assert(Cond.size() == 2 && "Invalid Alpha branch opcode!");
   Cond[0].setImm(AlphaRevCondCode(Cond[0].getImm()));
   return false;

@@ -62,23 +62,23 @@ namespace llvm {
   public:
     explicit AlphaTargetLowering(TargetMachine &TM);
 
-    virtual MVT getShiftAmountTy(EVT LHSTy) const { return MVT::i64; }
+    MVT getScalarShiftAmountTy(const DataLayout &, EVT LHSTy) const override { return MVT::i64; }
 
     /// getSetCCResultType - Get the SETCC result ValueType
-    virtual EVT getSetCCResultType(EVT VT) const;
+    EVT getSetCCResultType(const DataLayout &, LLVMContext &, EVT VT) const override;
 
     /// LowerOperation - Provide custom lowering hooks for some operations.
     ///
-    virtual SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
 
     /// ReplaceNodeResults - Replace the results of node with an illegal result
     /// type with new values built out of custom code.
     ///
-    virtual void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue>&Results,
-                                    SelectionDAG &DAG) const;
+    void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue>&Results,
+                                       SelectionDAG &DAG) const override;
 
     // Friendly names for dumps
-    const char *getTargetNodeName(unsigned Opcode) const;
+    const char *getTargetNodeName(unsigned Opcode) const override;
 
     SDValue LowerCallResult(SDValue Chain, SDValue InFlag,
                             CallingConv::ID CallConv, bool isVarArg,
@@ -86,55 +86,51 @@ namespace llvm {
                             DebugLoc dl, SelectionDAG &DAG,
                             SmallVectorImpl<SDValue> &InVals) const;
 
-    ConstraintType getConstraintType(const std::string &Constraint) const;
+    ConstraintType getConstraintType(StringRef Constraint) const override;
 
     /// Examine constraint string and operand type and determine a weight value.
     /// The operand object must already have been set up with the operand type.
     ConstraintWeight getSingleConstraintMatchWeight(
-      AsmOperandInfo &info, const char *constraint) const;
+      AsmOperandInfo &info, const char *constraint) const override;
 
     std::pair<unsigned, const TargetRegisterClass*>
-    getRegForInlineAsmConstraint(const std::string &Constraint,
-				 EVT VT) const;
+    getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
+                                 StringRef Constraint,
+                                 MVT VT) const override;
 
     MachineBasicBlock *
-      EmitInstrWithCustomInserter(MachineInstr *MI,
-                                  MachineBasicBlock *BB) const;
+      EmitInstrWithCustomInserter(MachineInstr &MI,
+                                  MachineBasicBlock *BB) const override;
 
-    virtual bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const;
+    bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
 
     /// isFPImmLegal - Returns true if the target can instruction select the
     /// specified FP immediate natively. If false, the legalizer will
     /// materialize the FP immediate as a load from a constant pool.
-    virtual bool isFPImmLegal(const APFloat &Imm, EVT VT) const;
+    bool isFPImmLegal(const APFloat &Imm, EVT VT) const override;
 
   private:
     // Helpers for custom lowering.
     void LowerVAARG(SDNode *N, SDValue &Chain, SDValue &DataPtr,
                     SelectionDAG &DAG) const;
 
-    virtual SDValue
+    SDValue
       LowerFormalArguments(SDValue Chain,
                            CallingConv::ID CallConv, bool isVarArg,
                            const SmallVectorImpl<ISD::InputArg> &Ins,
-                           DebugLoc dl, SelectionDAG &DAG,
-                           SmallVectorImpl<SDValue> &InVals) const;
+                           const SDLoc & dl, SelectionDAG &DAG,
+                           SmallVectorImpl<SDValue> &InVals) const override;
 
-    virtual SDValue
-      LowerCall(SDValue Chain, SDValue Callee,
-                CallingConv::ID CallConv, bool isVarArg, bool &isTailCall,
-                const SmallVectorImpl<ISD::OutputArg> &Outs,
-                const SmallVectorImpl<SDValue> &OutVals,
-                const SmallVectorImpl<ISD::InputArg> &Ins,
-                DebugLoc dl, SelectionDAG &DAG,
-                SmallVectorImpl<SDValue> &InVals) const;
+    SDValue
+      LowerCall(CallLoweringInfo & CLI,
+                SmallVectorImpl<SDValue> &InVals) const override;
 
-    virtual SDValue
+    SDValue
       LowerReturn(SDValue Chain,
                   CallingConv::ID CallConv, bool isVarArg,
                   const SmallVectorImpl<ISD::OutputArg> &Outs,
                   const SmallVectorImpl<SDValue> &OutVals,
-                  DebugLoc dl, SelectionDAG &DAG) const;
+                  const SDLoc & dl, SelectionDAG &DAG) const override;
   };
 }
 

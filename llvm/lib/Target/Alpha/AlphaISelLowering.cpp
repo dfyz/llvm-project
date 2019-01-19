@@ -169,7 +169,7 @@ AlphaTargetLowering::AlphaTargetLowering(TargetMachine &TM)
   computeRegisterProperties();
 }
 
-EVT AlphaTargetLowering::getSetCCResultType(EVT VT) const {
+EVT AlphaTargetLowering::getSetCCResultType(const DataLayout &, LLVMContext &, EVT VT) const {
   return MVT::i64;
 }
 
@@ -226,13 +226,7 @@ static SDValue LowerJumpTable(SDValue Op, SelectionDAG &DAG) {
 #include "AlphaGenCallingConv.inc"
 
 SDValue
-AlphaTargetLowering::LowerCall(SDValue Chain, SDValue Callee,
-                               CallingConv::ID CallConv, bool isVarArg,
-                               bool &isTailCall,
-                               const SmallVectorImpl<ISD::OutputArg> &Outs,
-                               const SmallVectorImpl<SDValue> &OutVals,
-                               const SmallVectorImpl<ISD::InputArg> &Ins,
-                               DebugLoc dl, SelectionDAG &DAG,
+AlphaTargetLowering::LowerCall(CallLoweringInfo & CLI,
                                SmallVectorImpl<SDValue> &InVals) const {
   // Alpha target does not yet support tail call optimization.
   isTailCall = false;
@@ -389,12 +383,9 @@ AlphaTargetLowering::LowerCallResult(SDValue Chain, SDValue InFlag,
 SDValue
 AlphaTargetLowering::LowerFormalArguments(SDValue Chain,
                                           CallingConv::ID CallConv, bool isVarArg,
-                                          const SmallVectorImpl<ISD::InputArg>
-                                            &Ins,
-                                          DebugLoc dl, SelectionDAG &DAG,
-                                          SmallVectorImpl<SDValue> &InVals)
-                                            const {
-
+                                          const SmallVectorImpl<ISD::InputArg> &Ins,
+                                          const SDLoc & dl, SelectionDAG &DAG,
+                                          SmallVectorImpl<SDValue> &InVals) const {
   MachineFunction &MF = DAG.getMachineFunction();
   MachineFrameInfo *MFI = MF.getFrameInfo();
   AlphaMachineFunctionInfo *FuncInfo = MF.getInfo<AlphaMachineFunctionInfo>();
@@ -477,7 +468,7 @@ AlphaTargetLowering::LowerReturn(SDValue Chain,
                                  CallingConv::ID CallConv, bool isVarArg,
                                  const SmallVectorImpl<ISD::OutputArg> &Outs,
                                  const SmallVectorImpl<SDValue> &OutVals,
-                                 DebugLoc dl, SelectionDAG &DAG) const {
+                                 const SDLoc & dl, SelectionDAG &DAG) const {
 
   SDValue Copy = DAG.getCopyToReg(Chain, dl, Alpha::R26,
                                   DAG.getNode(AlphaISD::GlobalRetAddr,
@@ -797,7 +788,7 @@ void AlphaTargetLowering::ReplaceNodeResults(SDNode *N,
 /// getConstraintType - Given a constraint letter, return the type of
 /// constraint it is for this target.
 AlphaTargetLowering::ConstraintType
-AlphaTargetLowering::getConstraintType(const std::string &Constraint) const {
+AlphaTargetLowering::getConstraintType(StringRef  Constraint) const {
   if (Constraint.size() == 1) {
     switch (Constraint[0]) {
     default: break;
@@ -836,19 +827,20 @@ AlphaTargetLowering::getSingleConstraintMatchWeight(
 /// Given a register class constraint, like 'r', if this corresponds directly
 /// to an LLVM register class, return a register of 0 and the register class
 /// pointer.
-std::pair<unsigned, const TargetRegisterClass*> AlphaTargetLowering::
-getRegForInlineAsmConstraint(const std::string &Constraint, EVT VT) const
+std::pair<unsigned, const TargetRegisterClass*>
+AlphaTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
+                                                  StringRef Constraint, MVT VT) const
 {
   if (Constraint.size() == 1) {
     switch (Constraint[0]) {
     case 'r':
-      return std::make_pair(0U, Alpha::GPRCRegisterClass);
+      return std::make_pair(0U, &Alpha::GPRCRegClass);
     case 'f':
-      return VT == MVT::f64 ? std::make_pair(0U, Alpha::F8RCRegisterClass) :
-	std::make_pair(0U, Alpha::F4RCRegisterClass);
+      return VT == MVT::f64 ? std::make_pair(0U, &Alpha::F8RCRegClass) :
+	std::make_pair(0U, &Alpha::F4RCRegClass);
     }
   }
-  return TargetLowering::getRegForInlineAsmConstraint(Constraint, VT);
+  return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
 }
 
 //===----------------------------------------------------------------------===//
@@ -856,20 +848,20 @@ getRegForInlineAsmConstraint(const std::string &Constraint, EVT VT) const
 //===----------------------------------------------------------------------===//
 
 MachineBasicBlock *
-AlphaTargetLowering::EmitInstrWithCustomInserter(MachineInstr *MI,
+AlphaTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
                                                  MachineBasicBlock *BB) const {
   const TargetInstrInfo *TII = getTargetMachine().getInstrInfo();
-  assert((MI->getOpcode() == Alpha::CAS32 ||
-          MI->getOpcode() == Alpha::CAS64 ||
-          MI->getOpcode() == Alpha::LAS32 ||
-          MI->getOpcode() == Alpha::LAS64 ||
-          MI->getOpcode() == Alpha::SWAP32 ||
-          MI->getOpcode() == Alpha::SWAP64) &&
+  assert((MI.getOpcode() == Alpha::CAS32 ||
+          MI.getOpcode() == Alpha::CAS64 ||
+          MI.getOpcode() == Alpha::LAS32 ||
+          MI.getOpcode() == Alpha::LAS64 ||
+          MI.getOpcode() == Alpha::SWAP32 ||
+          MI.getOpcode() == Alpha::SWAP64) &&
          "Unexpected instr type to insert");
 
-  bool is32 = MI->getOpcode() == Alpha::CAS32 ||
-    MI->getOpcode() == Alpha::LAS32 ||
-    MI->getOpcode() == Alpha::SWAP32;
+  bool is32 = MI.getOpcode() == Alpha::CAS32 ||
+    MI.getOpcode() == Alpha::LAS32 ||
+    MI.getOpcode() == Alpha::SWAP32;
 
   //Load locked store conditional for atomic ops take on the same form
   //start:
@@ -879,7 +871,7 @@ AlphaTargetLowering::EmitInstrWithCustomInserter(MachineInstr *MI,
   //test sc and maybe branck to start
   //exit:
   const BasicBlock *LLVM_BB = BB->getBasicBlock();
-  DebugLoc dl = MI->getDebugLoc();
+  DebugLoc dl = MI.getDebugLoc();
   MachineFunction::iterator It = BB;
   ++It;
 
@@ -898,14 +890,14 @@ AlphaTargetLowering::EmitInstrWithCustomInserter(MachineInstr *MI,
 
   BuildMI(thisMBB, dl, TII->get(Alpha::BR)).addMBB(llscMBB);
 
-  unsigned reg_res = MI->getOperand(0).getReg(),
-    reg_ptr = MI->getOperand(1).getReg(),
-    reg_v2 = MI->getOperand(2).getReg(),
+  unsigned reg_res = MI.getOperand(0).getReg(),
+    reg_ptr = MI.getOperand(1).getReg(),
+    reg_v2 = MI.getOperand(2).getReg(),
     reg_store = F->getRegInfo().createVirtualRegister(&Alpha::GPRCRegClass);
 
   BuildMI(llscMBB, dl, TII->get(is32 ? Alpha::LDL_L : Alpha::LDQ_L),
           reg_res).addImm(0).addReg(reg_ptr);
-  switch (MI->getOpcode()) {
+  switch (MI.getOpcode()) {
   case Alpha::CAS32:
   case Alpha::CAS64: {
     unsigned reg_cmp
@@ -915,7 +907,7 @@ AlphaTargetLowering::EmitInstrWithCustomInserter(MachineInstr *MI,
     BuildMI(llscMBB, dl, TII->get(Alpha::BEQ))
       .addImm(0).addReg(reg_cmp).addMBB(sinkMBB);
     BuildMI(llscMBB, dl, TII->get(Alpha::BISr), reg_store)
-      .addReg(Alpha::R31).addReg(MI->getOperand(3).getReg());
+      .addReg(Alpha::R31).addReg(MI.getOperand(3).getReg());
     break;
   }
   case Alpha::LAS32:
@@ -940,7 +932,7 @@ AlphaTargetLowering::EmitInstrWithCustomInserter(MachineInstr *MI,
   thisMBB->addSuccessor(llscMBB);
   llscMBB->addSuccessor(llscMBB);
   llscMBB->addSuccessor(sinkMBB);
-  MI->eraseFromParent();   // The pseudo instruction is gone now.
+  MI.eraseFromParent();   // The pseudo instruction is gone now.
 
   return sinkMBB;
 }

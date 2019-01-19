@@ -26,7 +26,7 @@ namespace {
 
     virtual bool runOnMachineFunction(MachineFunction &Fn);
 
-    virtual const char *getPassName() const {
+    virtual StringRef getPassName() const {
       return "Alpha Branch Selection";
     }
   };
@@ -44,9 +44,9 @@ bool AlphaBSel::runOnMachineFunction(MachineFunction &Fn) {
 
   for (MachineFunction::iterator MFI = Fn.begin(), E = Fn.end(); MFI != E;
        ++MFI) {
-    MachineBasicBlock *MBB = MFI;
+    MachineBasicBlock &MBB = *MFI;
     
-    for (MachineBasicBlock::iterator MBBI = MBB->begin(), EE = MBB->end();
+    for (MachineBasicBlock::iterator MBBI = MBB.begin(), EE = MBB.end();
          MBBI != EE; ++MBBI) {
       if (MBBI->getOpcode() == Alpha::COND_BRANCH_I ||
           MBBI->getOpcode() == Alpha::COND_BRANCH_F) {
@@ -55,7 +55,7 @@ bool AlphaBSel::runOnMachineFunction(MachineFunction &Fn) {
         // 0. bc opcode
         // 1. reg
         // 2. target MBB
-        const TargetInstrInfo *TII = Fn.getTarget().getInstrInfo();
+        const TargetInstrInfo *TII = Fn.getSubtarget().getInstrInfo();
         MBBI->setDesc(TII->get(MBBI->getOperand(0).getImm()));
       }
     }

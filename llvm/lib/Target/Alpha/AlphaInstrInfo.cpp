@@ -152,15 +152,15 @@ AlphaInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
   DebugLoc DL;
   if (MI != MBB.end()) DL = MI->getDebugLoc();
 
-  if (RC == Alpha::F4RCRegisterClass)
+  if (RC == &Alpha::F4RCRegClass)
     BuildMI(MBB, MI, DL, get(Alpha::STS))
       .addReg(SrcReg, getKillRegState(isKill))
       .addFrameIndex(FrameIdx).addReg(Alpha::F31);
-  else if (RC == Alpha::F8RCRegisterClass)
+  else if (RC == &Alpha::F8RCRegClass)
     BuildMI(MBB, MI, DL, get(Alpha::STT))
       .addReg(SrcReg, getKillRegState(isKill))
       .addFrameIndex(FrameIdx).addReg(Alpha::F31);
-  else if (RC == Alpha::GPRCRegisterClass)
+  else if (RC == &Alpha::GPRCRegClass)
     BuildMI(MBB, MI, DL, get(Alpha::STQ))
       .addReg(SrcReg, getKillRegState(isKill))
       .addFrameIndex(FrameIdx).addReg(Alpha::F31);
@@ -179,13 +179,13 @@ AlphaInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
   DebugLoc DL;
   if (MI != MBB.end()) DL = MI->getDebugLoc();
 
-  if (RC == Alpha::F4RCRegisterClass)
+  if (RC == &Alpha::F4RCRegClass)
     BuildMI(MBB, MI, DL, get(Alpha::LDS), DestReg)
       .addFrameIndex(FrameIdx).addReg(Alpha::F31);
-  else if (RC == Alpha::F8RCRegisterClass)
+  else if (RC == &Alpha::F8RCRegClass)
     BuildMI(MBB, MI, DL, get(Alpha::LDT), DestReg)
       .addFrameIndex(FrameIdx).addReg(Alpha::F31);
-  else if (RC == Alpha::GPRCRegisterClass)
+  else if (RC == &Alpha::GPRCRegClass)
     BuildMI(MBB, MI, DL, get(Alpha::LDQ), DestReg)
       .addFrameIndex(FrameIdx).addReg(Alpha::F31);
   else
@@ -229,14 +229,14 @@ bool AlphaInstrInfo::AnalyzeBranch(MachineBasicBlock &MBB,MachineBasicBlock *&TB
       return false;
     --I;
   }
-  if (!isUnpredicatedTerminator(I))
+  if (!isUnpredicatedTerminator(*I))
     return false;
 
   // Get the last instruction in the block.
-  MachineInstr *LastInst = I;
+  auto LastInst = I;
   
   // If there is only one terminator instruction, process it.
-  if (I == MBB.begin() || !isUnpredicatedTerminator(--I)) {
+  if (I == MBB.begin() || !isUnpredicatedTerminator(*--I)) {
     if (LastInst->getOpcode() == Alpha::BR) {
       TBB = LastInst->getOperand(0).getMBB();
       return false;
@@ -253,11 +253,10 @@ bool AlphaInstrInfo::AnalyzeBranch(MachineBasicBlock &MBB,MachineBasicBlock *&TB
   }
   
   // Get the instruction before it if it's a terminator.
-  MachineInstr *SecondLastInst = I;
+  auto SecondLastInst = I;
 
   // If there are three terminators, we don't know what sort of block this is.
-  if (SecondLastInst && I != MBB.begin() &&
-      isUnpredicatedTerminator(--I))
+  if (I != MBB.begin() && isUnpredicatedTerminator(*--I))
     return true;
   
   // If the block ends with Alpha::BR and Alpha::COND_BRANCH_*, handle it.
@@ -345,7 +344,7 @@ unsigned AlphaInstrInfo::getGlobalBaseReg(MachineFunction *MF) const {
   MachineBasicBlock &FirstMBB = MF->front();
   MachineBasicBlock::iterator MBBI = FirstMBB.begin();
   MachineRegisterInfo &RegInfo = MF->getRegInfo();
-  const TargetInstrInfo *TII = MF->getTarget().getInstrInfo();
+  const TargetInstrInfo *TII = MF->getSubtarget().getInstrInfo();
 
   GlobalBaseReg = RegInfo.createVirtualRegister(&Alpha::GPRCRegClass);
   BuildMI(FirstMBB, MBBI, DebugLoc(), TII->get(TargetOpcode::COPY),
@@ -370,7 +369,7 @@ unsigned AlphaInstrInfo::getGlobalRetAddr(MachineFunction *MF) const {
   MachineBasicBlock &FirstMBB = MF->front();
   MachineBasicBlock::iterator MBBI = FirstMBB.begin();
   MachineRegisterInfo &RegInfo = MF->getRegInfo();
-  const TargetInstrInfo *TII = MF->getTarget().getInstrInfo();
+  const TargetInstrInfo *TII = MF->getSubtarget().getInstrInfo();
 
   GlobalRetAddr = RegInfo.createVirtualRegister(&Alpha::GPRCRegClass);
   BuildMI(FirstMBB, MBBI, DebugLoc(), TII->get(TargetOpcode::COPY),

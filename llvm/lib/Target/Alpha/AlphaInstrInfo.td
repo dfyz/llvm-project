@@ -44,34 +44,34 @@ def callseq_end   : SDNode<"ISD::CALLSEQ_END",   SDT_AlphaCallSeqEnd,
 //Paterns for matching
 //********************
 def invX : SDNodeXForm<imm, [{ //invert
-  return getI64Imm(~N->getZExtValue());
+  return getI64Imm(~N->getZExtValue(), SDLoc(N));
 }]>;
 def negX : SDNodeXForm<imm, [{ //negate
-  return getI64Imm(~N->getZExtValue() + 1);
+  return getI64Imm(~N->getZExtValue() + 1, SDLoc(N));
 }]>;
 def SExt32 : SDNodeXForm<imm, [{ //signed extend int to long
-  return getI64Imm(((int64_t)N->getZExtValue() << 32) >> 32);
+  return getI64Imm(((int64_t)N->getZExtValue() << 32) >> 32, SDLoc(N));
 }]>;
 def SExt16 : SDNodeXForm<imm, [{ //signed extend int to long
-  return getI64Imm(((int64_t)N->getZExtValue() << 48) >> 48);
+  return getI64Imm(((int64_t)N->getZExtValue() << 48) >> 48, SDLoc(N));
 }]>;
 def LL16 : SDNodeXForm<imm, [{ //lda part of constant
-  return getI64Imm(get_lda16(N->getZExtValue()));
+  return getI64Imm(get_lda16(N->getZExtValue()), SDLoc(N));
 }]>;
 def LH16 : SDNodeXForm<imm, [{ //ldah part of constant (or more if too big)
-  return getI64Imm(get_ldah16(N->getZExtValue()));
+  return getI64Imm(get_ldah16(N->getZExtValue()), SDLoc(N));
 }]>;
 def iZAPX : SDNodeXForm<and, [{ // get imm to ZAPi
   ConstantSDNode *RHS = cast<ConstantSDNode>(N->getOperand(1));
-  return getI64Imm(get_zapImm(SDValue(), RHS->getZExtValue()));
+  return getI64Imm(get_zapImm(SDValue(), RHS->getZExtValue()), SDLoc(N));
 }]>;
 def nearP2X : SDNodeXForm<imm, [{
-  return getI64Imm(Log2_64(getNearPower2((uint64_t)N->getZExtValue())));
+  return getI64Imm(Log2_64(getNearPower2((uint64_t)N->getZExtValue())), SDLoc(N));
 }]>;
 def nearP2RemX : SDNodeXForm<imm, [{
   uint64_t x =
-    abs64(N->getZExtValue() - getNearPower2((uint64_t)N->getZExtValue()));
-  return getI64Imm(Log2_64(x));
+    std::abs((int64_t)N->getZExtValue() - (int64_t)getNearPower2((uint64_t)N->getZExtValue()));
+  return getI64Imm(Log2_64(x), SDLoc(N));
 }]>;
 
 def immUExt8  : PatLeaf<(imm), [{ //imm fits in 8 bit zero extended field
@@ -125,7 +125,7 @@ def immRemP2 : PatLeaf<(imm), [{
                          getNearPower2((uint64_t)N->getZExtValue()));
 }]>;
 def immUExt8ME : PatLeaf<(imm), [{ //use this imm for mulqi
-  int64_t d =  abs64((int64_t)N->getZExtValue() -
+  int64_t d =  std::abs((int64_t)N->getZExtValue() -
                (int64_t)getNearPower2((uint64_t)N->getZExtValue()));
   if (isPowerOf2_64(d)) return false;
   switch (d) {
@@ -878,22 +878,23 @@ def FBNE : br_fcc<0x36, "fbne">;
 
 //An ugly trick to get the opcode as an imm I can use
 def immBRCond : SDNodeXForm<imm, [{
+  SDLoc dl(N);
   switch((uint64_t)N->getZExtValue()) {
     default: assert(0 && "Unknown branch type");
-    case 0:  return getI64Imm(Alpha::BEQ);
-    case 1:  return getI64Imm(Alpha::BNE);
-    case 2:  return getI64Imm(Alpha::BGE);
-    case 3:  return getI64Imm(Alpha::BGT);
-    case 4:  return getI64Imm(Alpha::BLE);
-    case 5:  return getI64Imm(Alpha::BLT);
-    case 6:  return getI64Imm(Alpha::BLBS);
-    case 7:  return getI64Imm(Alpha::BLBC);
-    case 20: return getI64Imm(Alpha::FBEQ);
-    case 21: return getI64Imm(Alpha::FBNE);
-    case 22: return getI64Imm(Alpha::FBGE);
-    case 23: return getI64Imm(Alpha::FBGT);
-    case 24: return getI64Imm(Alpha::FBLE);
-    case 25: return getI64Imm(Alpha::FBLT);
+    case 0:  return getI64Imm(Alpha::BEQ, dl);
+    case 1:  return getI64Imm(Alpha::BNE, dl);
+    case 2:  return getI64Imm(Alpha::BGE, dl);
+    case 3:  return getI64Imm(Alpha::BGT, dl);
+    case 4:  return getI64Imm(Alpha::BLE, dl);
+    case 5:  return getI64Imm(Alpha::BLT, dl);
+    case 6:  return getI64Imm(Alpha::BLBS, dl);
+    case 7:  return getI64Imm(Alpha::BLBC, dl);
+    case 20: return getI64Imm(Alpha::FBEQ, dl);
+    case 21: return getI64Imm(Alpha::FBNE, dl);
+    case 22: return getI64Imm(Alpha::FBGE, dl);
+    case 23: return getI64Imm(Alpha::FBGT, dl);
+    case 24: return getI64Imm(Alpha::FBLE, dl);
+    case 25: return getI64Imm(Alpha::FBLT, dl);
   }
 }]>;
 

@@ -34,6 +34,8 @@
 #include <algorithm>
 using namespace llvm;
 
+#define DEBUG_TYPE "alpha-codegen"
+
 namespace {
 
   //===--------------------------------------------------------------------===//
@@ -112,7 +114,7 @@ namespace {
     
     static uint64_t getNearPower2(uint64_t x) {
       if (!x) return 0;
-      unsigned at = CountLeadingZeros_64(x);
+      auto at = countLeadingZeros(x);
       uint64_t complow = 1ULL << (63 - at);
       uint64_t comphigh = complow << 1;
       if (x - complow <= comphigh - x)
@@ -136,27 +138,27 @@ namespace {
 
     /// getI64Imm - Return a target constant with the specified value, of type
     /// i64.
-    inline SDValue getI64Imm(int64_t Imm) {
-      return CurDAG->getTargetConstant(Imm, MVT::i64);
+    inline SDValue getI64Imm(int64_t Imm, const SDLoc &dl) {
+      return CurDAG->getTargetConstant(Imm, dl, MVT::i64);
     }
 
     // Select - Convert the specified operand from a target-independent to a
     // target-specific node if it hasn't already been changed.
     SDNode *Select(SDNode *N);
     
-    virtual const char *getPassName() const {
+    StringRef getPassName() const override {
       return "Alpha DAG->DAG Pattern Instruction Selection";
     } 
 
     /// SelectInlineAsmMemoryOperand - Implement addressing mode selection for
     /// inline asm expressions.
-    virtual bool SelectInlineAsmMemoryOperand(const SDValue &Op,
-                                              char ConstraintCode,
-                                              std::vector<SDValue> &OutOps) {
+    bool SelectInlineAsmMemoryOperand(const SDValue &Op,
+                                      unsigned ConstraintID,
+                                      std::vector<SDValue> &OutOps) override {
       SDValue Op0;
-      switch (ConstraintCode) {
+      switch (ConstraintID) {
       default: return true;
-      case 'm':   // memory
+      case InlineAsm::Constraint_m:   // memory
         Op0 = Op;
         break;
       }
@@ -183,7 +185,7 @@ private:
 
     SDNode *getGlobalBaseReg();
     SDNode *getGlobalRetAddr();
-    void SelectCALL(SDNode *Op);
+    void SelectCALL(SDNode *N);
 
   };
 }
@@ -193,14 +195,14 @@ private:
 ///
 SDNode *AlphaDAGToDAGISel::getGlobalBaseReg() {
   unsigned GlobalBaseReg = getInstrInfo()->getGlobalBaseReg(MF);
-  return CurDAG->getRegister(GlobalBaseReg, TLI.getPointerTy()).getNode();
+  return CurDAG->getRegister(GlobalBaseReg, TLI->getPointerTy(CurDAG->getDataLayout())).getNode();
 }
 
 /// getGlobalRetAddr - Grab the return address.
 ///
 SDNode *AlphaDAGToDAGISel::getGlobalRetAddr() {
   unsigned GlobalRetAddr = getInstrInfo()->getGlobalRetAddr(MF);
-  return CurDAG->getRegister(GlobalRetAddr, TLI.getPointerTy()).getNode();
+  return CurDAG->getRegister(GlobalRetAddr, TLI->getPointerTy(CurDAG->getDataLayout())).getNode();
 }
 
 // Select - Convert the specified operand from a target-independent to a
@@ -208,7 +210,7 @@ SDNode *AlphaDAGToDAGISel::getGlobalRetAddr() {
 SDNode *AlphaDAGToDAGISel::Select(SDNode *N) {
   if (N->isMachineOpcode())
     return NULL;   // Already selected.
-  DebugLoc dl = N->getDebugLoc();
+  SDLoc dl(N);
 
   switch (N->getOpcode()) {
   default: break;
@@ -220,7 +222,7 @@ SDNode *AlphaDAGToDAGISel::Select(SDNode *N) {
     int FI = cast<FrameIndexSDNode>(N)->getIndex();
     return CurDAG->SelectNodeTo(N, Alpha::LDA, MVT::i64,
                                 CurDAG->getTargetFrameIndex(FI, MVT::i32),
-                                getI64Imm(0));
+                                getI64Imm(0, dl));
   }
   case ISD::GLOBAL_OFFSET_TABLE:
     return getGlobalBaseReg();
@@ -277,8 +279,12 @@ SDNode *AlphaDAGToDAGISel::Select(SDNode *N) {
     SDValue CPI = CurDAG->getTargetConstantPool(C, MVT::i64);
     SDNode *Tmp = CurDAG->getMachineNode(Alpha::LDAHr, dl, MVT::i64, CPI,
                                          SDValue(getGlobalBaseReg(), 0));
-    return CurDAG->SelectNodeTo(N, Alpha::LDQr, MVT::i64, MVT::Other, 
-                                CPI, SDValue(Tmp, 0), CurDAG->getEntryNode());
+    SDValue Ops[] = {
+      CPI,
+      SDValue(Tmp, 0),
+      CurDAG->getEntryNode(),
+    };
+    return CurDAG->SelectNodeTo(N, Alpha::LDQr, CurDAG->getVTList(MVT::i64, MVT::Other), Ops);
   }
   case ISD::TargetConstantFP:
   case ISD::ConstantFP: {
@@ -307,7 +313,7 @@ SDNode *AlphaDAGToDAGISel::Select(SDNode *N) {
       bool rev = false;
       bool inv = false;
       switch(CC) {
-      default: DEBUG(N->dump(CurDAG)); llvm_unreachable("Unknown FP comparison!");
+      default: LLVM_DEBUG(N->dump(CurDAG)); llvm_unreachable("Unknown FP comparison!");
       case ISD::SETEQ: case ISD::SETOEQ: case ISD::SETUEQ:
         Opc = Alpha::CMPTEQ; break;
       case ISD::SETLT: case ISD::SETOLT: case ISD::SETULT: 
@@ -376,9 +382,9 @@ SDNode *AlphaDAGToDAGISel::Select(SDNode *N) {
         SDValue Z = 
           SDValue(CurDAG->getMachineNode(Alpha::ZAPNOTi, dl, MVT::i64,
                                          N->getOperand(0).getOperand(0),
-                                         getI64Imm(get_zapImm(mask))), 0);
+                                         getI64Imm(get_zapImm(mask), dl)), 0);
         return CurDAG->getMachineNode(Alpha::SRLr, dl, MVT::i64, Z, 
-                                      getI64Imm(sval));
+                                      getI64Imm(sval, dl));
       }
     }
     break;
@@ -390,12 +396,12 @@ SDNode *AlphaDAGToDAGISel::Select(SDNode *N) {
 }
 
 void AlphaDAGToDAGISel::SelectCALL(SDNode *N) {
-  //TODO: add flag stuff to prevent nondeturministic breakage!
+  //TODO: add flag stuff to prevent nondeterministic breakage!
 
   SDValue Chain = N->getOperand(0);
   SDValue Addr = N->getOperand(1);
   SDValue InFlag = N->getOperand(N->getNumOperands() - 1);
-  DebugLoc dl = N->getDebugLoc();
+  SDLoc dl(N);
 
    if (Addr.getOpcode() == AlphaISD::GPRelLo) {
      SDValue GOT = SDValue(getGlobalBaseReg(), 0);

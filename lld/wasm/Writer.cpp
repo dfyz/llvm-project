@@ -1,9 +1,8 @@
 //===- Writer.cpp ---------------------------------------------------------===//
 //
-//                             The LLVM Linker
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -733,7 +732,7 @@ void Writer::layoutMemory() {
   MemAlign = 0;
   for (OutputSegment *Seg : Segments) {
     MemAlign = std::max(MemAlign, Seg->Alignment);
-    MemoryPtr = alignTo(MemoryPtr, 1 << Seg->Alignment);
+    MemoryPtr = alignTo(MemoryPtr, 1ULL << Seg->Alignment);
     Seg->StartVA = MemoryPtr;
     log(formatv("mem: {0,-15} offset={1,-8} size={2,-8} align={3}", Seg->Name,
                 MemoryPtr, Seg->Size, Seg->Alignment));

@@ -1,9 +1,8 @@
 //===- HotColdSplitting.cpp -- Outline Cold Regions -------------*- C++ -*-===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -69,9 +68,9 @@ static cl::opt<bool> EnableStaticAnalyis("hot-cold-static-analysis",
                               cl::init(true), cl::Hidden);
 
 static cl::opt<int>
-    MinOutliningThreshold("min-outlining-thresh", cl::init(3), cl::Hidden,
-                          cl::desc("Code size threshold for outlining within a "
-                                   "single BB (as a multiple of TCC_Basic)"));
+    SplittingThreshold("hotcoldsplit-threshold", cl::init(3), cl::Hidden,
+                       cl::desc("Code size threshold for splitting cold code "
+                                "(as a multiple of TCC_Basic)"));
 
 namespace {
 
@@ -101,7 +100,7 @@ bool blockEndsInUnreachable(const BasicBlock &BB) {
 
 bool unlikelyExecuted(BasicBlock &BB) {
   // Exception handling blocks are unlikely executed.
-  if (BB.isEHPad())
+  if (BB.isEHPad() || isa<ResumeInst>(BB.getTerminator()))
     return true;
 
   // The block is cold if it calls/invokes a cold function.
@@ -131,6 +130,11 @@ static bool mayExtractBlock(const BasicBlock &BB) {
 /// Check whether \p Region is profitable to outline.
 static bool isProfitableToOutline(const BlockSequence &Region,
                                   TargetTransformInfo &TTI) {
+  // If the splitting threshold is set at or below zero, skip the usual
+  // profitability check.
+  if (SplittingThreshold <= 0)
+    return true;
+
   if (Region.size() > 1)
     return true;
 
@@ -142,21 +146,25 @@ static bool isProfitableToOutline(const BlockSequence &Region,
 
     Cost += TTI.getInstructionCost(&I, TargetTransformInfo::TCK_CodeSize);
 
-    if (Cost >= (MinOutliningThreshold * TargetTransformInfo::TCC_Basic))
+    if (Cost >= (SplittingThreshold * TargetTransformInfo::TCC_Basic))
       return true;
   }
   return false;
 }
 
-/// Mark \p F cold. Return true if it's changed.
-static bool markEntireFunctionCold(Function &F) {
+/// Mark \p F cold. Based on this assumption, also optimize it for minimum size.
+/// Return true if the function is changed.
+static bool markFunctionCold(Function &F) {
   assert(!F.hasFnAttribute(Attribute::OptimizeNone) && "Can't mark this cold");
   bool Changed = false;
+  if (!F.hasFnAttribute(Attribute::Cold)) {
+    F.addFnAttr(Attribute::Cold);
+    Changed = true;
+  }
   if (!F.hasFnAttribute(Attribute::MinSize)) {
     F.addFnAttr(Attribute::MinSize);
     Changed = true;
   }
-  // TODO: Move this function into a cold section.
   return Changed;
 }
 
@@ -170,6 +178,7 @@ public:
   bool run(Module &M);
 
 private:
+  bool isFunctionCold(const Function &F) const;
   bool shouldOutlineFrom(const Function &F) const;
   bool outlineColdRegions(Function &F, ProfileSummaryInfo &PSI,
                           BlockFrequencyInfo *BFI, TargetTransformInfo &TTI,
@@ -178,7 +187,6 @@ private:
   Function *extractColdRegion(const BlockSequence &Region, DominatorTree &DT,
                               BlockFrequencyInfo *BFI, TargetTransformInfo &TTI,
                               OptimizationRemarkEmitter &ORE, unsigned Count);
-  SmallPtrSet<const Function *, 2> OutlinedFunctions;
   ProfileSummaryInfo *PSI;
   function_ref<BlockFrequencyInfo *(Function &)> GetBFI;
   function_ref<TargetTransformInfo &(Function &)> GetTTI;
@@ -204,32 +212,29 @@ public:
 
 } // end anonymous namespace
 
+/// Check whether \p F is inherently cold.
+bool HotColdSplitting::isFunctionCold(const Function &F) const {
+  if (F.hasFnAttribute(Attribute::Cold))
+    return true;
+
+  if (F.getCallingConv() == CallingConv::Cold)
+    return true;
+
+  if (PSI->isFunctionEntryCold(&F))
+    return true;
+
+  return false;
+}
+
 // Returns false if the function should not be considered for hot-cold split
 // optimization.
 bool HotColdSplitting::shouldOutlineFrom(const Function &F) const {
-  // Do not try to outline again from an already outlined cold function.
-  if (OutlinedFunctions.count(&F))
-    return false;
-
-  if (F.size() <= 2)
-    return false;
-
-  // TODO: Consider only skipping functions marked `optnone` or `cold`.
-
-  if (F.hasAddressTaken())
-    return false;
-
   if (F.hasFnAttribute(Attribute::AlwaysInline))
     return false;
 
   if (F.hasFnAttribute(Attribute::NoInline))
     return false;
 
-  if (F.getCallingConv() == CallingConv::Cold)
-    return false;
-
-  if (PSI->isFunctionEntryCold(&F))
-    return false;
   return true;
 }
 
@@ -247,16 +252,6 @@ Function *HotColdSplitting::extractColdRegion(const BlockSequence &Region,
                    /* AllowAlloca */ false,
                    /* Suffix */ "cold." + std::to_string(Count));
 
-  SetVector<Value *> Inputs, Outputs, Sinks;
-  CE.findInputsOutputs(Inputs, Outputs, Sinks);
-
-  // Do not extract regions that have live exit variables.
-  if (Outputs.size() > 0) {
-    LLVM_DEBUG(llvm::dbgs() << "Not outlining; live outputs\n");
-    return nullptr;
-  }
-
-  // TODO: Run MergeBasicBlockIntoOnlyPred on the outlined function.
   Function *OrigF = Region[0]->getParent();
   if (Function *OutF = CE.extractCodeRegion()) {
     User *U = *OutF->user_begin();
@@ -269,9 +264,7 @@ Function *HotColdSplitting::extractColdRegion(const BlockSequence &Region,
     }
     CI->setIsNoInline();
 
-    // Try to make the outlined code as small as possible on the assumption
-    // that it's cold.
-    markEntireFunctionCold(*OutF);
+    markFunctionCold(*OutF);
 
     LLVM_DEBUG(llvm::dbgs() << "Outlined Region: " << *OutF);
     ORE.emit([&]() {
@@ -386,7 +379,8 @@ public:
 
     // Add SinkBB to the cold region. It's considered as an entry point before
     // any sink-successor blocks.
-    addBlockToRegion(&SinkBB, SinkScore);
+    if (mayExtractBlock(SinkBB))
+      addBlockToRegion(&SinkBB, SinkScore);
 
     // Find all successors of SinkBB dominated by SinkBB using DFS.
     auto SuccIt = ++df_begin(&SinkBB);
@@ -481,10 +475,6 @@ bool HotColdSplitting::outlineColdRegions(Function &F, ProfileSummaryInfo &PSI,
 
   // Find all cold regions.
   for (BasicBlock *BB : RPOT) {
-    // Skip blocks which can't be outlined.
-    if (!mayExtractBlock(*BB))
-      continue;
-
     // This block is already part of some outlining region.
     if (ColdBlocks.count(BB))
       continue;
@@ -505,7 +495,7 @@ bool HotColdSplitting::outlineColdRegions(Function &F, ProfileSummaryInfo &PSI,
 
     if (Region.isEntireFunctionCold()) {
       LLVM_DEBUG(dbgs() << "Entire function is cold\n");
-      return markEntireFunctionCold(F);
+      return markFunctionCold(F);
     }
 
     // If this outlining region intersects with another, drop the new region.
@@ -548,7 +538,6 @@ bool HotColdSplitting::outlineColdRegions(Function &F, ProfileSummaryInfo &PSI,
           extractColdRegion(SubRegion, DT, BFI, TTI, ORE, OutlinedFunctionID);
       if (Outlined) {
         ++OutlinedFunctionID;
-        OutlinedFunctions.insert(Outlined);
         Changed = true;
       }
     } while (!Region.empty());
@@ -559,12 +548,28 @@ bool HotColdSplitting::outlineColdRegions(Function &F, ProfileSummaryInfo &PSI,
 
 bool HotColdSplitting::run(Module &M) {
   bool Changed = false;
-  OutlinedFunctions.clear();
-  for (auto &F : M) {
+  for (auto It = M.begin(), End = M.end(); It != End; ++It) {
+    Function &F = *It;
+
+    // Do not touch declarations.
+    if (F.isDeclaration())
+      continue;
+
+    // Do not modify `optnone` functions.
+    if (F.hasFnAttribute(Attribute::OptimizeNone))
+      continue;
+
+    // Detect inherently cold functions and mark them as such.
+    if (isFunctionCold(F)) {
+      Changed |= markFunctionCold(F);
+      continue;
+    }
+
     if (!shouldOutlineFrom(F)) {
       LLVM_DEBUG(llvm::dbgs() << "Skipping " << F.getName() << "\n");
       continue;
     }
+
     LLVM_DEBUG(llvm::dbgs() << "Outlining in " << F.getName() << "\n");
     DominatorTree DT(F);
     PostDomTree PDT(F);

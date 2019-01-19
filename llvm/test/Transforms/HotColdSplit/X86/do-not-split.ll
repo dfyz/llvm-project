@@ -1,5 +1,4 @@
-; RUN: opt -hotcoldsplit -S < %s | FileCheck %s
-; RUN: opt -passes=hotcoldsplit -S < %s | FileCheck %s
+; RUN: opt -hotcoldsplit -hotcoldsplit-threshold=2 -S < %s | FileCheck %s
 
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx10.14.0"
@@ -30,7 +29,6 @@ entry:
 
 if.then:                                          ; preds = %entry
   call void @sink()
-  call void @sink()
   ret void
 
 if.end:                                           ; preds = %entry
@@ -45,6 +43,37 @@ entry:
   br i1 undef, label %if.then, label %if.end
 
 if.then:                                          ; preds = %entry
+  call void @sink()
+  br label %if.end
+
+if.end:                                           ; preds = %entry
+  ret void
+}
+
+; Do not split `noinline` functions.
+; CHECK-LABEL: @noinline_func
+; CHECK-NOT: noinline_func.cold.1
+define void @noinline_func() noinline {
+entry:
+  br i1 undef, label %if.then, label %if.end
+
+if.then:                                          ; preds = %entry
+  call void @sink()
+  br label %if.end
+
+if.end:                                           ; preds = %entry
+  ret void
+}
+
+; Do not split `alwaysinline` functions.
+; CHECK-LABEL: @alwaysinline_func
+; CHECK-NOT: alwaysinline_func.cold.1
+define void @alwaysinline_func() alwaysinline {
+entry:
+  br i1 undef, label %if.then, label %if.end
+
+if.then:                                          ; preds = %entry
+  call void @sink()
   br label %if.end
 
 if.end:                                           ; preds = %entry
@@ -59,8 +88,6 @@ entry:
   br label %loop
 
 loop:
-  call void @sink()
-  call void @sink()
   call void @sink()
   br label %loop
 }

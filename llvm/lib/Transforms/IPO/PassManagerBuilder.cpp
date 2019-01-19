@@ -1,9 +1,8 @@
 //===- PassManagerBuilder.cpp - Build Standard Pass -----------------------===//
 //
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 //
@@ -104,6 +103,10 @@ static cl::opt<bool>
     EnablePrepareForThinLTO("prepare-for-thinlto", cl::init(false), cl::Hidden,
                             cl::desc("Enable preparation for ThinLTO."));
 
+static cl::opt<bool>
+    EnablePerformThinLTO("perform-thinlto", cl::init(false), cl::Hidden,
+                         cl::desc("Enable performing ThinLTO."));
+
 cl::opt<bool> EnableHotColdSplit("hot-cold-split", cl::init(false), cl::Hidden,
     cl::desc("Enable hot-cold splitting pass"));
 
@@ -146,6 +149,11 @@ static cl::opt<bool>
     EnableCHR("enable-chr", cl::init(true), cl::Hidden,
               cl::desc("Enable control height reduction optimization (CHR)"));
 
+cl::opt<bool> FlattenedProfileUsed(
+    "flattened-profile-used", cl::init(false), cl::Hidden,
+    cl::desc("Indicate the sample profile being used is flattened, i.e., "
+             "no inline hierachy exists in the profile. "));
+
 PassManagerBuilder::PassManagerBuilder() {
     OptLevel = 2;
     SizeLevel = 0;
@@ -166,7 +174,7 @@ PassManagerBuilder::PassManagerBuilder() {
     PGOInstrUse = "";
     PGOSampleUse = "";
     PrepareForThinLTO = EnablePrepareForThinLTO;
-    PerformThinLTO = false;
+    PerformThinLTO = EnablePerformThinLTO;
     DivergentTarget = false;
 }
 
@@ -414,7 +422,11 @@ void PassManagerBuilder::populateModulePassManager(
     legacy::PassManagerBase &MPM) {
   if (!PGOSampleUse.empty()) {
     MPM.add(createPruneEHPass());
-    MPM.add(createSampleProfileLoaderPass(PGOSampleUse));
+    // In ThinLTO mode, when flattened profile is used, all the available
+    // profile information will be annotated in PreLink phase so there is
+    // no need to load the profile again in PostLink.
+    if (!(FlattenedProfileUsed && PerformThinLTO))
+      MPM.add(createSampleProfileLoaderPass(PGOSampleUse));
   }
 
   // Allow forcing function attributes as a debugging and tuning aid.

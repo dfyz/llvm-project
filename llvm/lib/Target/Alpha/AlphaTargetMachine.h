@@ -43,7 +43,7 @@ public:
   virtual const TargetFrameLowering  *getFrameLowering() const {
     return &FrameLowering;
   }
-  virtual const AlphaSubtarget   *getSubtargetImpl() const{ return &Subtarget; }
+  const AlphaSubtarget *getSubtargetImpl(const Function &) const override { return &Subtarget; }
   virtual const AlphaRegisterInfo *getRegisterInfo() const {
     return &InstrInfo.getRegisterInfo();
   }

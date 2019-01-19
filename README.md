@@ -1,5 +1,8 @@
-# The LLVM Compiler Infrastructure
+# The LLVM Compiler Infrastructure (with the DEC Alpha backend)
 
-This directory and its subdirectories contain source code for LLVM,
-a toolkit for the construction of highly optimized compilers,
-optimizers, and runtime environments.
+This is a work-in-progress effort to make the DEC Alpha LLVM backend
+work again (it was removed from the LLVM tree quite a few years ago).
+
+Current status: doesn't build (yet).
+
+The current issues are tracked in [the TODO file](llvm/lib/Target/Alpha/TODO.txt).

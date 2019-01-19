@@ -144,7 +144,8 @@ namespace {
 
     // Select - Convert the specified operand from a target-independent to a
     // target-specific node if it hasn't already been changed.
-    SDNode *Select(SDNode *N);
+    void Select(SDNode *N) override;
+    SDNode *SelectImpl(SDNode *N);
     
     StringRef getPassName() const override {
       return "Alpha DAG->DAG Pattern Instruction Selection";
@@ -207,16 +208,29 @@ SDNode *AlphaDAGToDAGISel::getGlobalRetAddr() {
 
 // Select - Convert the specified operand from a target-independent to a
 // target-specific node if it hasn't already been changed.
-SDNode *AlphaDAGToDAGISel::Select(SDNode *N) {
+void AlphaDAGToDAGISel::Select(SDNode *N) {
+  // The code below is a simplified helper for old-style SDNode*-returning Select() implementations,
+  // which was salvaged from r268693.
+  auto *New = SelectImpl(N);
+  if (New == N)
+    return;
+  if (New) {
+    ReplaceUses(N, New);
+    CurDAG->RemoveDeadNode(N);
+  } else if (N->use_empty())
+    CurDAG->RemoveDeadNode(N);
+}
+
+SDNode *AlphaDAGToDAGISel::SelectImpl(SDNode *N) {
   if (N->isMachineOpcode())
-    return NULL;   // Already selected.
+    return nullptr;   // Already selected.
   SDLoc dl(N);
 
   switch (N->getOpcode()) {
   default: break;
   case AlphaISD::CALL:
     SelectCALL(N);
-    return NULL;
+    return nullptr;
 
   case ISD::FrameIndex: {
     int FI = cast<FrameIndexSDNode>(N)->getIndex();
@@ -261,7 +275,7 @@ SDNode *AlphaDAGToDAGISel::Select(SDNode *N) {
       SDValue Result = CurDAG->getCopyFromReg(CurDAG->getEntryNode(), dl,
                                                 Alpha::R31, MVT::i64);
       ReplaceUses(SDValue(N, 0), Result);
-      return NULL;
+      return nullptr;
     }
 
     int64_t val = (int64_t)uval;
@@ -360,8 +374,8 @@ SDNode *AlphaDAGToDAGISel::Select(SDNode *N) {
     break;
 
   case ISD::AND: {
-    ConstantSDNode* SC = NULL;
-    ConstantSDNode* MC = NULL;
+    ConstantSDNode* SC = nullptr;
+    ConstantSDNode* MC = nullptr;
     if (N->getOperand(0).getOpcode() == ISD::SRL &&
         (MC = dyn_cast<ConstantSDNode>(N->getOperand(1))) &&
         (SC = dyn_cast<ConstantSDNode>(N->getOperand(0).getOperand(1)))) {
@@ -392,7 +406,8 @@ SDNode *AlphaDAGToDAGISel::Select(SDNode *N) {
 
   }
 
-  return SelectCode(N);
+  SelectCode(N);
+  return nullptr;
 }
 
 void AlphaDAGToDAGISel::SelectCALL(SDNode *N) {

@@ -1,14 +1,14 @@
-common:
-	* add overrides where appropriate.
+- common:
+ - add overrides where appropriate.
 
-AlphaTargetMachine.{h,cpp}:
-	* fix the LLVMTargetMachine() initialization in the constructor;
-	* getSubtagetImpl() should accept a Function;
-	* move getInstrInfo()/getFrameLowering()/getRegisterInfo()/getTargetLowering()/getSelectionDAGInfo() to subtarget;
-	* move addInstSelector()/addPreEmitPass() to a separate TargetPassConfig.
+- AlphaTargetMachine.{h,cpp}:
+ - fix the LLVMTargetMachine() initialization in the constructor;
+ - getSubtagetImpl() should accept a Function;
+ - move getInstrInfo()/getFrameLowering()/getRegisterInfo()/getTargetLowering()/getSelectionDAGInfo() to subtarget;
+ - move addInstSelector()/addPreEmitPass() to a separate TargetPassConfig.
 
-AlphaFrameLowering.cpp:
-        * use the second argument of emitPrologue() to insert the prologue to.
+- AlphaFrameLowering.cpp:
+ - use the second argument of emitPrologue() to insert the prologue to.
 
-AlphaRegisterInfo.{h,cpp}:
-        * eliminateCallFramePseudoInstr() should be moved to AlphaFrameLowering.{h,cpp}.
+- AlphaRegisterInfo.{h,cpp}:
+ - eliminateCallFramePseudoInstr() should be moved to AlphaFrameLowering.{h,cpp}.

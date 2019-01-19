@@ -61,8 +61,13 @@ def : Processor<"ev67"   , Alpha21264Itineraries, [FeatureCIX]>;
 // The Alpha Target
 //===----------------------------------------------------------------------===//
 
+def AlphaAsmWriter : AsmWriter {
+    string AsmWriterClassName = "AsmPrinter";
+    bit isMCAsmWriter = 0;
+}
 
 def Alpha : Target {
   // Pull in Instruction Info:
   let InstructionSet = AlphaInstrInfo;
+  let AssemblyWriters = [AlphaAsmWriter];
 }

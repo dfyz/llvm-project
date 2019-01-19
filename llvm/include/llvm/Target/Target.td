@@ -1381,6 +1381,11 @@ class AsmWriter {
   // will specify which alternative to use.  For example "{x|y|z}" with Variant
   // == 1, will expand to "y".
   int Variant = 0;
+
+  // isMCAsmWriter - Is this assembly writer for an MC emitter? This controls
+  // generation of the printInstruction() method. For MC printers, it takes
+  // an MCInstr* operand, otherwise it takes a MachineInstr*.
+  bit isMCAsmWriter = 1;
 }
 def DefaultAsmWriter : AsmWriter;
 

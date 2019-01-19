@@ -9,6 +9,3 @@ AlphaTargetMachine.{h,cpp}:
 
 AlphaFrameLowering.cpp:
 	* use the second argument of emitPrologue() to insert the prologue to.
-
-AlphaAsmPrinter.cpp:
-	* implement AlphaInstPrinter (and find out what is the difference between MachineInstr and MCInst).

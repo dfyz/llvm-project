@@ -38,11 +38,11 @@ namespace {
     explicit AlphaAsmPrinter(TargetMachine &tm, std::unique_ptr<MCStreamer> Streamer)
       : AsmPrinter(tm, std::move(Streamer)) {}
 
-    virtual StringRef getPassName() const {
+    StringRef getPassName() const override {
       return "Alpha Assembly Printer";
     }
     void printInstruction(const MachineInstr *MI, raw_ostream &O);
-    void EmitInstruction(const MachineInstr *MI) {
+    void EmitInstruction(const MachineInstr *MI) override {
       SmallString<128> Str;
       raw_svector_ostream OS(Str);
       printInstruction(MI, OS);
@@ -52,16 +52,16 @@ namespace {
 
     void printOp(const MachineOperand &MO, raw_ostream &O);
     void printOperand(const MachineInstr *MI, int opNum, raw_ostream &O);
-    virtual void EmitFunctionBodyStart();
-    virtual void EmitFunctionBodyEnd(); 
-    void EmitStartOfAsmFile(Module &M);
+    void EmitFunctionBodyStart() override;
+    void EmitFunctionBodyEnd() override;
+    void EmitStartOfAsmFile(Module &M) override;
 
     bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                          unsigned AsmVariant, const char *ExtraCode,
-                         raw_ostream &O);
+                         raw_ostream &O) override;
     bool PrintAsmMemoryOperand(const MachineInstr *MI,
                                unsigned OpNo, unsigned AsmVariant,
-                               const char *ExtraCode, raw_ostream &O);
+                               const char *ExtraCode, raw_ostream &O) override;
   };
 } // end of anonymous namespace
 

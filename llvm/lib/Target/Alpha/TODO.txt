@@ -8,4 +8,7 @@ AlphaTargetMachine.{h,cpp}:
 	* move addInstSelector()/addPreEmitPass() to a separate TargetPassConfig.
 
 AlphaFrameLowering.cpp:
-	* use the second argument of emitPrologue() to insert the prologue to.
+        * use the second argument of emitPrologue() to insert the prologue to.
+
+AlphaRegisterInfo.{h,cpp}:
+        * eliminateCallFramePseudoInstr() should be moved to AlphaFrameLowering.{h,cpp}.

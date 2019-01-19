@@ -176,19 +176,3 @@ unsigned AlphaRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
 
   return TFI->hasFP(MF) ? Alpha::R15 : Alpha::R30;
 }
-
-unsigned AlphaRegisterInfo::getEHExceptionRegister() const {
-  llvm_unreachable("What is the exception register");
-  return 0;
-}
-
-unsigned AlphaRegisterInfo::getEHHandlerRegister() const {
-  llvm_unreachable("What is the exception handler register");
-  return 0;
-}
-
-std::string AlphaRegisterInfo::getPrettyName(unsigned reg)
-{
-  std::string s(AlphaRegDesc[reg].Name);
-  return s;
-}

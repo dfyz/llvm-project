@@ -39,30 +39,29 @@ static long getLower16(long l) {
 // if frame pointer elimination is disabled.
 //
 bool AlphaFrameLowering::hasFP(const MachineFunction &MF) const {
-  const MachineFrameInfo *MFI = MF.getFrameInfo();
-  return MFI->hasVarSizedObjects();
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  return MFI.hasVarSizedObjects();
 }
 
 void AlphaFrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const {
-  MachineBasicBlock &MBB = MF.front();   // Prolog goes in entry BB
   MachineBasicBlock::iterator MBBI = MBB.begin();
-  MachineFrameInfo *MFI = MF.getFrameInfo();
-  const TargetInstrInfo &TII = *MF.getTarget().getInstrInfo();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
 
   DebugLoc dl = (MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc());
   bool FP = hasFP(MF);
 
   // Handle GOP offset
   BuildMI(MBB, MBBI, dl, TII.get(Alpha::LDAHg), Alpha::R29)
-    .addGlobalAddress(MF.getFunction()).addReg(Alpha::R27).addImm(++curgpdist);
+    .addGlobalAddress(&MF.getFunction()).addReg(Alpha::R27).addImm(++curgpdist);
   BuildMI(MBB, MBBI, dl, TII.get(Alpha::LDAg), Alpha::R29)
-    .addGlobalAddress(MF.getFunction()).addReg(Alpha::R29).addImm(curgpdist);
+    .addGlobalAddress(&MF.getFunction()).addReg(Alpha::R29).addImm(curgpdist);
 
   BuildMI(MBB, MBBI, dl, TII.get(Alpha::ALTENT))
-    .addGlobalAddress(MF.getFunction());
+    .addGlobalAddress(&MF.getFunction());
 
   // Get the number of bytes to allocate from the FrameInfo
-  long NumBytes = MFI->getStackSize();
+  long NumBytes = MFI.getStackSize();
 
   if (FP)
     NumBytes += 8; //reserve space for the old FP
@@ -74,7 +73,7 @@ void AlphaFrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MB
   NumBytes = (NumBytes+Align-1)/Align*Align;
 
   // Update frame info to pretend that this is part of the stack...
-  MFI->setStackSize(NumBytes);
+  MFI.setStackSize(NumBytes);
 
   // adjust stack pointer: r30 -= numbytes
   NumBytes = -NumBytes;
@@ -103,9 +102,9 @@ void AlphaFrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MB
 
 void AlphaFrameLowering::emitEpilogue(MachineFunction &MF,
                                   MachineBasicBlock &MBB) const {
-  const MachineFrameInfo *MFI = MF.getFrameInfo();
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
   MachineBasicBlock::iterator MBBI = MBB.getLastNonDebugInstr();
-  const TargetInstrInfo &TII = *MF.getTarget().getInstrInfo();
+  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
 
   assert((MBBI->getOpcode() == Alpha::RETDAG ||
           MBBI->getOpcode() == Alpha::RETDAGp)
@@ -115,7 +114,7 @@ void AlphaFrameLowering::emitEpilogue(MachineFunction &MF,
   bool FP = hasFP(MF);
 
   // Get the number of bytes allocated from the FrameInfo...
-  long NumBytes = MFI->getStackSize();
+  long NumBytes = MFI.getStackSize();
 
   //now if we need to, restore the old FP
   if (FP) {

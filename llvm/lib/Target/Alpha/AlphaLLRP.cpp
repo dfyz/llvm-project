@@ -41,12 +41,12 @@ namespace {
     AlphaLLRPPass(AlphaTargetMachine &tm) 
       : MachineFunctionPass(ID), TM(tm) { }
 
-    virtual const char *getPassName() const {
+    StringRef getPassName() const override {
       return "Alpha NOP inserter";
     }
 
-    bool runOnMachineFunction(MachineFunction &F) {
-      const TargetInstrInfo *TII = F.getTarget().getInstrInfo();
+    bool runOnMachineFunction(MachineFunction &F) override {
+      const TargetInstrInfo *TII = F.getSubtarget().getInstrInfo();
       bool Changed = false;
       MachineInstr* prev[3] = {0,0,0};
       DebugLoc dl;
@@ -59,18 +59,18 @@ namespace {
           if (count%4 == 0)
             prev[0] = prev[1] = prev[2] = 0; //Slots cleared at fetch boundary
           ++count;
-          MachineInstr *MI = I++;
-          switch (MI->getOpcode()) {
+          MachineInstr &MI = *I++;
+          switch (MI.getOpcode()) {
           case Alpha::LDQ:  case Alpha::LDL:
           case Alpha::LDWU: case Alpha::LDBU:
           case Alpha::LDT: case Alpha::LDS:
           case Alpha::STQ:  case Alpha::STL:
           case Alpha::STW:  case Alpha::STB:
           case Alpha::STT: case Alpha::STS:
-           if (MI->getOperand(2).getReg() == Alpha::R30) {
+           if (MI.getOperand(2).getReg() == Alpha::R30) {
              if (prev[0] && 
-                 prev[0]->getOperand(2).getReg() == MI->getOperand(2).getReg()&&
-                 prev[0]->getOperand(1).getImm() == MI->getOperand(1).getImm()){
+                 prev[0]->getOperand(2).getReg() == MI.getOperand(2).getReg()&&
+                 prev[0]->getOperand(1).getImm() == MI.getOperand(1).getImm()){
                prev[0] = prev[1];
                prev[1] = prev[2];
                prev[2] = 0;
@@ -81,9 +81,9 @@ namespace {
                count += 1;
              } else if (prev[1] 
                         && prev[1]->getOperand(2).getReg() == 
-                        MI->getOperand(2).getReg()
+                        MI.getOperand(2).getReg()
                         && prev[1]->getOperand(1).getImm() == 
-                        MI->getOperand(1).getImm()) {
+                        MI.getOperand(1).getImm()) {
                prev[0] = prev[2];
                prev[1] = prev[2] = 0;
                BuildMI(MBB, MI, dl, TII->get(Alpha::BISr), Alpha::R31)
@@ -96,9 +96,9 @@ namespace {
                count += 2;
              } else if (prev[2] 
                         && prev[2]->getOperand(2).getReg() == 
-                        MI->getOperand(2).getReg()
+                        MI.getOperand(2).getReg()
                         && prev[2]->getOperand(1).getImm() == 
-                        MI->getOperand(1).getImm()) {
+                        MI.getOperand(1).getImm()) {
                prev[0] = prev[1] = prev[2] = 0;
                BuildMI(MBB, MI, dl, TII->get(Alpha::BISr), Alpha::R31)
                  .addReg(Alpha::R31).addReg(Alpha::R31);
@@ -111,7 +111,7 @@ namespace {
              }
              prev[0] = prev[1];
              prev[1] = prev[2];
-             prev[2] = MI;
+             prev[2] = &MI;
              break;
            }
            prev[0] = prev[1];

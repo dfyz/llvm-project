@@ -13,6 +13,7 @@
 
 #define DEBUG_TYPE "reginfo"
 #include "Alpha.h"
+#include "AlphaFrameLowering.h"
 #include "AlphaRegisterInfo.h"
 #include "llvm/CodeGen/ValueTypes.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -84,14 +85,14 @@ BitVector AlphaRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 void AlphaRegisterInfo::
 eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
                               MachineBasicBlock::iterator I) const {
-  const TargetFrameLowering *TFI = MF.getTarget().getFrameLowering();
+  const TargetFrameLowering *TFI = getFrameLowering(MF);
 
   if (TFI->hasFP(MF)) {
     // If we have a frame pointer, turn the adjcallstackup instruction into a
     // 'sub ESP, <amt>' and the adjcallstackdown instruction into 'add ESP,
     // <amt>'
-    MachineInstr *Old = I;
-    uint64_t Amount = Old->getOperand(0).getImm();
+    MachineInstr &Old = *I;
+    uint64_t Amount = Old.getOperand(0).getImm();
     if (Amount != 0) {
       // We need to keep the stack aligned properly.  To do this, we round the
       // amount of space needed for the outgoing arguments up to the next
@@ -100,12 +101,12 @@ eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
       Amount = (Amount+Align-1)/Align*Align;
 
       MachineInstr *New;
-      if (Old->getOpcode() == Alpha::ADJUSTSTACKDOWN) {
-        New=BuildMI(MF, Old->getDebugLoc(), TII.get(Alpha::LDA), Alpha::R30)
+      if (Old.getOpcode() == Alpha::ADJUSTSTACKDOWN) {
+        New=BuildMI(MF, Old.getDebugLoc(), TII.get(Alpha::LDA), Alpha::R30)
           .addImm(-Amount).addReg(Alpha::R30);
       } else {
-         assert(Old->getOpcode() == Alpha::ADJUSTSTACKUP);
-         New=BuildMI(MF, Old->getDebugLoc(), TII.get(Alpha::LDA), Alpha::R30)
+         assert(Old.getOpcode() == Alpha::ADJUSTSTACKUP);
+         New=BuildMI(MF, Old.getDebugLoc(), TII.get(Alpha::LDA), Alpha::R30)
           .addImm(Amount).addReg(Alpha::R30);
       }
 
@@ -134,7 +135,7 @@ AlphaRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   MachineInstr &MI = *II;
   MachineBasicBlock &MBB = *MI.getParent();
   MachineFunction &MF = *MBB.getParent();
-  const TargetFrameLowering *TFI = MF.getTarget().getFrameLowering();
+  const TargetFrameLowering *TFI = getFrameLowering(MF);
 
   bool FP = TFI->hasFP(MF);
 
@@ -144,17 +145,17 @@ AlphaRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   MI.getOperand(FIOperandNum + 1).ChangeToRegister(FP ? Alpha::R15 : Alpha::R30, false);
 
   // Now add the frame object offset to the offset from the virtual frame index.
-  int Offset = MF.getFrameInfo()->getObjectOffset(FrameIndex);
+  int64_t Offset = MF.getFrameInfo().getObjectOffset(FrameIndex);
 
-  DEBUG(errs() << "FI: " << FrameIndex << " Offset: " << Offset << "\n");
+  LLVM_DEBUG(errs() << "FI: " << FrameIndex << " Offset: " << Offset << "\n");
 
-  Offset += MF.getFrameInfo()->getStackSize();
+  Offset += MF.getFrameInfo().getStackSize();
 
-  DEBUG(errs() << "Corrected Offset " << Offset
-       << " for stack size: " << MF.getFrameInfo()->getStackSize() << "\n");
+  LLVM_DEBUG(errs() << "Corrected Offset " << Offset
+       << " for stack size: " << MF.getFrameInfo().getStackSize() << "\n");
 
   if (Offset > Alpha::IMM_HIGH || Offset < Alpha::IMM_LOW) {
-    DEBUG(errs() << "Unconditionally using R28 for evil purposes Offset: "
+    LLVM_DEBUG(errs() << "Unconditionally using R28 for evil purposes Offset: "
           << Offset << "\n");
     //so in this case, we need to use a temporary register, and move the
     //original inst off the SP/FP
@@ -172,7 +173,5 @@ AlphaRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 }
 
 unsigned AlphaRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
-  const TargetFrameLowering *TFI = MF.getTarget().getFrameLowering();
-
-  return TFI->hasFP(MF) ? Alpha::R15 : Alpha::R30;
+  return getFrameLowering(MF)->hasFP(MF) ? Alpha::R15 : Alpha::R30;
 }

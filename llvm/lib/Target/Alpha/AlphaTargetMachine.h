@@ -17,8 +17,8 @@
 #include "AlphaInstrInfo.h"
 #include "AlphaISelLowering.h"
 #include "AlphaFrameLowering.h"
-#include "AlphaSelectionDAGInfo.h"
 #include "AlphaSubtarget.h"
+#include "llvm/CodeGen/SelectionDAGTargetInfo.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Target/TargetMachine.h"
@@ -32,7 +32,7 @@ class AlphaTargetMachine : public LLVMTargetMachine {
   AlphaFrameLowering FrameLowering;
   AlphaSubtarget Subtarget;
   AlphaTargetLowering TLInfo;
-  AlphaSelectionDAGInfo TSInfo;
+  SelectionDAGTargetInfo TSInfo;
 
 public:
   AlphaTargetMachine(const Target &T, StringRef TT,
@@ -50,7 +50,7 @@ public:
   virtual const AlphaTargetLowering* getTargetLowering() const {
     return &TLInfo;
   }
-  virtual const AlphaSelectionDAGInfo* getSelectionDAGInfo() const {
+  virtual const SelectionDAGTargetInfo* getSelectionDAGInfo() const {
     return &TSInfo;
   }
   // Pass Pipeline Configuration

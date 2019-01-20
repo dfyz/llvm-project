@@ -19,7 +19,7 @@ class MCSubtargetInfo;
 class Target;
 class StringRef;
 
-extern Target TheAlphaTarget;
+Target &getTheAlphaTarget();
 
 } // End llvm namespace
 

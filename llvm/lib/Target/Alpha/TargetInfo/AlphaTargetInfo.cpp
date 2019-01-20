@@ -11,7 +11,7 @@
 #include "llvm/Support/TargetRegistry.h"
 using namespace llvm;
 
-Target &getTheAlphaTarget() {
+Target &llvm::getTheAlphaTarget() {
   static Target TheAlphaTarget;
   return TheAlphaTarget;
 }

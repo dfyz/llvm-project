@@ -49,16 +49,17 @@ static MCSubtargetInfo *createAlphaMCSubtargetInfo(const Triple &TT, StringRef C
 
 // Force static initialization.
 extern "C" void LLVMInitializeAlphaTargetMC() {
+  Target &T = getTheAlphaTarget();
+
   // Register the MC asm info.
-  RegisterMCAsmInfo<AlphaMCAsmInfo> X(TheAlphaTarget);
+  RegisterMCAsmInfo<AlphaMCAsmInfo> X(T);
 
   // Register the MC instruction info.
-  TargetRegistry::RegisterMCInstrInfo(TheAlphaTarget, createAlphaMCInstrInfo);
+  TargetRegistry::RegisterMCInstrInfo(T, createAlphaMCInstrInfo);
 
   // Register the MC register info.
-  TargetRegistry::RegisterMCRegInfo(TheAlphaTarget, createAlphaMCRegisterInfo);
+  TargetRegistry::RegisterMCRegInfo(T, createAlphaMCRegisterInfo);
 
   // Register the MC subtarget info.
-  TargetRegistry::RegisterMCSubtargetInfo(TheAlphaTarget,
-                                          createAlphaMCSubtargetInfo);
+  TargetRegistry::RegisterMCSubtargetInfo(T, createAlphaMCSubtargetInfo);
 }

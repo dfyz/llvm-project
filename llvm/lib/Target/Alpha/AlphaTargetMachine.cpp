@@ -21,7 +21,7 @@ using namespace llvm;
 
 extern "C" void LLVMInitializeAlphaTarget() { 
   // Register the target.
-  RegisterTargetMachine<AlphaTargetMachine> X(TheAlphaTarget);
+  RegisterTargetMachine<AlphaTargetMachine> X(getTheAlphaTarget());
 }
 
 AlphaTargetMachine::AlphaTargetMachine(const Target &T, const Triple &TT, StringRef CPU,

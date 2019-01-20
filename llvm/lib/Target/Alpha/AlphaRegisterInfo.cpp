@@ -78,46 +78,6 @@ BitVector AlphaRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   return Reserved;
 }
 
-//===----------------------------------------------------------------------===//
-// Stack Frame Processing methods
-//===----------------------------------------------------------------------===//
-
-void AlphaRegisterInfo::
-eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
-                              MachineBasicBlock::iterator I) const {
-  const TargetFrameLowering *TFI = getFrameLowering(MF);
-
-  if (TFI->hasFP(MF)) {
-    // If we have a frame pointer, turn the adjcallstackup instruction into a
-    // 'sub ESP, <amt>' and the adjcallstackdown instruction into 'add ESP,
-    // <amt>'
-    MachineInstr &Old = *I;
-    uint64_t Amount = Old.getOperand(0).getImm();
-    if (Amount != 0) {
-      // We need to keep the stack aligned properly.  To do this, we round the
-      // amount of space needed for the outgoing arguments up to the next
-      // alignment boundary.
-      unsigned Align = TFI->getStackAlignment();
-      Amount = (Amount+Align-1)/Align*Align;
-
-      MachineInstr *New;
-      if (Old.getOpcode() == Alpha::ADJUSTSTACKDOWN) {
-        New=BuildMI(MF, Old.getDebugLoc(), TII.get(Alpha::LDA), Alpha::R30)
-          .addImm(-Amount).addReg(Alpha::R30);
-      } else {
-         assert(Old.getOpcode() == Alpha::ADJUSTSTACKUP);
-         New=BuildMI(MF, Old.getDebugLoc(), TII.get(Alpha::LDA), Alpha::R30)
-          .addImm(Amount).addReg(Alpha::R30);
-      }
-
-      // Replace the pseudo instruction with a new instruction...
-      MBB.insert(I, New);
-    }
-  }
-
-  MBB.erase(I);
-}
-
 //Alpha has a slightly funny stack:
 //Args
 //<- incoming SP

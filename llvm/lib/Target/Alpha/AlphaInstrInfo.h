@@ -38,19 +38,6 @@ public:
   unsigned isStoreToStackSlot(const MachineInstr &MI,
                               int &FrameIndex) const override;
 
-  // We only need these two functions to silence -Woverloaded-virtual from gcc
-  // (which generally is very useful, but not in this specific case).
-  unsigned isLoadFromStackSlot(const MachineInstr &MI,
-                               int &FrameIndex,
-                               unsigned &MemBytes) const override {
-    return TargetInstrInfo::isLoadFromStackSlot(MI, FrameIndex, MemBytes);
-  }
-  unsigned isStoreToStackSlot(const MachineInstr &MI,
-                              int &FrameIndex,
-                              unsigned &MemBytes) const override {
-    return TargetInstrInfo::isStoreToStackSlot(MI, FrameIndex, MemBytes);
-  }
-  
   unsigned insertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
                         MachineBasicBlock *FBB,
                         ArrayRef<MachineOperand> Cond,

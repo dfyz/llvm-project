@@ -14,14 +14,16 @@
 #include "AlphaSubtarget.h"
 #include "Alpha.h"
 
+#define DEBUG_TYPE "alpha-subtarget"
+
 #define GET_SUBTARGETINFO_TARGET_DESC
 #define GET_SUBTARGETINFO_CTOR
 #include "AlphaGenSubtargetInfo.inc"
 
 using namespace llvm;
 
-AlphaSubtarget::AlphaSubtarget(const std::string &TT, const std::string &CPU,
-                               const std::string &FS)
+AlphaSubtarget::AlphaSubtarget(const Triple &TT, const std::string &CPU,
+                               const std::string &FS, const TargetMachine &TM)
   : AlphaGenSubtargetInfo(TT, CPU, FS), HasCT(false) {
   std::string CPUName = CPU;
   if (CPUName.empty())

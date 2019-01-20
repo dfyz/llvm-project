@@ -135,6 +135,8 @@ namespace llvm {
                   const SmallVectorImpl<ISD::OutputArg> &Outs,
                   const SmallVectorImpl<SDValue> &OutVals,
                   const SDLoc &dl, SelectionDAG &DAG) const override;
+
+    const AlphaSubtarget &Subtarget;
   };
 }
 

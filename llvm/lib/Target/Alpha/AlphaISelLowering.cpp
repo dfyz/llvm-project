@@ -46,7 +46,7 @@ static unsigned AddLiveIn(MachineFunction &MF, unsigned PReg,
 
 AlphaTargetLowering::AlphaTargetLowering(TargetMachine &TM,
                                          const AlphaSubtarget &STI)
-  : TargetLowering(TM) {
+  : TargetLowering(TM), Subtarget(STI) {
   // Set up the TargetLowering object.
   //I am having problems with shr n i8 1
   setBooleanContents(ZeroOrOneBooleanContent);
@@ -832,7 +832,7 @@ AlphaTargetLowering::getRegForInlineAsmConstraint(const TargetRegisterInfo *TRI,
 MachineBasicBlock *
 AlphaTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
                                                  MachineBasicBlock *BB) const {
-  const TargetInstrInfo *TII = static_cast<const AlphaTargetMachine &>(getTargetMachine()).getInstrInfo();
+  const TargetInstrInfo *TII = Subtarget.getInstrInfo();
   assert((MI.getOpcode() == Alpha::CAS32 ||
           MI.getOpcode() == Alpha::CAS64 ||
           MI.getOpcode() == Alpha::LAS32 ||

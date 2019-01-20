@@ -18,6 +18,7 @@
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/TargetLowering.h"
 #include "Alpha.h"
+#include "AlphaSubtarget.h"
 
 namespace llvm {
 
@@ -60,7 +61,8 @@ namespace llvm {
 
   class AlphaTargetLowering : public TargetLowering {
   public:
-    explicit AlphaTargetLowering(TargetMachine &TM);
+    explicit AlphaTargetLowering(TargetMachine &TM,
+                                 const AlphaSubtarget &STI);
 
     MVT getScalarShiftAmountTy(const DataLayout &, EVT LHSTy) const override { return MVT::i64; }
 
@@ -83,7 +85,7 @@ namespace llvm {
     SDValue LowerCallResult(SDValue Chain, SDValue InFlag,
                             CallingConv::ID CallConv, bool isVarArg,
                             const SmallVectorImpl<ISD::InputArg> &Ins,
-                            DebugLoc dl, SelectionDAG &DAG,
+                            const SDLoc &dl, SelectionDAG &DAG,
                             SmallVectorImpl<SDValue> &InVals) const;
 
     ConstraintType getConstraintType(StringRef Constraint) const override;
@@ -109,6 +111,8 @@ namespace llvm {
     /// materialize the FP immediate as a load from a constant pool.
     bool isFPImmLegal(const APFloat &Imm, EVT VT) const override;
 
+    bool shouldInsertFencesForAtomic(const Instruction *I) const override;
+
   private:
     // Helpers for custom lowering.
     void LowerVAARG(SDNode *N, SDValue &Chain, SDValue &DataPtr,
@@ -118,11 +122,11 @@ namespace llvm {
       LowerFormalArguments(SDValue Chain,
                            CallingConv::ID CallConv, bool isVarArg,
                            const SmallVectorImpl<ISD::InputArg> &Ins,
-                           const SDLoc & dl, SelectionDAG &DAG,
+                           const SDLoc &dl, SelectionDAG &DAG,
                            SmallVectorImpl<SDValue> &InVals) const override;
 
     SDValue
-      LowerCall(CallLoweringInfo & CLI,
+      LowerCall(CallLoweringInfo &CLI,
                 SmallVectorImpl<SDValue> &InVals) const override;
 
     SDValue
@@ -130,7 +134,7 @@ namespace llvm {
                   CallingConv::ID CallConv, bool isVarArg,
                   const SmallVectorImpl<ISD::OutputArg> &Outs,
                   const SmallVectorImpl<SDValue> &OutVals,
-                  const SDLoc & dl, SelectionDAG &DAG) const override;
+                  const SDLoc &dl, SelectionDAG &DAG) const override;
   };
 }
 

@@ -14,6 +14,7 @@
 #ifndef ALPHASUBTARGET_H
 #define ALPHASUBTARGET_H
 
+#include "llvm/CodeGen/SelectionDAGTargetInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/MC/MCInstrItineraries.h"
 #include <string>
@@ -21,14 +22,19 @@
 #define GET_SUBTARGETINFO_HEADER
 #include "AlphaGenSubtargetInfo.inc"
 
+#include "AlphaFrameLowering.h"
+#include "AlphaInstrInfo.h"
+#include "AlphaISelLowering.h"
+
 namespace llvm {
 
 class AlphaSubtarget : public AlphaGenSubtargetInfo {
-protected:
-
   bool HasCT;
-
   InstrItineraryData InstrItins;
+  AlphaFrameLowering FrameLowering;
+  AlphaInstrInfo InstrInfo;
+  AlphaTargetLowering TLInfo;
+  SelectionDAGTargetInfo TSInfo;
 
 public:
   /// This constructor initializes the data members to match that
@@ -42,6 +48,25 @@ public:
   void ParseSubtargetFeatures(StringRef CPU, StringRef FS);
 
   bool hasCT() const { return HasCT; }
+
+  const InstrItineraryData *getInstrItineraryData() const override {
+    return &InstrItins;
+  }
+  const AlphaInstrInfo *getInstrInfo() const override {
+    return &InstrInfo;
+  }
+  const TargetFrameLowering *getFrameLowering() const override {
+    return &FrameLowering;
+  }
+  const AlphaRegisterInfo *getRegisterInfo() const override {
+    return &InstrInfo.getRegisterInfo();
+  }
+  const AlphaTargetLowering* getTargetLowering() const override {
+    return &TLInfo;
+  }
+  const SelectionDAGTargetInfo* getSelectionDAGInfo() const override {
+    return &TSInfo;
+  }
 };
 } // End llvm namespace
 

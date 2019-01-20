@@ -15,7 +15,6 @@
 #define ALPHA_FRAMEINFO_H
 
 #include "Alpha.h"
-#include "AlphaSubtarget.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
 
 namespace llvm {

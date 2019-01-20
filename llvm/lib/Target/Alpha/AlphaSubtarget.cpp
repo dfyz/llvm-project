@@ -24,7 +24,8 @@ using namespace llvm;
 
 AlphaSubtarget::AlphaSubtarget(const Triple &TT, const std::string &CPU,
                                const std::string &FS, const TargetMachine &TM)
-  : AlphaGenSubtargetInfo(TT, CPU, FS), HasCT(false) {
+  : AlphaGenSubtargetInfo(TT, CPU, FS), HasCT(false),
+    FrameLowering(*this), TLInfo(TM, *this) {
   std::string CPUName = CPU;
   if (CPUName.empty())
     CPUName = "generic";

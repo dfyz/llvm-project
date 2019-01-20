@@ -14,6 +14,7 @@
 #include "AlphaFrameLowering.h"
 #include "AlphaInstrInfo.h"
 #include "AlphaMachineFunctionInfo.h"
+#include "AlphaSubtarget.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"

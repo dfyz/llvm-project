@@ -12,7 +12,9 @@
 
 #include "Alpha.h"
 #include "AlphaTargetMachine.h"
-#include "llvm/IR/PassManager.h"
+#include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
+#include "llvm/CodeGen/TargetPassConfig.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/TargetRegistry.h"
 using namespace llvm;
@@ -22,30 +24,44 @@ extern "C" void LLVMInitializeAlphaTarget() {
   RegisterTargetMachine<AlphaTargetMachine> X(TheAlphaTarget);
 }
 
-AlphaTargetMachine::AlphaTargetMachine(const Target &T, StringRef TT,
-                                       StringRef CPU, StringRef FS,
-                                       Reloc::Model RM, CodeModel::Model CM)
-  : LLVMTargetMachine(T, TT, CPU, FS, RM, CM),
-    DataLayout("e-f128:128:128-n64"),
-    FrameLowering(Subtarget),
-    Subtarget(TT, CPU, FS),
-    TLInfo(*this),
-    TSInfo(*this) {
+AlphaTargetMachine::AlphaTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
+                                       StringRef FS, const TargetOptions &Options,
+                                       Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
+                                       CodeGenOpt::Level OL, bool JIT)
+  : LLVMTargetMachine(T, "e-f128:128:128-n64", TT, CPU, FS, Options,
+                      RM.getValueOr(Reloc::Static), CM.getValueOr(CodeModel::Small), OL),
+    TLOF(make_unique<TargetLoweringObjectFileELF>()),
+    Subtarget(TT, CPU, FS, *this)
+{
+  initAsmInfo();
 }
 
-//===----------------------------------------------------------------------===//
-// Pass Pipeline Configuration
-//===----------------------------------------------------------------------===//
+namespace {
+class AlphaPassConfig : public TargetPassConfig {
+public:
+  AlphaPassConfig(AlphaTargetMachine &TM, PassManagerBase &PM)
+    : TargetPassConfig(TM, PM)
+  {}
 
-bool AlphaTargetMachine::addInstSelector(PassManagerBase &PM,
-                                         CodeGenOpt::Level OptLevel) {
-  PM.add(createAlphaISelDag(*this));
+  AlphaTargetMachine &getAlphaTargetMachine() const {
+    return getTM<AlphaTargetMachine>();
+  }
+
+  bool addInstSelector() override;
+  void addPreEmitPass() override;
+};
+}
+
+TargetPassConfig *AlphaTargetMachine::createPassConfig(PassManagerBase &PM) {
+  return new AlphaPassConfig(*this, PM);
+}
+
+bool AlphaPassConfig::addInstSelector() {
+  addPass(createAlphaISelDag(getAlphaTargetMachine()));
   return false;
 }
-bool AlphaTargetMachine::addPreEmitPass(PassManagerBase &PM,
-                                        CodeGenOpt::Level OptLevel) {
+void AlphaPassConfig::addPreEmitPass() {
   // Must run branch selection immediately preceding the asm printer
-  PM.add(createAlphaBranchSelectionPass());
-  PM.add(createAlphaLLRPPass(*this));
-  return false;
+  addPass(createAlphaBranchSelectionPass());
+  addPass(createAlphaLLRPPass(getAlphaTargetMachine()));
 }

@@ -1,7 +1,2 @@
-- common:
- - add overrides where appropriate
-
-- AlphaTargetMachine.{h,cpp}:
- - fix the LLVMTargetMachine() initialization in the constructor
- - move getInstrInfo()/getFrameLowering()/getRegisterInfo()/getTargetLowering()/getSelectionDAGInfo() to subtarget
- - move addInstSelector()/addPreEmitPass() to a separate TargetPassConfig
+- testing
+ - run the test suite from llvm/test/CodeGen/Alpha

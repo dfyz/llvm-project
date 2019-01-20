@@ -172,18 +172,6 @@ namespace {
 #include "AlphaGenDAGISel.inc"
     
 private:
-    /// getTargetMachine - Return a reference to the TargetMachine, casted
-    /// to the target-specific type.
-    const AlphaTargetMachine &getTargetMachine() {
-      return static_cast<const AlphaTargetMachine &>(TM);
-    }
-
-    /// getInstrInfo - Return a reference to the TargetInstrInfo, casted
-    /// to the target-specific type.
-    const AlphaInstrInfo *getInstrInfo() {
-      return getTargetMachine().getInstrInfo();
-    }
-
     SDNode *getGlobalBaseReg();
     SDNode *getGlobalRetAddr();
     void SelectCALL(SDNode *N);
@@ -195,14 +183,14 @@ private:
 /// GOT address into a register.
 ///
 SDNode *AlphaDAGToDAGISel::getGlobalBaseReg() {
-  unsigned GlobalBaseReg = getInstrInfo()->getGlobalBaseReg(MF);
+  unsigned GlobalBaseReg = MF->getSubtarget<AlphaSubtarget>().getInstrInfo()->getGlobalBaseReg(MF);
   return CurDAG->getRegister(GlobalBaseReg, TLI->getPointerTy(CurDAG->getDataLayout())).getNode();
 }
 
 /// getGlobalRetAddr - Grab the return address.
 ///
 SDNode *AlphaDAGToDAGISel::getGlobalRetAddr() {
-  unsigned GlobalRetAddr = getInstrInfo()->getGlobalRetAddr(MF);
+  unsigned GlobalRetAddr = MF->getSubtarget<AlphaSubtarget>().getInstrInfo()->getGlobalRetAddr(MF);
   return CurDAG->getRegister(GlobalRetAddr, TLI->getPointerTy(CurDAG->getDataLayout())).getNode();
 }
 

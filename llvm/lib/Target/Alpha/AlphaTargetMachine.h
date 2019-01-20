@@ -14,13 +14,10 @@
 #ifndef ALPHA_TARGETMACHINE_H
 #define ALPHA_TARGETMACHINE_H
 
-#include "AlphaInstrInfo.h"
-#include "AlphaISelLowering.h"
-#include "AlphaFrameLowering.h"
 #include "AlphaSubtarget.h"
-#include "llvm/CodeGen/SelectionDAGTargetInfo.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/Target/TargetLoweringObjectFile.h"
 #include "llvm/Target/TargetMachine.h"
 
 namespace llvm {
@@ -28,34 +25,20 @@ namespace llvm {
 class GlobalValue;
 
 class AlphaTargetMachine : public LLVMTargetMachine {
-  AlphaInstrInfo InstrInfo;
-  AlphaFrameLowering FrameLowering;
+  std::unique_ptr<TargetLoweringObjectFile> TLOF;
   AlphaSubtarget Subtarget;
-  AlphaTargetLowering TLInfo;
-  SelectionDAGTargetInfo TSInfo;
 
 public:
-  AlphaTargetMachine(const Target &T, StringRef TT,
-                     StringRef CPU, StringRef FS,
-                     Reloc::Model RM, CodeModel::Model CM);
+  AlphaTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
+                     StringRef FS, const TargetOptions &Options,
+                     Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
+                     CodeGenOpt::Level OL, bool JIT);
 
-  virtual const AlphaInstrInfo *getInstrInfo() const { return &InstrInfo; }
-  virtual const TargetFrameLowering  *getFrameLowering() const {
-    return &FrameLowering;
-  }
   const AlphaSubtarget *getSubtargetImpl(const Function &) const override { return &Subtarget; }
-  virtual const AlphaRegisterInfo *getRegisterInfo() const {
-    return &InstrInfo.getRegisterInfo();
+  TargetLoweringObjectFile *getObjFileLowering() const override {
+    return TLOF.get();
   }
-  virtual const AlphaTargetLowering* getTargetLowering() const {
-    return &TLInfo;
-  }
-  virtual const SelectionDAGTargetInfo* getSelectionDAGInfo() const {
-    return &TSInfo;
-  }
-  // Pass Pipeline Configuration
-  virtual bool addInstSelector(PassManagerBase &PM, CodeGenOpt::Level OptLevel);
-  virtual bool addPreEmitPass(PassManagerBase &PM, CodeGenOpt::Level OptLevel);
+  TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
 };
 
 } // end namespace llvm

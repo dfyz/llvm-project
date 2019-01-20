@@ -18,7 +18,6 @@
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/TargetLowering.h"
 #include "Alpha.h"
-#include "AlphaSubtarget.h"
 
 namespace llvm {
 
@@ -59,9 +58,11 @@ namespace llvm {
     };
   }
 
+  class AlphaSubtarget;
+
   class AlphaTargetLowering : public TargetLowering {
   public:
-    explicit AlphaTargetLowering(TargetMachine &TM,
+    explicit AlphaTargetLowering(const TargetMachine &TM,
                                  const AlphaSubtarget &STI);
 
     MVT getScalarShiftAmountTy(const DataLayout &, EVT LHSTy) const override { return MVT::i64; }

@@ -14,6 +14,7 @@
 #include "AlphaISelLowering.h"
 #include "AlphaTargetMachine.h"
 #include "AlphaMachineFunctionInfo.h"
+#include "AlphaSubtarget.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -44,7 +45,7 @@ static unsigned AddLiveIn(MachineFunction &MF, unsigned PReg,
   return VReg;
 }
 
-AlphaTargetLowering::AlphaTargetLowering(TargetMachine &TM,
+AlphaTargetLowering::AlphaTargetLowering(const TargetMachine &TM,
                                          const AlphaSubtarget &STI)
   : TargetLowering(TM), Subtarget(STI) {
   // Set up the TargetLowering object.

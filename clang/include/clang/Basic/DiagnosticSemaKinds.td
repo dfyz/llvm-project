@@ -261,22 +261,14 @@ def err_anyx86_interrupt_called : Error<
 def warn_arm_interrupt_calling_convention : Warning<
    "call to function without interrupt attribute could clobber interruptee's VFP registers">,
    InGroup<Extra>;
-def warn_mips_interrupt_attribute : Warning<
-   "MIPS 'interrupt' attribute only applies to functions that have "
-   "%select{no parameters|a 'void' return type}0">,
+def warn_interrupt_attribute_invalid : Warning<
+   "%select{MIPS|MSP430|RISC-V}0 'interrupt' attribute only applies to "
+   "functions that have %select{no parameters|a 'void' return type}1">,
    InGroup<IgnoredAttributes>;
 def warn_riscv_repeated_interrupt_attribute : Warning<
   "repeated RISC-V 'interrupt' attribute">, InGroup<IgnoredAttributes>;
 def note_riscv_repeated_interrupt_attribute : Note<
   "repeated RISC-V 'interrupt' attribute is here">;
-def warn_riscv_interrupt_attribute : Warning<
-   "RISC-V 'interrupt' attribute only applies to functions that have "
-   "%select{no parameters|a 'void' return type}0">,
-   InGroup<IgnoredAttributes>;
-def warn_msp430_interrupt_attribute : Warning<
-   "MSP430 'interrupt' attribute only applies to functions that have "
-   "%select{no parameters|a 'void' return type}0">,
-   InGroup<IgnoredAttributes>;
 def warn_unused_parameter : Warning<"unused parameter %0">,
   InGroup<UnusedParameter>, DefaultIgnore;
 def warn_unused_variable : Warning<"unused variable %0">,
@@ -1593,6 +1585,9 @@ def err_explicit_non_ctor_or_conv_function : Error<
 def err_static_not_bitfield : Error<"static member %0 cannot be a bit-field">;
 def err_static_out_of_line : Error<
   "'static' can only be specified inside the class definition">;
+def ext_static_out_of_line : ExtWarn<
+  err_static_out_of_line.Text>,
+  InGroup<MicrosoftTemplate>;
 def err_storage_class_for_static_member : Error<
   "static data member definition cannot specify a storage class">;
 def err_typedef_not_bitfield : Error<"typedef member %0 cannot be a bit-field">;
@@ -7846,7 +7841,8 @@ def warn_format_mix_positional_nonpositional_args : Warning<
   "cannot mix positional and non-positional arguments in format string">,
   InGroup<Format>;
 def warn_static_array_too_small : Warning<
-  "array argument is too small; contains %0 elements, callee requires at least %1">,
+  "array argument is too small; %select{contains %0 elements|is of size %0}2,"
+  " callee requires at least %1">,
   InGroup<ArrayBounds>;
 def note_callee_static_array : Note<
   "callee declares array parameter as static here">;

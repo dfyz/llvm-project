@@ -2283,18 +2283,11 @@ static bool versionsMatch(const VersionTuple &X, const VersionTuple &Y,
   return false;
 }
 
-AvailabilityAttr *Sema::mergeAvailabilityAttr(NamedDecl *D, SourceRange Range,
-                                              IdentifierInfo *Platform,
-                                              bool Implicit,
-                                              VersionTuple Introduced,
-                                              VersionTuple Deprecated,
-                                              VersionTuple Obsoleted,
-                                              bool IsUnavailable,
-                                              StringRef Message,
-                                              bool IsStrict,
-                                              StringRef Replacement,
-                                              AvailabilityMergeKind AMK,
-                                              unsigned AttrSpellingListIndex) {
+AvailabilityAttr *Sema::mergeAvailabilityAttr(
+    NamedDecl *D, SourceRange Range, IdentifierInfo *Platform, bool Implicit,
+    VersionTuple Introduced, VersionTuple Deprecated, VersionTuple Obsoleted,
+    bool IsUnavailable, StringRef Message, bool IsStrict, StringRef Replacement,
+    AvailabilityMergeKind AMK, int Priority, unsigned AttrSpellingListIndex) {
   VersionTuple MergedIntroduced = Introduced;
   VersionTuple MergedDeprecated = Deprecated;
   VersionTuple MergedObsoleted = Obsoleted;
@@ -2328,16 +2321,15 @@ AvailabilityAttr *Sema::mergeAvailabilityAttr(NamedDecl *D, SourceRange Range,
       }
 
       // If there is an existing availability attribute for this platform that
-      // is explicit and the new one is implicit use the explicit one and
-      // discard the new implicit attribute.
-      if (!OldAA->isImplicit() && Implicit) {
+      // has a lower priority use the existing one and discard the new
+      // attribute.
+      if (OldAA->getPriority() < Priority)
         return nullptr;
-      }
 
-      // If there is an existing attribute for this platform that is implicit
-      // and the new attribute is explicit then erase the old one and
-      // continue processing the attributes.
-      if (!Implicit && OldAA->isImplicit()) {
+      // If there is an existing attribute for this platform that has a higher
+      // priority than the new attribute then erase the old one and continue
+      // processing the attributes.
+      if (OldAA->getPriority() > Priority) {
         Attrs.erase(Attrs.begin() + i);
         --e;
         continue;
@@ -2436,11 +2428,10 @@ AvailabilityAttr *Sema::mergeAvailabilityAttr(NamedDecl *D, SourceRange Range,
   if (!checkAvailabilityAttr(*this, Range, Platform, MergedIntroduced,
                              MergedDeprecated, MergedObsoleted) &&
       !OverrideOrImpl) {
-    auto *Avail =  ::new (Context) AvailabilityAttr(Range, Context, Platform,
-                                            Introduced, Deprecated,
-                                            Obsoleted, IsUnavailable, Message,
-                                            IsStrict, Replacement,
-                                            AttrSpellingListIndex);
+    auto *Avail = ::new (Context)
+        AvailabilityAttr(Range, Context, Platform, Introduced, Deprecated,
+                         Obsoleted, IsUnavailable, Message, IsStrict,
+                         Replacement, Priority, AttrSpellingListIndex);
     Avail->setImplicit(Implicit);
     return Avail;
   }
@@ -2483,15 +2474,13 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     }
   }
 
-  AvailabilityAttr *NewAttr = S.mergeAvailabilityAttr(ND, AL.getRange(), II,
-                                                      false/*Implicit*/,
-                                                      Introduced.Version,
-                                                      Deprecated.Version,
-                                                      Obsoleted.Version,
-                                                      IsUnavailable, Str,
-                                                      IsStrict, Replacement,
-                                                      Sema::AMK_None,
-                                                      Index);
+  int PriorityModifier = AL.isPragmaClangAttribute()
+                             ? Sema::AP_PragmaClangAttribute
+                             : Sema::AP_Explicit;
+  AvailabilityAttr *NewAttr = S.mergeAvailabilityAttr(
+      ND, AL.getRange(), II, false /*Implicit*/, Introduced.Version,
+      Deprecated.Version, Obsoleted.Version, IsUnavailable, Str, IsStrict,
+      Replacement, Sema::AMK_None, PriorityModifier, Index);
   if (NewAttr)
     D->addAttr(NewAttr);
 
@@ -2527,18 +2516,11 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
         auto NewDeprecated = adjustWatchOSVersion(Deprecated.Version);
         auto NewObsoleted = adjustWatchOSVersion(Obsoleted.Version);
 
-        AvailabilityAttr *NewAttr = S.mergeAvailabilityAttr(ND,
-                                                            AL.getRange(),
-                                                            NewII,
-                                                            true/*Implicit*/,
-                                                            NewIntroduced,
-                                                            NewDeprecated,
-                                                            NewObsoleted,
-                                                            IsUnavailable, Str,
-                                                            IsStrict,
-                                                            Replacement,
-                                                            Sema::AMK_None,
-                                                            Index);
+        AvailabilityAttr *NewAttr = S.mergeAvailabilityAttr(
+            ND, AL.getRange(), NewII, true /*Implicit*/, NewIntroduced,
+            NewDeprecated, NewObsoleted, IsUnavailable, Str, IsStrict,
+            Replacement, Sema::AMK_None,
+            PriorityModifier + Sema::AP_InferredFromOtherPlatform, Index);
         if (NewAttr)
           D->addAttr(NewAttr);
       }
@@ -2552,20 +2534,13 @@ static void handleAvailabilityAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
       NewII = &S.Context.Idents.get("tvos_app_extension");
 
     if (NewII) {
-        AvailabilityAttr *NewAttr = S.mergeAvailabilityAttr(ND,
-                                                            AL.getRange(),
-                                                            NewII,
-                                                            true/*Implicit*/,
-                                                            Introduced.Version,
-                                                            Deprecated.Version,
-                                                            Obsoleted.Version,
-                                                            IsUnavailable, Str,
-                                                            IsStrict,
-                                                            Replacement,
-                                                            Sema::AMK_None,
-                                                            Index);
-        if (NewAttr)
-          D->addAttr(NewAttr);
+      AvailabilityAttr *NewAttr = S.mergeAvailabilityAttr(
+          ND, AL.getRange(), NewII, true /*Implicit*/, Introduced.Version,
+          Deprecated.Version, Obsoleted.Version, IsUnavailable, Str, IsStrict,
+          Replacement, Sema::AMK_None,
+          PriorityModifier + Sema::AP_InferredFromOtherPlatform, Index);
+      if (NewAttr)
+        D->addAttr(NewAttr);
       }
   }
 }
@@ -3560,7 +3535,9 @@ static void handleCallbackAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   int CalleeIdx = EncodingIndices.front();
   // Check if the callee index is proper, thus not "this" and not "unknown".
-  if (CalleeIdx < HasImplicitThisParam) {
+  // This means the "CalleeIdx" has to be non-negative if "HasImplicitThisParam"
+  // is false and positive if "HasImplicitThisParam" is true.
+  if (CalleeIdx < (int)HasImplicitThisParam) {
     S.Diag(AL.getLoc(), diag::err_callback_attribute_invalid_callee)
         << AL.getRange();
     return;
@@ -5541,14 +5518,14 @@ static void handleMSP430InterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   if (hasFunctionProto(D) && getFunctionOrMethodNumParams(D) != 0) {
-    S.Diag(D->getLocation(), diag::warn_msp430_interrupt_attribute)
-        << 0;
+    S.Diag(D->getLocation(), diag::warn_interrupt_attribute_invalid)
+        << /*MSP430*/ 1 << 0;
     return;
   }
 
   if (!getFunctionOrMethodResultType(D)->isVoidType()) {
-    S.Diag(D->getLocation(), diag::warn_msp430_interrupt_attribute)
-        << 1;
+    S.Diag(D->getLocation(), diag::warn_interrupt_attribute_invalid)
+        << /*MSP430*/ 1 << 1;
     return;
   }
 
@@ -5616,14 +5593,14 @@ static void handleMipsInterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   }
 
   if (hasFunctionProto(D) && getFunctionOrMethodNumParams(D) != 0) {
-    S.Diag(D->getLocation(), diag::warn_mips_interrupt_attribute)
-        << 0;
+    S.Diag(D->getLocation(), diag::warn_interrupt_attribute_invalid)
+        << /*MIPS*/ 0 << 0;
     return;
   }
 
   if (!getFunctionOrMethodResultType(D)->isVoidType()) {
-    S.Diag(D->getLocation(), diag::warn_mips_interrupt_attribute)
-        << 1;
+    S.Diag(D->getLocation(), diag::warn_interrupt_attribute_invalid)
+        << /*MIPS*/ 0 << 1;
     return;
   }
 
@@ -5732,6 +5709,28 @@ static void handleAVRSignalAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   handleSimpleAttribute<AVRSignalAttr>(S, D, AL);
 }
 
+static void handleWebAssemblyImportModuleAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (!isFunctionOrMethod(D)) {
+    S.Diag(D->getLocation(), diag::warn_attribute_wrong_decl_type)
+        << "'import_module'" << ExpectedFunction;
+    return;
+  }
+
+  auto *FD = cast<FunctionDecl>(D);
+  if (FD->isThisDeclarationADefinition()) {
+    S.Diag(D->getLocation(), diag::err_alias_is_definition) << FD << 0;
+    return;
+  }
+
+  StringRef Str;
+  SourceLocation ArgLoc;
+  if (!S.checkStringLiteralArgumentAttr(AL, 0, Str, &ArgLoc))
+    return;
+
+  FD->addAttr(::new (S.Context) WebAssemblyImportModuleAttr(
+      AL.getRange(), S.Context, Str,
+      AL.getAttributeSpellingListIndex()));
+}
 
 static void handleRISCVInterruptAttr(Sema &S, Decl *D,
                                      const ParsedAttr &AL) {
@@ -5770,12 +5769,14 @@ static void handleRISCVInterruptAttr(Sema &S, Decl *D,
   }
 
   if (hasFunctionProto(D) && getFunctionOrMethodNumParams(D) != 0) {
-    S.Diag(D->getLocation(), diag::warn_riscv_interrupt_attribute) << 0;
+    S.Diag(D->getLocation(), diag::warn_interrupt_attribute_invalid)
+      << /*RISC-V*/ 2 << 0;
     return;
   }
 
   if (!getFunctionOrMethodResultType(D)->isVoidType()) {
-    S.Diag(D->getLocation(), diag::warn_riscv_interrupt_attribute) << 1;
+    S.Diag(D->getLocation(), diag::warn_interrupt_attribute_invalid)
+      << /*RISC-V*/ 2 << 1;
     return;
   }
 
@@ -6484,6 +6485,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case ParsedAttr::AT_AVRSignal:
     handleAVRSignalAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_WebAssemblyImportModule:
+    handleWebAssemblyImportModuleAttr(S, D, AL);
     break;
   case ParsedAttr::AT_IBAction:
     handleSimpleAttribute<IBActionAttr>(S, D, AL);

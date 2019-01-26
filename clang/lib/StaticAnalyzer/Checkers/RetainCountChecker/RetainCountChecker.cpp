@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "RetainCountChecker.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 
 using namespace clang;
 using namespace ento;
@@ -326,6 +327,31 @@ void RetainCountChecker::checkPostStmt(const ObjCIvarRefExpr *IRE,
   C.addTransition(State);
 }
 
+static bool isReceiverUnconsumedSelf(const CallEvent &Call) {
+  if (const auto *MC = dyn_cast<ObjCMethodCall>(&Call)) {
+
+    // Check if the message is not consumed, we know it will not be used in
+    // an assignment, ex: "self = [super init]".
+    return MC->getMethodFamily() == OMF_init && MC->isReceiverSelfOrSuper() &&
+           !Call.getLocationContext()
+                ->getAnalysisDeclContext()
+                ->getParentMap()
+                .isConsumedExpr(Call.getOriginExpr());
+  }
+  return false;
+}
+
+const static RetainSummary *getSummary(RetainSummaryManager &Summaries,
+                                       const CallEvent &Call,
+                                       QualType ReceiverType) {
+  const Expr *CE = Call.getOriginExpr();
+  AnyCall C =
+      CE ? *AnyCall::forExpr(CE)
+         : AnyCall::forDestructorCall(cast<CXXDestructorDecl>(Call.getDecl()));
+  return Summaries.getSummary(C, Call.hasNonZeroCallbackArg(),
+                              isReceiverUnconsumedSelf(Call), ReceiverType);
+}
+
 void RetainCountChecker::checkPostCall(const CallEvent &Call,
                                        CheckerContext &C) const {
   RetainSummaryManager &Summaries = getSummaryManager(C);
@@ -341,7 +367,7 @@ void RetainCountChecker::checkPostCall(const CallEvent &Call,
     }
   }
 
-  const RetainSummary *Summ = Summaries.getSummary(Call, ReceiverType);
+  const RetainSummary *Summ = getSummary(Summaries, Call, ReceiverType);
 
   if (C.wasInlined) {
     processSummaryOfInlined(*Summ, Call, C);
@@ -575,7 +601,6 @@ void RetainCountChecker::checkSummary(const RetainSummary &Summ,
 
   // Helper tag for providing diagnostics: indicate whether dealloc was sent
   // at this location.
-  static CheckerProgramPointTag DeallocSentTag(this, DeallocTagDescription);
   bool DeallocSent = false;
 
   for (unsigned idx = 0, e = CallOrMsg.getNumArgs(); idx != e; ++idx) {
@@ -849,7 +874,6 @@ void RetainCountChecker::processNonLeakError(ProgramStateRef St,
 //===----------------------------------------------------------------------===//
 
 bool RetainCountChecker::evalCall(const CallExpr *CE, CheckerContext &C) const {
-  // Get the callee. We're only interested in simple C functions.
   ProgramStateRef state = C.getState();
   const FunctionDecl *FD = C.getCalleeDecl(CE);
   if (!FD)
@@ -874,18 +898,27 @@ bool RetainCountChecker::evalCall(const CallExpr *CE, CheckerContext &C) const {
 
   // Bind the return value.
   if (BSmr == BehaviorSummary::Identity ||
-      BSmr == BehaviorSummary::IdentityOrZero) {
-    SVal RetVal = state->getSVal(CE->getArg(0), LCtx);
+      BSmr == BehaviorSummary::IdentityOrZero ||
+      BSmr == BehaviorSummary::IdentityThis) {
+
+    const Expr *BindReturnTo =
+        (BSmr == BehaviorSummary::IdentityThis)
+            ? cast<CXXMemberCallExpr>(CE)->getImplicitObjectArgument()
+            : CE->getArg(0);
+    SVal RetVal = state->getSVal(BindReturnTo, LCtx);
 
     // If the receiver is unknown or the function has
     // 'rc_ownership_trusted_implementation' annotate attribute, conjure a
     // return value.
+    // FIXME: this branch is very strange.
     if (RetVal.isUnknown() ||
         (hasTrustedImplementationAnnotation && !ResultTy.isNull())) {
       SValBuilder &SVB = C.getSValBuilder();
       RetVal =
           SVB.conjureSymbolVal(nullptr, CE, LCtx, ResultTy, C.blockCount());
     }
+
+    // Bind the value.
     state = state->BindExpr(CE, LCtx, RetVal, /*Invalidate=*/false);
 
     if (BSmr == BehaviorSummary::IdentityOrZero) {
@@ -895,8 +928,7 @@ bool RetainCountChecker::evalCall(const CallExpr *CE, CheckerContext &C) const {
       // Assume that output is zero on the other branch.
       NullOutputState = NullOutputState->BindExpr(
           CE, LCtx, C.getSValBuilder().makeNull(), /*Invalidate=*/false);
-
-      C.addTransition(NullOutputState);
+      C.addTransition(NullOutputState, &CastFailTag);
 
       // And on the original branch assume that both input and
       // output are non-zero.

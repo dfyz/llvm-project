@@ -158,9 +158,10 @@ private:
   /// The values from the last parsed cpp hash file line comment if any.
   struct CppHashInfoTy {
     StringRef Filename;
-    int64_t LineNumber = 0;
+    int64_t LineNumber;
     SMLoc Loc;
-    unsigned Buf = 0;
+    unsigned Buf;
+    CppHashInfoTy() : Filename(), LineNumber(0), Loc(), Buf(0) {}
   };
   CppHashInfoTy CppHashInfo;
 
@@ -425,6 +426,7 @@ private:
     DK_WEAK_DEFINITION,
     DK_WEAK_REFERENCE,
     DK_WEAK_DEF_CAN_BE_HIDDEN,
+    DK_COLD,
     DK_COMM,
     DK_COMMON,
     DK_LCOMM,
@@ -1982,6 +1984,8 @@ bool AsmParser::parseStatement(ParseStatementInfo &Info,
       return parseDirectiveSymbolAttribute(MCSA_WeakReference);
     case DK_WEAK_DEF_CAN_BE_HIDDEN:
       return parseDirectiveSymbolAttribute(MCSA_WeakDefAutoPrivate);
+    case DK_COLD:
+      return parseDirectiveSymbolAttribute(MCSA_Cold);
     case DK_COMM:
     case DK_COMMON:
       return parseDirectiveComm(/*IsLocal=*/false);
@@ -5222,6 +5226,7 @@ void AsmParser::initializeDirectiveKindMap() {
   DirectiveKindMap[".weak_definition"] = DK_WEAK_DEFINITION;
   DirectiveKindMap[".weak_reference"] = DK_WEAK_REFERENCE;
   DirectiveKindMap[".weak_def_can_be_hidden"] = DK_WEAK_DEF_CAN_BE_HIDDEN;
+  DirectiveKindMap[".cold"] = DK_COLD;
   DirectiveKindMap[".comm"] = DK_COMM;
   DirectiveKindMap[".common"] = DK_COMMON;
   DirectiveKindMap[".lcomm"] = DK_LCOMM;

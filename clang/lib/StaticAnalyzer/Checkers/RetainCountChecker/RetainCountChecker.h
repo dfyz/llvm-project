@@ -21,6 +21,7 @@
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/ParentMap.h"
 #include "clang/Analysis/DomainSpecific/CocoaConventions.h"
+#include "clang/Analysis/RetainSummaryManager.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Analysis/SelectorExtras.h"
@@ -32,7 +33,6 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramStateTrait.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SymbolManager.h"
-#include "clang/StaticAnalyzer/Core/RetainSummaryManager.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/ImmutableList.h"
@@ -260,9 +260,11 @@ class RetainCountChecker
   RefCountBug leakWithinFunction{this, RefCountBug::LeakWithinFunction};
   RefCountBug leakAtReturn{this, RefCountBug::LeakAtReturn};
 
+  CheckerProgramPointTag DeallocSentTag{this, "DeallocSent"};
+  CheckerProgramPointTag CastFailTag{this, "DynamicCastFail"};
+
   mutable std::unique_ptr<RetainSummaryManager> Summaries;
 public:
-  static constexpr const char *DeallocTagDescription = "DeallocSent";
 
   /// Track Objective-C and CoreFoundation objects.
   bool TrackObjCAndCFObjects = false;
@@ -273,15 +275,9 @@ public:
   RetainCountChecker() {};
 
   RetainSummaryManager &getSummaryManager(ASTContext &Ctx) const {
-    // FIXME: We don't support ARC being turned on and off during one analysis.
-    // (nor, for that matter, do we support changing ASTContexts)
-    bool ARCEnabled = (bool)Ctx.getLangOpts().ObjCAutoRefCount;
-    if (!Summaries) {
-      Summaries.reset(new RetainSummaryManager(
-          Ctx, ARCEnabled, TrackObjCAndCFObjects, TrackOSObjects));
-    } else {
-      assert(Summaries->isARCEnabled() == ARCEnabled);
-    }
+    if (!Summaries)
+      Summaries.reset(
+          new RetainSummaryManager(Ctx, TrackObjCAndCFObjects, TrackOSObjects));
     return *Summaries;
   }
 
@@ -360,6 +356,14 @@ public:
                              SmallVectorImpl<SymbolRef> &Leaked,
                              CheckerContext &Ctx,
                              ExplodedNode *Pred = nullptr) const;
+
+  const CheckerProgramPointTag &getDeallocSentTag() const {
+    return DeallocSentTag;
+  }
+
+  const CheckerProgramPointTag &getCastFailTag() const {
+    return CastFailTag;
+  }
 
 private:
   /// Perform the necessary checks and state adjustments at the end of the

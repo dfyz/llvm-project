@@ -1617,21 +1617,6 @@ let Predicates = [HasAVX, NoVLX] in {
             (VCVTTPD2DQYrm addr:$src)>;
 }
 
-let Predicates = [HasAVX, NoVLX] in {
-  def : Pat<(X86vzmovl (v2i64 (bitconvert
-                               (v4i32 (X86cvtp2Int (v2f64 VR128:$src)))))),
-            (VCVTPD2DQrr VR128:$src)>;
-  def : Pat<(X86vzmovl (v2i64 (bitconvert
-                               (v4i32 (X86cvtp2Int (loadv2f64 addr:$src)))))),
-            (VCVTPD2DQrm addr:$src)>;
-  def : Pat<(X86vzmovl (v2i64 (bitconvert
-                               (v4i32 (X86cvttp2si (v2f64 VR128:$src)))))),
-            (VCVTTPD2DQrr VR128:$src)>;
-  def : Pat<(X86vzmovl (v2i64 (bitconvert
-                               (v4i32 (X86cvttp2si (loadv2f64 addr:$src)))))),
-            (VCVTTPD2DQrm addr:$src)>;
-} // Predicates = [HasAVX, NoVLX]
-
 def CVTTPD2DQrr : PDI<0xE6, MRMSrcReg, (outs VR128:$dst), (ins VR128:$src),
                       "cvttpd2dq\t{$src, $dst|$dst, $src}",
                       [(set VR128:$dst,
@@ -1642,21 +1627,6 @@ def CVTTPD2DQrm : PDI<0xE6, MRMSrcMem, (outs VR128:$dst),(ins f128mem:$src),
                       [(set VR128:$dst,
                         (v4i32 (X86cvttp2si (memopv2f64 addr:$src))))]>,
                       Sched<[WriteCvtPD2ILd]>;
-
-let Predicates = [UseSSE2] in {
-  def : Pat<(X86vzmovl (v2i64 (bitconvert
-                               (v4i32 (X86cvtp2Int (v2f64 VR128:$src)))))),
-            (CVTPD2DQrr VR128:$src)>;
-  def : Pat<(X86vzmovl (v2i64 (bitconvert
-                               (v4i32 (X86cvtp2Int (memopv2f64 addr:$src)))))),
-            (CVTPD2DQrm addr:$src)>;
-  def : Pat<(X86vzmovl (v2i64 (bitconvert
-                               (v4i32 (X86cvttp2si (v2f64 VR128:$src)))))),
-            (CVTTPD2DQrr VR128:$src)>;
-  def : Pat<(X86vzmovl (v2i64 (bitconvert
-                               (v4i32 (X86cvttp2si (memopv2f64 addr:$src)))))),
-            (CVTTPD2DQrm addr:$src)>;
-} // Predicates = [UseSSE2]
 
 // Convert packed single to packed double
 let Predicates = [HasAVX, NoVLX] in {
@@ -1769,11 +1739,11 @@ def : InstAlias<"vcvtpd2psx\t{$src, $dst|$dst, $src}",
 let Predicates = [HasAVX, NoVLX] in {
 def VCVTPD2PSYrr : VPDI<0x5A, MRMSrcReg, (outs VR128:$dst), (ins VR256:$src),
                         "cvtpd2ps\t{$src, $dst|$dst, $src}",
-                        [(set VR128:$dst, (fpround VR256:$src))]>,
+                        [(set VR128:$dst, (X86vfpround VR256:$src))]>,
                         VEX, VEX_L, Sched<[WriteCvtPD2PSY]>, VEX_WIG;
 def VCVTPD2PSYrm : VPDI<0x5A, MRMSrcMem, (outs VR128:$dst), (ins f256mem:$src),
                         "cvtpd2ps{y}\t{$src, $dst|$dst, $src}",
-                        [(set VR128:$dst, (fpround (loadv4f64 addr:$src)))]>,
+                        [(set VR128:$dst, (X86vfpround (loadv4f64 addr:$src)))]>,
                         VEX, VEX_L, Sched<[WriteCvtPD2PSY.Folded]>, VEX_WIG;
 }
 def : InstAlias<"vcvtpd2psy\t{$src, $dst|$dst, $src}",
@@ -1790,28 +1760,11 @@ def CVTPD2PSrm : PDI<0x5A, MRMSrcMem, (outs VR128:$dst), (ins f128mem:$src),
                      [(set VR128:$dst, (X86vfpround (memopv2f64 addr:$src)))]>,
                      Sched<[WriteCvtPD2PS.Folded]>;
 
-// AVX 256-bit register conversion intrinsics
-// FIXME: Migrate SSE conversion intrinsics matching to use patterns as below
-// whenever possible to avoid declaring two versions of each one.
-
 let Predicates = [HasAVX, NoVLX] in {
-  // Match fpround and fpextend for 128/256-bit conversions
-  def : Pat<(X86vzmovl (v2f64 (bitconvert
-                               (v4f32 (X86vfpround (v2f64 VR128:$src)))))),
-            (VCVTPD2PSrr VR128:$src)>;
-  def : Pat<(X86vzmovl (v2f64 (bitconvert
-                               (v4f32 (X86vfpround (loadv2f64 addr:$src)))))),
-            (VCVTPD2PSrm addr:$src)>;
-}
-
-let Predicates = [UseSSE2] in {
-  // Match fpround and fpextend for 128 conversions
-  def : Pat<(X86vzmovl (v2f64 (bitconvert
-                               (v4f32 (X86vfpround (v2f64 VR128:$src)))))),
-            (CVTPD2PSrr VR128:$src)>;
-  def : Pat<(X86vzmovl (v2f64 (bitconvert
-                               (v4f32 (X86vfpround (memopv2f64 addr:$src)))))),
-            (CVTPD2PSrm addr:$src)>;
+  def : Pat<(v4f32 (fpround (v4f64 VR256:$src))),
+            (VCVTPD2PSYrr VR256:$src)>;
+  def : Pat<(v4f32 (fpround (loadv4f64 addr:$src))),
+            (VCVTPD2PSYrm addr:$src)>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -4117,7 +4070,7 @@ multiclass sse2_pinsrw<bit Is2Addr = 1> {
            "vpinsrw\t{$src3, $src2, $src1, $dst|$dst, $src1, $src2, $src3}"),
        [(set VR128:$dst,
          (X86pinsrw VR128:$src1, GR32orGR64:$src2, imm:$src3))]>,
-       Sched<[WriteVecInsert]>;
+       Sched<[WriteVecInsert, ReadDefault, ReadInt2Fpu]>;
   def rm : Ii8<0xC4, MRMSrcMem,
                       (outs VR128:$dst), (ins VR128:$src1,
                        i16mem:$src2, u8imm:$src3),
@@ -5572,7 +5525,7 @@ multiclass SS41I_insert8<bits<8> opc, string asm, bit Is2Addr = 1> {
                    "\t{$src3, $src2, $src1, $dst|$dst, $src1, $src2, $src3}")),
       [(set VR128:$dst,
         (X86pinsrb VR128:$src1, GR32orGR64:$src2, imm:$src3))]>,
-      Sched<[WriteVecInsert]>;
+      Sched<[WriteVecInsert, ReadDefault, ReadInt2Fpu]>;
   def rm : SS4AIi8<opc, MRMSrcMem, (outs VR128:$dst),
       (ins VR128:$src1, i8mem:$src2, u8imm:$src3),
       !if(Is2Addr,
@@ -5598,7 +5551,7 @@ multiclass SS41I_insert32<bits<8> opc, string asm, bit Is2Addr = 1> {
                    "\t{$src3, $src2, $src1, $dst|$dst, $src1, $src2, $src3}")),
       [(set VR128:$dst,
         (v4i32 (insertelt VR128:$src1, GR32:$src2, imm:$src3)))]>,
-      Sched<[WriteVecInsert]>;
+      Sched<[WriteVecInsert, ReadDefault, ReadInt2Fpu]>;
   def rm : SS4AIi8<opc, MRMSrcMem, (outs VR128:$dst),
       (ins VR128:$src1, i32mem:$src2, u8imm:$src3),
       !if(Is2Addr,
@@ -5624,7 +5577,7 @@ multiclass SS41I_insert64<bits<8> opc, string asm, bit Is2Addr = 1> {
                    "\t{$src3, $src2, $src1, $dst|$dst, $src1, $src2, $src3}")),
       [(set VR128:$dst,
         (v2i64 (insertelt VR128:$src1, GR64:$src2, imm:$src3)))]>,
-      Sched<[WriteVecInsert]>;
+      Sched<[WriteVecInsert, ReadDefault, ReadInt2Fpu]>;
   def rm : SS4AIi8<opc, MRMSrcMem, (outs VR128:$dst),
       (ins VR128:$src1, i64mem:$src2, u8imm:$src3),
       !if(Is2Addr,
@@ -5646,6 +5599,7 @@ let Constraints = "$src1 = $dst" in
 // vector. The next one matches the intrinsic and could zero arbitrary elements
 // in the target vector.
 multiclass SS41I_insertf32<bits<8> opc, string asm, bit Is2Addr = 1> {
+  let isCommutable = 1 in
   def rr : SS4AIi8<opc, MRMSrcReg, (outs VR128:$dst),
       (ins VR128:$src1, VR128:$src2, u8imm:$src3),
       !if(Is2Addr,

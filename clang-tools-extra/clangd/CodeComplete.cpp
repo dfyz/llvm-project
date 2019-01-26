@@ -1016,33 +1016,20 @@ bool semaCodeComplete(std::unique_ptr<CodeCompleteConsumer> Consumer,
                       const SemaCompleteInput &Input,
                       IncludeStructure *Includes = nullptr) {
   trace::Span Tracer("Sema completion");
-  std::vector<const char *> ArgStrs;
-  for (const auto &S : Input.Command.CommandLine)
-    ArgStrs.push_back(S.c_str());
-
-  if (Input.VFS->setCurrentWorkingDirectory(Input.Command.Directory)) {
-    log("Couldn't set working directory");
-    // We run parsing anyway, our lit-tests rely on results for non-existing
-    // working dirs.
-  }
-
   llvm::IntrusiveRefCntPtr<llvm::vfs::FileSystem> VFS = Input.VFS;
   if (Input.Preamble && Input.Preamble->StatCache)
     VFS = Input.Preamble->StatCache->getConsumingFS(std::move(VFS));
-  IgnoreDiagnostics DummyDiagsConsumer;
-  auto CI = createInvocationFromCommandLine(
-      ArgStrs,
-      CompilerInstance::createDiagnostics(new DiagnosticOptions,
-                                          &DummyDiagsConsumer, false),
-      VFS);
+  ParseInputs PInput;
+  PInput.CompileCommand = Input.Command;
+  PInput.FS = VFS;
+  PInput.Contents = Input.Contents;
+  auto CI = buildCompilerInvocation(PInput);
   if (!CI) {
     elog("Couldn't create CompilerInvocation");
     return false;
   }
   auto &FrontendOpts = CI->getFrontendOpts();
-  FrontendOpts.DisableFree = false;
   FrontendOpts.SkipFunctionBodies = true;
-  CI->getLangOpts()->CommentOpts.ParseAllComments = true;
   // Disable typo correction in Sema.
   CI->getLangOpts()->SpellChecking = false;
   // Setup code completion.
@@ -1072,6 +1059,7 @@ bool semaCodeComplete(std::unique_ptr<CodeCompleteConsumer> Consumer,
       *Offset;
   // NOTE: we must call BeginSourceFile after prepareCompilerInstance. Otherwise
   // the remapped buffers do not get freed.
+  IgnoreDiagnostics DummyDiagsConsumer;
   auto Clang = prepareCompilerInstance(
       std::move(CI),
       (Input.Preamble && !CompletingInPreamble) ? &Input.Preamble->Preamble
@@ -1600,9 +1588,9 @@ speculateCompletionFilter(llvm::StringRef Content, Position Pos) {
   // Start from the character before the cursor.
   int St = *Offset - 1;
   // FIXME(ioeric): consider UTF characters?
-  auto IsValidIdentifierChar = [](char c) {
-    return ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-            (c >= '0' && c <= '9') || (c == '_'));
+  auto IsValidIdentifierChar = [](char C) {
+    return ((C >= 'a' && C <= 'z') || (C >= 'A' && C <= 'Z') ||
+            (C >= '0' && C <= '9') || (C == '_'));
   };
   size_t Len = 0;
   for (; (St >= 0) && IsValidIdentifierChar(Content[St]); --St, ++Len) {
@@ -1694,7 +1682,7 @@ CompletionItem CodeCompletion::render(const CodeCompleteOptions &Opts) const {
   // is mainly to help LSP clients again, so that changes do not effect each
   // other.
   for (const auto &FixIt : FixIts) {
-    if (IsRangeConsecutive(FixIt.range, LSP.textEdit->range)) {
+    if (isRangeConsecutive(FixIt.range, LSP.textEdit->range)) {
       LSP.textEdit->newText = FixIt.newText + LSP.textEdit->newText;
       LSP.textEdit->range.start = FixIt.range.start;
     } else {

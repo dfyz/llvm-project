@@ -2446,37 +2446,41 @@ define void @test_int_x86_avx512_mask_pmovus_qd_mem_128(i8* %ptr, <2 x i64> %x1,
     ret void
 }
 
-declare <4 x i32> @llvm.x86.avx512.mask.pmov.qd.256(<4 x i64>, <4 x i32>, i8)
-
 define <4 x i32>@test_int_x86_avx512_mask_pmov_qd_256(<4 x i64> %x0, <4 x i32> %x1, i8 %x2) {
 ; X86-LABEL: test_int_x86_avx512_mask_pmov_qd_256:
 ; X86:       # %bb.0:
+; X86-NEXT:    vpmovqd %ymm0, %xmm2 # encoding: [0x62,0xf2,0x7e,0x28,0x35,0xc2]
 ; X86-NEXT:    movzbl {{[0-9]+}}(%esp), %eax # encoding: [0x0f,0xb6,0x44,0x24,0x04]
 ; X86-NEXT:    kmovw %eax, %k1 # encoding: [0xc5,0xf8,0x92,0xc8]
 ; X86-NEXT:    vpmovqd %ymm0, %xmm1 {%k1} # encoding: [0x62,0xf2,0x7e,0x29,0x35,0xc1]
-; X86-NEXT:    vpmovqd %ymm0, %xmm2 {%k1} {z} # encoding: [0x62,0xf2,0x7e,0xa9,0x35,0xc2]
-; X86-NEXT:    vpaddd %xmm2, %xmm1, %xmm1 # EVEX TO VEX Compression encoding: [0xc5,0xf1,0xfe,0xca]
-; X86-NEXT:    vpmovqd %ymm0, %xmm0 # encoding: [0x62,0xf2,0x7e,0x28,0x35,0xc0]
-; X86-NEXT:    vpaddd %xmm1, %xmm0, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xf9,0xfe,0xc1]
+; X86-NEXT:    vpmovqd %ymm0, %xmm0 {%k1} {z} # encoding: [0x62,0xf2,0x7e,0xa9,0x35,0xc0]
+; X86-NEXT:    vpaddd %xmm0, %xmm1, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xf1,0xfe,0xc0]
+; X86-NEXT:    vpaddd %xmm0, %xmm2, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xe9,0xfe,0xc0]
 ; X86-NEXT:    vzeroupper # encoding: [0xc5,0xf8,0x77]
 ; X86-NEXT:    retl # encoding: [0xc3]
 ;
 ; X64-LABEL: test_int_x86_avx512_mask_pmov_qd_256:
 ; X64:       # %bb.0:
+; X64-NEXT:    vpmovqd %ymm0, %xmm2 # encoding: [0x62,0xf2,0x7e,0x28,0x35,0xc2]
 ; X64-NEXT:    kmovw %edi, %k1 # encoding: [0xc5,0xf8,0x92,0xcf]
-; X64-NEXT:    vpmovqd %ymm0, %xmm2 {%k1} {z} # encoding: [0x62,0xf2,0x7e,0xa9,0x35,0xc2]
 ; X64-NEXT:    vpmovqd %ymm0, %xmm1 {%k1} # encoding: [0x62,0xf2,0x7e,0x29,0x35,0xc1]
-; X64-NEXT:    vpaddd %xmm2, %xmm1, %xmm1 # EVEX TO VEX Compression encoding: [0xc5,0xf1,0xfe,0xca]
-; X64-NEXT:    vpmovqd %ymm0, %xmm0 # encoding: [0x62,0xf2,0x7e,0x28,0x35,0xc0]
-; X64-NEXT:    vpaddd %xmm1, %xmm0, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xf9,0xfe,0xc1]
+; X64-NEXT:    vpmovqd %ymm0, %xmm0 {%k1} {z} # encoding: [0x62,0xf2,0x7e,0xa9,0x35,0xc0]
+; X64-NEXT:    vpaddd %xmm0, %xmm1, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xf1,0xfe,0xc0]
+; X64-NEXT:    vpaddd %xmm0, %xmm2, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xe9,0xfe,0xc0]
 ; X64-NEXT:    vzeroupper # encoding: [0xc5,0xf8,0x77]
 ; X64-NEXT:    retq # encoding: [0xc3]
-    %res0 = call <4 x i32> @llvm.x86.avx512.mask.pmov.qd.256(<4 x i64> %x0, <4 x i32> %x1, i8 -1)
-    %res1 = call <4 x i32> @llvm.x86.avx512.mask.pmov.qd.256(<4 x i64> %x0, <4 x i32> %x1, i8 %x2)
-    %res2 = call <4 x i32> @llvm.x86.avx512.mask.pmov.qd.256(<4 x i64> %x0, <4 x i32> zeroinitializer, i8 %x2)
-    %res3 = add <4 x i32> %res0, %res1
-    %res4 = add <4 x i32> %res3, %res2
-    ret <4 x i32> %res4
+  %1 = trunc <4 x i64> %x0 to <4 x i32>
+  %2 = trunc <4 x i64> %x0 to <4 x i32>
+  %3 = bitcast i8 %x2 to <8 x i1>
+  %extract1 = shufflevector <8 x i1> %3, <8 x i1> %3, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+  %4 = select <4 x i1> %extract1, <4 x i32> %2, <4 x i32> %x1
+  %5 = trunc <4 x i64> %x0 to <4 x i32>
+  %6 = bitcast i8 %x2 to <8 x i1>
+  %extract = shufflevector <8 x i1> %6, <8 x i1> %6, <4 x i32> <i32 0, i32 1, i32 2, i32 3>
+  %7 = select <4 x i1> %extract, <4 x i32> %5, <4 x i32> zeroinitializer
+  %res3 = add <4 x i32> %1, %4
+  %res4 = add <4 x i32> %res3, %7
+  ret <4 x i32> %res4
 }
 
 declare void @llvm.x86.avx512.mask.pmov.qd.mem.256(i8* %ptr, <4 x i64>, i8)
@@ -3323,8 +3327,6 @@ define <4 x i32>@test_int_x86_avx512_mask_cvt_pd2dq_128_zext(<2 x double> %x0, <
 ; X86-NEXT:    movzbl {{[0-9]+}}(%esp), %eax # encoding: [0x0f,0xb6,0x44,0x24,0x04]
 ; X86-NEXT:    kmovw %eax, %k1 # encoding: [0xc5,0xf8,0x92,0xc8]
 ; X86-NEXT:    vcvtpd2dq %xmm0, %xmm1 {%k1} # encoding: [0x62,0xf1,0xff,0x09,0xe6,0xc8]
-; X86-NEXT:    vmovq %xmm1, %xmm1 # EVEX TO VEX Compression encoding: [0xc5,0xfa,0x7e,0xc9]
-; X86-NEXT:    # xmm1 = xmm1[0],zero
 ; X86-NEXT:    vcvtpd2dq %xmm0, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xfb,0xe6,0xc0]
 ; X86-NEXT:    vpaddd %xmm0, %xmm1, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xf1,0xfe,0xc0]
 ; X86-NEXT:    retl # encoding: [0xc3]
@@ -3333,8 +3335,6 @@ define <4 x i32>@test_int_x86_avx512_mask_cvt_pd2dq_128_zext(<2 x double> %x0, <
 ; X64:       # %bb.0:
 ; X64-NEXT:    kmovw %edi, %k1 # encoding: [0xc5,0xf8,0x92,0xcf]
 ; X64-NEXT:    vcvtpd2dq %xmm0, %xmm1 {%k1} # encoding: [0x62,0xf1,0xff,0x09,0xe6,0xc8]
-; X64-NEXT:    vmovq %xmm1, %xmm1 # EVEX TO VEX Compression encoding: [0xc5,0xfa,0x7e,0xc9]
-; X64-NEXT:    # xmm1 = xmm1[0],zero
 ; X64-NEXT:    vcvtpd2dq %xmm0, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xfb,0xe6,0xc0]
 ; X64-NEXT:    vpaddd %xmm0, %xmm1, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xf1,0xfe,0xc0]
 ; X64-NEXT:    retq # encoding: [0xc3]
@@ -3377,8 +3377,6 @@ define <4 x float>@test_int_x86_avx512_mask_cvt_pd2ps_zext(<2 x double> %x0, <4 
 ; X86-NEXT:    movzbl {{[0-9]+}}(%esp), %eax # encoding: [0x0f,0xb6,0x44,0x24,0x04]
 ; X86-NEXT:    kmovw %eax, %k1 # encoding: [0xc5,0xf8,0x92,0xc8]
 ; X86-NEXT:    vcvtpd2ps %xmm0, %xmm1 {%k1} # encoding: [0x62,0xf1,0xfd,0x09,0x5a,0xc8]
-; X86-NEXT:    vmovq %xmm1, %xmm1 # EVEX TO VEX Compression encoding: [0xc5,0xfa,0x7e,0xc9]
-; X86-NEXT:    # xmm1 = xmm1[0],zero
 ; X86-NEXT:    vcvtpd2ps %xmm0, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xf9,0x5a,0xc0]
 ; X86-NEXT:    vaddps %xmm0, %xmm1, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xf0,0x58,0xc0]
 ; X86-NEXT:    retl # encoding: [0xc3]
@@ -3387,8 +3385,6 @@ define <4 x float>@test_int_x86_avx512_mask_cvt_pd2ps_zext(<2 x double> %x0, <4 
 ; X64:       # %bb.0:
 ; X64-NEXT:    kmovw %edi, %k1 # encoding: [0xc5,0xf8,0x92,0xcf]
 ; X64-NEXT:    vcvtpd2ps %xmm0, %xmm1 {%k1} # encoding: [0x62,0xf1,0xfd,0x09,0x5a,0xc8]
-; X64-NEXT:    vmovq %xmm1, %xmm1 # EVEX TO VEX Compression encoding: [0xc5,0xfa,0x7e,0xc9]
-; X64-NEXT:    # xmm1 = xmm1[0],zero
 ; X64-NEXT:    vcvtpd2ps %xmm0, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xf9,0x5a,0xc0]
 ; X64-NEXT:    vaddps %xmm0, %xmm1, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xf0,0x58,0xc0]
 ; X64-NEXT:    retq # encoding: [0xc3]
@@ -3431,8 +3427,6 @@ define <4 x i32>@test_int_x86_avx512_mask_cvt_pd2udq_128_zext(<2 x double> %x0, 
 ; X86-NEXT:    movzbl {{[0-9]+}}(%esp), %eax # encoding: [0x0f,0xb6,0x44,0x24,0x04]
 ; X86-NEXT:    kmovw %eax, %k1 # encoding: [0xc5,0xf8,0x92,0xc8]
 ; X86-NEXT:    vcvtpd2udq %xmm0, %xmm1 {%k1} # encoding: [0x62,0xf1,0xfc,0x09,0x79,0xc8]
-; X86-NEXT:    vmovq %xmm1, %xmm1 # EVEX TO VEX Compression encoding: [0xc5,0xfa,0x7e,0xc9]
-; X86-NEXT:    # xmm1 = xmm1[0],zero
 ; X86-NEXT:    vcvtpd2udq %xmm0, %xmm0 # encoding: [0x62,0xf1,0xfc,0x08,0x79,0xc0]
 ; X86-NEXT:    vpaddd %xmm0, %xmm1, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xf1,0xfe,0xc0]
 ; X86-NEXT:    retl # encoding: [0xc3]
@@ -3441,8 +3435,6 @@ define <4 x i32>@test_int_x86_avx512_mask_cvt_pd2udq_128_zext(<2 x double> %x0, 
 ; X64:       # %bb.0:
 ; X64-NEXT:    kmovw %edi, %k1 # encoding: [0xc5,0xf8,0x92,0xcf]
 ; X64-NEXT:    vcvtpd2udq %xmm0, %xmm1 {%k1} # encoding: [0x62,0xf1,0xfc,0x09,0x79,0xc8]
-; X64-NEXT:    vmovq %xmm1, %xmm1 # EVEX TO VEX Compression encoding: [0xc5,0xfa,0x7e,0xc9]
-; X64-NEXT:    # xmm1 = xmm1[0],zero
 ; X64-NEXT:    vcvtpd2udq %xmm0, %xmm0 # encoding: [0x62,0xf1,0xfc,0x08,0x79,0xc0]
 ; X64-NEXT:    vpaddd %xmm0, %xmm1, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xf1,0xfe,0xc0]
 ; X64-NEXT:    retq # encoding: [0xc3]
@@ -3612,8 +3604,6 @@ define <4 x i32>@test_int_x86_avx512_mask_cvtt_pd2dq_128_zext(<2 x double> %x0, 
 ; X86-NEXT:    movzbl {{[0-9]+}}(%esp), %eax # encoding: [0x0f,0xb6,0x44,0x24,0x04]
 ; X86-NEXT:    kmovw %eax, %k1 # encoding: [0xc5,0xf8,0x92,0xc8]
 ; X86-NEXT:    vcvttpd2dq %xmm0, %xmm1 {%k1} # encoding: [0x62,0xf1,0xfd,0x09,0xe6,0xc8]
-; X86-NEXT:    vmovq %xmm1, %xmm1 # EVEX TO VEX Compression encoding: [0xc5,0xfa,0x7e,0xc9]
-; X86-NEXT:    # xmm1 = xmm1[0],zero
 ; X86-NEXT:    vcvttpd2dq %xmm0, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xf9,0xe6,0xc0]
 ; X86-NEXT:    vpaddd %xmm0, %xmm1, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xf1,0xfe,0xc0]
 ; X86-NEXT:    retl # encoding: [0xc3]
@@ -3622,8 +3612,6 @@ define <4 x i32>@test_int_x86_avx512_mask_cvtt_pd2dq_128_zext(<2 x double> %x0, 
 ; X64:       # %bb.0:
 ; X64-NEXT:    kmovw %edi, %k1 # encoding: [0xc5,0xf8,0x92,0xcf]
 ; X64-NEXT:    vcvttpd2dq %xmm0, %xmm1 {%k1} # encoding: [0x62,0xf1,0xfd,0x09,0xe6,0xc8]
-; X64-NEXT:    vmovq %xmm1, %xmm1 # EVEX TO VEX Compression encoding: [0xc5,0xfa,0x7e,0xc9]
-; X64-NEXT:    # xmm1 = xmm1[0],zero
 ; X64-NEXT:    vcvttpd2dq %xmm0, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xf9,0xe6,0xc0]
 ; X64-NEXT:    vpaddd %xmm0, %xmm1, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xf1,0xfe,0xc0]
 ; X64-NEXT:    retq # encoding: [0xc3]
@@ -3666,8 +3654,6 @@ define <4 x i32>@test_int_x86_avx512_mask_cvtt_pd2udq_128_zext(<2 x double> %x0,
 ; X86-NEXT:    movzbl {{[0-9]+}}(%esp), %eax # encoding: [0x0f,0xb6,0x44,0x24,0x04]
 ; X86-NEXT:    kmovw %eax, %k1 # encoding: [0xc5,0xf8,0x92,0xc8]
 ; X86-NEXT:    vcvttpd2udq %xmm0, %xmm1 {%k1} # encoding: [0x62,0xf1,0xfc,0x09,0x78,0xc8]
-; X86-NEXT:    vmovq %xmm1, %xmm1 # EVEX TO VEX Compression encoding: [0xc5,0xfa,0x7e,0xc9]
-; X86-NEXT:    # xmm1 = xmm1[0],zero
 ; X86-NEXT:    vcvttpd2udq %xmm0, %xmm0 # encoding: [0x62,0xf1,0xfc,0x08,0x78,0xc0]
 ; X86-NEXT:    vpaddd %xmm0, %xmm1, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xf1,0xfe,0xc0]
 ; X86-NEXT:    retl # encoding: [0xc3]
@@ -3676,8 +3662,6 @@ define <4 x i32>@test_int_x86_avx512_mask_cvtt_pd2udq_128_zext(<2 x double> %x0,
 ; X64:       # %bb.0:
 ; X64-NEXT:    kmovw %edi, %k1 # encoding: [0xc5,0xf8,0x92,0xcf]
 ; X64-NEXT:    vcvttpd2udq %xmm0, %xmm1 {%k1} # encoding: [0x62,0xf1,0xfc,0x09,0x78,0xc8]
-; X64-NEXT:    vmovq %xmm1, %xmm1 # EVEX TO VEX Compression encoding: [0xc5,0xfa,0x7e,0xc9]
-; X64-NEXT:    # xmm1 = xmm1[0],zero
 ; X64-NEXT:    vcvttpd2udq %xmm0, %xmm0 # encoding: [0x62,0xf1,0xfc,0x08,0x78,0xc0]
 ; X64-NEXT:    vpaddd %xmm0, %xmm1, %xmm0 # EVEX TO VEX Compression encoding: [0xc5,0xf1,0xfe,0xc0]
 ; X64-NEXT:    retq # encoding: [0xc3]

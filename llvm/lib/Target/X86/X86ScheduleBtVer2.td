@@ -108,6 +108,11 @@ def : ReadAdvance<ReadAfterVecLd, 5>;
 def : ReadAdvance<ReadAfterVecXLd, 5>;
 def : ReadAdvance<ReadAfterVecYLd, 5>;
 
+/// "Additional 6 cycle transfer operation which moves a floating point
+/// operation input value from the integer unit to the floating point unit.
+/// Reference: AMDfam16h SOG (Appendix A "Instruction Latencies", Section A.2).
+def : ReadAdvance<ReadInt2Fpu, -6>;
+
 // Many SchedWrites are defined in pairs with and without a folded load.
 // Instructions with folded loads are usually micro-fused, so they only appear
 // as two micro-ops when dispatched by the schedulers.
@@ -263,14 +268,13 @@ defm : X86WriteRes<WriteSHDmrcl,[JLAGU, JALU01], 9, [1, 22], 8>;
 // Loads, stores, and moves, not folded with other operations.
 ////////////////////////////////////////////////////////////////////////////////
 
-def : WriteRes<WriteLoad,    [JLAGU]> { let Latency = 5; }
+def : WriteRes<WriteLoad,    [JLAGU]> { let Latency = 3; }
 def : WriteRes<WriteStore,   [JSAGU]>;
 def : WriteRes<WriteStoreNT, [JSAGU]>;
 def : WriteRes<WriteMove,    [JALU01]>;
 
 // Load/store MXCSR.
-// FIXME: These are copy and pasted from WriteLoad/Store.
-def : WriteRes<WriteLDMXCSR, [JLAGU]> { let Latency = 5; }
+def : WriteRes<WriteLDMXCSR, [JLAGU]> { let Latency = 3; }
 def : WriteRes<WriteSTMXCSR, [JSAGU]>;
 
 // Treat misc copies as a move.
@@ -401,8 +405,8 @@ defm : X86WriteResPairUnsupported<WriteFTestZ>;
 defm : JWriteResFpuPair<WriteFShuffle,    [JFPU01, JFPX],  1>;
 defm : JWriteResYMMPair<WriteFShuffleY,   [JFPU01, JFPX],  1, [2, 2], 2>;
 defm : X86WriteResPairUnsupported<WriteFShuffleZ>;
-defm : JWriteResFpuPair<WriteFVarShuffle, [JFPU01, JFPX],  2, [1, 4], 3>;
-defm : JWriteResYMMPair<WriteFVarShuffleY,[JFPU01, JFPX],  3, [2, 6], 6>;
+defm : JWriteResFpuPair<WriteFVarShuffle, [JFPU01, JFPX],  3, [1, 4], 3>; // +1cy latency.
+defm : JWriteResYMMPair<WriteFVarShuffleY,[JFPU01, JFPX],  4, [2, 6], 6>; // +1cy latency.
 defm : X86WriteResPairUnsupported<WriteFVarShuffleZ>;
 defm : JWriteResFpuPair<WriteFBlend,      [JFPU01, JFPX],  1>;
 defm : JWriteResYMMPair<WriteFBlendY,     [JFPU01, JFPX],  1, [2, 2], 2>;
@@ -488,11 +492,11 @@ defm : JWriteResFpuPair<WriteVecALUX,     [JFPU01, JVALU], 1>;
 defm : X86WriteResPairUnsupported<WriteVecALUY>;
 defm : X86WriteResPairUnsupported<WriteVecALUZ>;
 defm : JWriteResFpuPair<WriteVecShift,    [JFPU01, JVALU], 1>;
-defm : JWriteResFpuPair<WriteVecShiftX,   [JFPU01, JVALU], 1>;
+defm : JWriteResFpuPair<WriteVecShiftX,   [JFPU01, JVALU], 2>; // +1cy latency.
 defm : X86WriteResPairUnsupported<WriteVecShiftY>;
 defm : X86WriteResPairUnsupported<WriteVecShiftZ>;
 defm : JWriteResFpuPair<WriteVecShiftImm, [JFPU01, JVALU], 1>;
-defm : JWriteResFpuPair<WriteVecShiftImmX,[JFPU01, JVALU], 1>;
+defm : JWriteResFpuPair<WriteVecShiftImmX,[JFPU01, JVALU], 2>; // +1cy latency.
 defm : X86WriteResPairUnsupported<WriteVecShiftImmY>;
 defm : X86WriteResPairUnsupported<WriteVecShiftImmZ>;
 defm : X86WriteResPairUnsupported<WriteVarVecShift>;
@@ -541,7 +545,7 @@ defm : X86WriteResPairUnsupported<WriteVarShuffle256>;
 // Vector insert/extract operations.
 ////////////////////////////////////////////////////////////////////////////////
 
-defm : X86WriteRes<WriteVecInsert,      [JFPU01, JVALU], 7, [1,1], 2>;
+defm : X86WriteRes<WriteVecInsert,      [JFPU01, JVALU], 1, [1,1], 2>;
 defm : X86WriteRes<WriteVecInsertLd,    [JFPU01, JVALU, JLAGU], 4, [1,1,1], 1>;
 defm : X86WriteRes<WriteVecExtract,     [JFPU0, JFPA, JALU0], 3, [1,1,1], 1>;
 defm : X86WriteRes<WriteVecExtractSt,   [JFPU1, JSTC, JSAGU], 3, [1,1,1], 1>;
@@ -578,7 +582,7 @@ defm : JWriteResFpuPair<WriteAESDecEnc,   [JFPU01, JVALU, JFPU0, JVIMUL], 3, [1,
 
 defm : JWriteResFpuPair<WriteFHAdd,         [JFPU0, JFPA], 4>;            // +1cy latency.
 defm : JWriteResYMMPair<WriteFHAddY,        [JFPU0, JFPA], 4, [2,2], 2>;  // +1cy latency.
-defm : JWriteResFpuPair<WritePHAdd,         [JFPU01, JVALU], 2>;          // +1cy latency.
+defm : JWriteResFpuPair<WritePHAdd,         [JFPU01, JVALU], 1>;
 defm : JWriteResFpuPair<WritePHAddX,        [JFPU01, JVALU], 2>;          // +1cy latency.
 defm : X86WriteResPairUnsupported<WritePHAddY>;
 

@@ -34,7 +34,7 @@ no_exit.6:              ; preds = %no_exit.6, %loopexit.3
 
 loopexit.6:             ; preds = %no_exit.6
         %Z.1 = select i1 %tmp.36796, double 1.000000e+00, double 0x3FEFFF7CEDE74EAE; <double> [#uses=2]
-        tail call void (i32, ...)* @printf( i32 0, i64 0, i64 0, i64 0, double 1.000000e+00, double 1.000000e+00, double %Z.1, double %Z.1 )
+        tail call void (i32, ...) @printf( i32 0, i64 0, i64 0, i64 0, double 1.000000e+00, double 1.000000e+00, double %Z.1, double %Z.1 )
         ret void
 }
 

@@ -21,7 +21,7 @@ cond_true235:           ; preds = %entry
         ret void
 
 cond_next243:           ; preds = %entry
-        %tmp428 = load i64* null                ; <i64> [#uses=1]
+        %tmp428 = load i64, i64* null                ; <i64> [#uses=1]
         %tmp428.upgrd.1 = trunc i64 %tmp428 to i32              ; <i32> [#uses=1]
         %tmp429 = alloca i8, i32 %tmp428.upgrd.1                ; <i8*> [#uses=0]
         unreachable

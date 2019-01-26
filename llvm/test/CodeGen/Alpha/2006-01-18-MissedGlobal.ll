@@ -11,7 +11,7 @@ target datalayout = "e-p:64:64"
 
 define void @main(i32 %argc) {
 clock_Init.exit:
-        %tmp.5.i575 = load i32* null            ; <i32> [#uses=1]
+        %tmp.5.i575 = load i32, i32* null            ; <i32> [#uses=1]
         %tmp.309 = icmp eq i32 %tmp.5.i575, 0           ; <i1> [#uses=1]
         br i1 %tmp.309, label %UnifiedReturnBlock, label %then.17
 

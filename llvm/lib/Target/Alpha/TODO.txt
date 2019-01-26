@@ -1,4 +1,5 @@
 - CodeGen tests
- - invalid IR in some of the tests
- - "Assertion `InstPrinter' failed"
- - "unable to get target for 'alphaev6-unknown-linux-gnu'"
+  - "Cannot select: [...] br_cc/select_cc [...]"
+  - Most of the tests actually emit an empty function body instead of
+    the required assembly code
+  - "Assertion `N && "Must find call sequence start"' failed"

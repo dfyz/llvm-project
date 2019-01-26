@@ -72,8 +72,7 @@ public:
                          : nullptr)),
         CommentStream(CommentToEmit), IsVerboseAsm(isVerboseAsm),
         ShowInst(showInst), UseDwarfDirectory(useDwarfDirectory) {
-    assert(InstPrinter);
-    if (IsVerboseAsm)
+    if (IsVerboseAsm && InstPrinter)
         InstPrinter->setCommentStream(CommentStream);
   }
 

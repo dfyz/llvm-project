@@ -1,4 +1,4 @@
-; RUN: llc < %s -mtriple=alphaev6-unknown-linux-gnu
+; RUN: llc < %s -march=alpha
 
 define void @foo() {
 entry:

@@ -1,5 +1,5 @@
 - CodeGen tests
   - "Cannot select: [...] br_cc/select_cc [...]"
-  - Most of the tests actually emit an empty function body instead of
-    the required assembly code
   - "Assertion `N && "Must find call sequence start"' failed"
+  - CTPOP is not generated
+  - RPCC is not generated 

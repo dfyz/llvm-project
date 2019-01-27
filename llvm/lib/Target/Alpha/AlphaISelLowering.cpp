@@ -336,6 +336,14 @@ AlphaTargetLowering::LowerCall(CallLoweringInfo &CLI,
                          CLI.Ins, CLI.DL, CLI.DAG, InVals);
 }
 
+bool AlphaTargetLowering::CanLowerReturn(CallingConv::ID CallConv,
+                    MachineFunction &MF,
+                    bool isVarArg,
+                    const SmallVectorImpl<ISD::OutputArg> &Outs,
+                    LLVMContext &Context) const {
+  return Outs.size() <= 1;
+}
+
 /// LowerCallResult - Lower the result values of a call into the
 /// appropriate copies out of appropriate physical registers.
 ///
@@ -470,12 +478,12 @@ AlphaTargetLowering::LowerReturn(SDValue Chain,
   SDValue Copy = DAG.getCopyToReg(Chain, dl, Alpha::R26,
                                   DAG.getNode(AlphaISD::GlobalRetAddr, SDLoc(), MVT::i64),
                                   SDValue());
+  SmallVector<SDValue, 3> RetOps(1, Copy);
   switch (Outs.size()) {
   default:
     llvm_unreachable("Do not know how to return this many arguments!");
   case 0:
     break;
-    //return SDValue(); // ret void is legal
   case 1: {
     EVT ArgVT = Outs[0].VT;
     unsigned ArgReg;
@@ -485,30 +493,14 @@ AlphaTargetLowering::LowerReturn(SDValue Chain,
       assert(ArgVT.isFloatingPoint());
       ArgReg = Alpha::F0;
     }
-    Copy = DAG.getCopyToReg(Copy, dl, ArgReg,
-                            OutVals[0], Copy.getValue(1));
-    break;
-  }
-  case 2: {
-    EVT ArgVT = Outs[0].VT;
-    unsigned ArgReg1, ArgReg2;
-    if (ArgVT.isInteger()) {
-      ArgReg1 = Alpha::R0;
-      ArgReg2 = Alpha::R1;
-    } else {
-      assert(ArgVT.isFloatingPoint());
-      ArgReg1 = Alpha::F0;
-      ArgReg2 = Alpha::F1;
-    }
-    Copy = DAG.getCopyToReg(Copy, dl, ArgReg1,
-                            OutVals[0], Copy.getValue(1));
-    Copy = DAG.getCopyToReg(Copy, dl, ArgReg2,
-                            OutVals[1], Copy.getValue(1));
+    Copy = DAG.getCopyToReg(Copy, dl, ArgReg, OutVals[0], Copy.getValue(1));
+    RetOps.front() = Copy;
+    RetOps.push_back(DAG.getRegister(Alpha::R0, ArgVT));
     break;
   }
   }
-  return DAG.getNode(AlphaISD::RET_FLAG, dl,
-                     MVT::Other, Copy, Copy.getValue(1));
+  RetOps.push_back(Copy.getValue(1));
+  return DAG.getNode(AlphaISD::RET_FLAG, dl, MVT::Other, RetOps);
 }
 
 void AlphaTargetLowering::LowerVAARG(SDNode *N, SDValue &Chain,

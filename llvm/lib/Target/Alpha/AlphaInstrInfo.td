@@ -27,7 +27,7 @@ def Alpha_gprelhi : SDNode<"AlphaISD::GPRelHi",   SDTIntBinOp, []>;
 def Alpha_rellit  : SDNode<"AlphaISD::RelLit",    SDTIntBinOp, [SDNPMayLoad]>;
 
 def retflag       : SDNode<"AlphaISD::RET_FLAG", SDTNone,
-                           [SDNPHasChain, SDNPOptInGlue]>;
+                           [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 
 // These are target-independent nodes, but have target-specific formats.
 def SDT_AlphaCallSeqStart : SDCallSeqStart<[ SDTCisVT<0, i64>,

@@ -19,5 +19,5 @@
 type = Library
 name = AlphaDesc
 parent = Alpha
-required_libraries = MC AlphaInfo
+required_libraries = MC AlphaInfo Support
 add_to_library_groups = Alpha

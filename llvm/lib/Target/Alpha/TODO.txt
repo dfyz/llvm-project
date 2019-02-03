@@ -1,5 +1,4 @@
 - CodeGen tests
-  - "Cannot select: [...] br_cc/select_cc [...]"
   - "Assertion `N && "Must find call sequence start"' failed"
   - CTPOP is not generated
   - RPCC is not generated 

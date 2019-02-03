@@ -75,9 +75,11 @@ AlphaTargetLowering::AlphaTargetLowering(const TargetMachine &TM,
   setTruncStoreAction(MVT::f64, MVT::f32, Expand);
 
   //  setOperationAction(ISD::BRIND,        MVT::Other,   Expand);
-  setOperationAction(ISD::BR_JT,        MVT::Other, Expand);
-  setOperationAction(ISD::BR_CC,        MVT::Other, Expand);
-  setOperationAction(ISD::SELECT_CC,    MVT::Other, Expand);
+  setOperationAction(ISD::BR_JT, MVT::Other, Expand);
+  for (MVT VT : MVT::integer_valuetypes()) {
+    setOperationAction(ISD::BR_CC, VT, Expand);
+    setOperationAction(ISD::SELECT_CC, VT, Expand);
+  }
 
   setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i1, Expand);
 

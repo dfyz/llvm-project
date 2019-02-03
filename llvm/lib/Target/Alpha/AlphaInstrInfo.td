@@ -151,11 +151,11 @@ class CmpOpFrag<dag res> : PatFrag<(ops node:$R), res>;
 def WTF : PseudoInstAlpha<(outs), (ins variable_ops), "#wtf", [], s_pseudo>;
 
 let hasCtrlDep = 1, Defs = [R30], Uses = [R30] in {
-def ADJUSTSTACKUP : PseudoInstAlpha<(outs), (ins s64imm:$amt1, s64imm:$amt2),
-                "; ADJUP $amt1 $amt2",
-                [(callseq_start timm:$amt1, timm:$amt2)], s_pseudo>;
 def ADJUSTSTACKDOWN : PseudoInstAlpha<(outs), (ins s64imm:$amt1, s64imm:$amt2),
                 "; ADJDOWN $amt1 $amt2",
+                [(callseq_start timm:$amt1, timm:$amt2)], s_pseudo>;
+def ADJUSTSTACKUP : PseudoInstAlpha<(outs), (ins s64imm:$amt1, s64imm:$amt2),
+                "; ADJUP $amt1 $amt2",
                 [(callseq_end timm:$amt1, timm:$amt2)], s_pseudo>;
 }
 

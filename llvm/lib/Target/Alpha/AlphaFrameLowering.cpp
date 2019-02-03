@@ -145,9 +145,6 @@ void AlphaFrameLowering::emitEpilogue(MachineFunction &MF,
 MachineBasicBlock::iterator AlphaFrameLowering::eliminateCallFramePseudoInstr(
   MachineFunction &MF, MachineBasicBlock &MBB, MachineBasicBlock::iterator I) const {
   if (hasFP(MF)) {
-    // If we have a frame pointer, turn the adjcallstackup instruction into a
-    // 'sub ESP, <amt>' and the adjcallstackdown instruction into 'add ESP,
-    // <amt>'
     MachineInstr &Old = *I;
     uint64_t Amount = Old.getOperand(0).getImm();
     if (Amount != 0) {

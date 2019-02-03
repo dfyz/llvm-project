@@ -1,4 +1,3 @@
 - CodeGen tests
-  - "Assertion `N && "Must find call sequence start"' failed"
   - CTPOP is not generated
   - RPCC is not generated 

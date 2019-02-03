@@ -21,7 +21,6 @@
 #include "clang/Basic/BitmaskEnum.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Bitcode/BitcodeReader.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/Value.h"
@@ -431,7 +430,7 @@ public:
 
 /// Values for bit flags used in the ident_t to describe the fields.
 /// All enumeric elements are named and described in accordance with the code
-/// from http://llvm.org/svn/llvm-project/openmp/trunk/runtime/src/kmp.h
+/// from https://github.com/llvm/llvm-project/blob/master/openmp/runtime/src/kmp.h
 enum OpenMPLocationFlags : unsigned {
   /// Use trampoline for internal microtask.
   OMP_IDENT_IMD = 0x01,
@@ -460,7 +459,7 @@ enum OpenMPLocationFlags : unsigned {
 
 /// Describes ident structure that describes a source location.
 /// All descriptions are taken from
-/// http://llvm.org/svn/llvm-project/openmp/trunk/runtime/src/kmp.h
+/// https://github.com/llvm/llvm-project/blob/master/openmp/runtime/src/kmp.h
 /// Original structure:
 /// typedef struct ident {
 ///    kmp_int32 reserved_1;   /**<  might be used in Fortran;
@@ -1477,7 +1476,7 @@ Address CGOpenMPRuntime::getOrCreateDefaultLocation(unsigned Flags) {
       // Initialize default location for psource field of ident_t structure of
       // all ident_t objects. Format is ";file;function;line;column;;".
       // Taken from
-      // http://llvm.org/svn/llvm-project/openmp/trunk/runtime/src/kmp_str.c
+      // https://github.com/llvm/llvm-project/blob/master/openmp/runtime/src/kmp_str.cpp
       DefaultOpenMPPSource =
           CGM.GetAddrOfConstantCString(";unknown;unknown;0;0;;").getPointer();
       DefaultOpenMPPSource =
@@ -4965,7 +4964,7 @@ CGOpenMPRuntime::emitTaskInit(CodeGenFunction &CGF, SourceLocation Loc,
   // kmp_int32 flags, size_t sizeof_kmp_task_t, size_t sizeof_shareds,
   // kmp_routine_entry_t *task_entry);
   // Task flags. Format is taken from
-  // http://llvm.org/svn/llvm-project/openmp/trunk/runtime/src/kmp.h,
+  // https://github.com/llvm/llvm-project/blob/master/openmp/runtime/src/kmp.h,
   // description of kmp_tasking_flags struct.
   enum {
     TiedFlag = 0x1,
@@ -8231,6 +8230,7 @@ getNestedDistributeDirective(ASTContext &Ctx, const OMPExecutableDirective &D) {
     case OMPD_declare_target:
     case OMPD_end_declare_target:
     case OMPD_declare_reduction:
+    case OMPD_declare_mapper:
     case OMPD_taskloop:
     case OMPD_taskloop_simd:
     case OMPD_requires:
@@ -8653,6 +8653,7 @@ void CGOpenMPRuntime::scanForTargetRegionsFunctions(const Stmt *S,
     case OMPD_declare_target:
     case OMPD_end_declare_target:
     case OMPD_declare_reduction:
+    case OMPD_declare_mapper:
     case OMPD_taskloop:
     case OMPD_taskloop_simd:
     case OMPD_requires:
@@ -9133,6 +9134,7 @@ void CGOpenMPRuntime::emitTargetDataStandAloneCall(
     case OMPD_declare_target:
     case OMPD_end_declare_target:
     case OMPD_declare_reduction:
+    case OMPD_declare_mapper:
     case OMPD_taskloop:
     case OMPD_taskloop_simd:
     case OMPD_target:
@@ -9888,4 +9890,3 @@ CGOpenMPSIMDRuntime::getParameterAddress(CodeGenFunction &CGF,
                                          const VarDecl *TargetParam) const {
   llvm_unreachable("Not supported in SIMD-only mode");
 }
-

@@ -119,12 +119,12 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST) {
   getActionDefinitionsBuilder({G_UADDE, G_USUBE, G_SADDO, G_SSUBO})
       .legalFor({{s32, s1}, {s64, s1}});
 
-  getActionDefinitionsBuilder({G_FADD, G_FSUB, G_FMA, G_FMUL, G_FDIV})
-      .legalFor({s32, s64});
+  getActionDefinitionsBuilder({G_FADD, G_FSUB, G_FMA, G_FMUL, G_FDIV, G_FNEG})
+    .legalFor({s32, s64, v2s64, v4s32, v2s32});
 
   getActionDefinitionsBuilder({G_FREM, G_FPOW}).libcallFor({s32, s64});
 
-  getActionDefinitionsBuilder(G_FCEIL)
+  getActionDefinitionsBuilder({G_FCEIL, G_FABS, G_FSQRT})
       // If we don't have full FP16 support, then scalarize the elements of
       // vectors containing fp16 types.
       .fewerElementsIf(
@@ -142,6 +142,14 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST) {
           },
           [=](const LegalityQuery &Query) { return std::make_pair(0, s32); })
       .legalFor({s16, s32, s64, v2s32, v4s32, v2s64, v2s16, v4s16, v8s16});
+
+  getActionDefinitionsBuilder(
+      {G_FCOS, G_FSIN, G_FLOG10, G_FLOG, G_FLOG2, G_FEXP})
+      // We need a call for these, so we always need to scalarize.
+      .scalarize(0)
+      // Regardless of FP16 support, widen 16-bit elements to 32-bits.
+      .minScalar(0, s32)
+      .libcallFor({s32, s64, v2s32, v4s32, v2s64});
 
   getActionDefinitionsBuilder(G_INSERT)
       .unsupportedIf([=](const LegalityQuery &Query) {
@@ -270,14 +278,14 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST) {
 
   // Conversions
   getActionDefinitionsBuilder({G_FPTOSI, G_FPTOUI})
-      .legalForCartesianProduct({s32, s64})
+      .legalForCartesianProduct({s32, s64, v2s64, v4s32, v2s32})
       .clampScalar(0, s32, s64)
       .widenScalarToNextPow2(0)
       .clampScalar(1, s32, s64)
       .widenScalarToNextPow2(1);
 
   getActionDefinitionsBuilder({G_SITOFP, G_UITOFP})
-      .legalForCartesianProduct({s32, s64})
+      .legalForCartesianProduct({s32, s64, v2s64, v4s32, v2s32})
       .clampScalar(1, s32, s64)
       .widenScalarToNextPow2(1)
       .clampScalar(0, s32, s64)
@@ -432,7 +440,11 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST) {
       });
 
   getActionDefinitionsBuilder(G_BUILD_VECTOR)
-      .legalFor({{v4s16, s16}, {v8s16, s16}, {v4s32, s32}, {v2s64, s64}})
+      .legalFor({{v4s16, s16},
+                 {v8s16, s16},
+                 {v2s32, s32},
+                 {v4s32, s32},
+                 {v2s64, s64}})
       .clampNumElements(0, v4s32, v4s32)
       .clampNumElements(0, v2s64, v2s64)
 

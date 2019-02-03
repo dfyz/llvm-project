@@ -1828,6 +1828,14 @@ public:
                                      CXXBasePath &Path, DeclarationName Name);
 
   /// Base-class lookup callback that determines whether there exists
+  /// an OpenMP declare mapper member with the given name.
+  ///
+  /// This callback can be used with \c lookupInBases() to find members
+  /// of the given name within a C++ class hierarchy.
+  static bool FindOMPMapperMember(const CXXBaseSpecifier *Specifier,
+                                  CXXBasePath &Path, DeclarationName Name);
+
+  /// Base-class lookup callback that determines whether there exists
   /// a member with the given name that can be used in a nested-name-specifier.
   ///
   /// This callback can be used with \c lookupInBases() to find members of
@@ -2184,8 +2192,8 @@ public:
   static QualType getThisType(const FunctionProtoType *FPT,
                               const CXXRecordDecl *Decl);
 
-  Qualifiers getTypeQualifiers() const {
-    return getType()->getAs<FunctionProtoType>()->getTypeQuals();
+  Qualifiers getMethodQualifiers() const {
+    return getType()->getAs<FunctionProtoType>()->getMethodQuals();
   }
 
   /// Retrieve the ref-qualifier associated with this method.

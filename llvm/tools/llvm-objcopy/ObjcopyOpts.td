@@ -86,6 +86,13 @@ defm add_section
          "Make a section named <section> with the contents of <file>.">,
       MetaVarName<"section=file">;
 
+defm set_section_flags
+    : Eq<"set-section-flags",
+         "Set section flags for a given section. Flags supported for GNU "
+         "compatibility: alloc, load, noload, readonly, debug, code, data, "
+         "rom, share, contents, merge, strings.">,
+      MetaVarName<"section=flag1[,flag2,...]">;
+
 def strip_all
     : Flag<["-", "--"], "strip-all">,
       HelpText<
@@ -142,6 +149,12 @@ defm weaken_symbol : Eq<"weaken-symbol", "Mark <symbol> as weak">,
 def W : JoinedOrSeparate<["-"], "W">, Alias<weaken_symbol>;
 def weaken : Flag<["-", "--"], "weaken">,
              HelpText<"Mark all global symbols as weak">;
+
+def discard_locals : Flag<["-", "--"], "discard-locals">,
+                     HelpText<"Remove compiler-generated local symbols, (e.g. "
+                              "symbols starting with .L)">;
+def X : Flag<["-"], "X">, Alias<discard_locals>;
+
 def discard_all
     : Flag<["-", "--"], "discard-all">,
       HelpText<"Remove all local symbols except file and section symbols">;

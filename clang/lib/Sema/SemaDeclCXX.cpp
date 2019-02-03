@@ -1300,6 +1300,10 @@ static DeclAccessPair findDecomposableBaseClass(Sema &S, SourceLocation Loc,
 static bool checkMemberDecomposition(Sema &S, ArrayRef<BindingDecl*> Bindings,
                                      ValueDecl *Src, QualType DecompType,
                                      const CXXRecordDecl *OrigRD) {
+  if (S.RequireCompleteType(Src->getLocation(), DecompType,
+                            diag::err_incomplete_type))
+    return true;
+
   CXXCastPath BasePath;
   DeclAccessPair BasePair =
       findDecomposableBaseClass(S, Src->getLocation(), OrigRD, BasePath);
@@ -5885,9 +5889,6 @@ static bool canPassInRegisters(Sema &S, CXXRecordDecl *D,
   if (D->isDependentType() || D->isInvalidDecl())
     return false;
 
-  if (D->hasAttr<TrivialABIAttr>())
-    return true;
-
   // Clang <= 4 used the pre-C++11 rule, which ignores move operations.
   // The PS4 platform ABI follows the behavior of Clang 3.2.
   if (CCK == TargetInfo::CCK_ClangABI4OrPS4)
@@ -6552,7 +6553,7 @@ void Sema::CheckExplicitlyDefaultedSpecialMember(CXXMethodDecl *MD) {
     ReturnType = Type->getReturnType();
 
     QualType DeclType = Context.getTypeDeclType(RD);
-    DeclType = Context.getAddrSpaceQualType(DeclType, MD->getTypeQualifiers().getAddressSpace());
+    DeclType = Context.getAddrSpaceQualType(DeclType, MD->getMethodQualifiers().getAddressSpace());
     QualType ExpectedReturnType = Context.getLValueReferenceType(DeclType);
 
     if (!Context.hasSameType(ReturnType, ExpectedReturnType)) {
@@ -6562,7 +6563,7 @@ void Sema::CheckExplicitlyDefaultedSpecialMember(CXXMethodDecl *MD) {
     }
 
     // A defaulted special member cannot have cv-qualifiers.
-    if (Type->getTypeQuals().hasConst() || Type->getTypeQuals().hasVolatile()) {
+    if (Type->getMethodQuals().hasConst() || Type->getMethodQuals().hasVolatile()) {
       if (DeleteOnTypeMismatch)
         ShouldDeleteForTypeMismatch = true;
       else {
@@ -6890,6 +6891,8 @@ struct SpecialMemberDeletionInfo
     return ICI ? Sema::CXXInvalid : CSM;
   }
 
+  bool shouldDeleteForVariantObjCPtrMember(FieldDecl *FD, QualType FieldType);
+
   bool visitBase(CXXBaseSpecifier *Base) { return shouldDeleteForBase(Base); }
   bool visitField(FieldDecl *Field) { return shouldDeleteForField(Field); }
 
@@ -6961,13 +6964,14 @@ bool SpecialMemberDeletionInfo::shouldDeleteForSubobjectCall(
       S.Diag(Field->getLocation(),
              diag::note_deleted_special_member_class_subobject)
         << getEffectiveCSM() << MD->getParent() << /*IsField*/true
-        << Field << DiagKind << IsDtorCallInCtor;
+        << Field << DiagKind << IsDtorCallInCtor << /*IsObjCPtr*/false;
     } else {
       CXXBaseSpecifier *Base = Subobj.get<CXXBaseSpecifier*>();
       S.Diag(Base->getBeginLoc(),
              diag::note_deleted_special_member_class_subobject)
           << getEffectiveCSM() << MD->getParent() << /*IsField*/ false
-          << Base->getType() << DiagKind << IsDtorCallInCtor;
+          << Base->getType() << DiagKind << IsDtorCallInCtor
+          << /*IsObjCPtr*/false;
     }
 
     if (DiagKind == 1)
@@ -7019,6 +7023,30 @@ bool SpecialMemberDeletionInfo::shouldDeleteForClassSubobject(
   return false;
 }
 
+bool SpecialMemberDeletionInfo::shouldDeleteForVariantObjCPtrMember(
+    FieldDecl *FD, QualType FieldType) {
+  // The defaulted special functions are defined as deleted if this is a variant
+  // member with a non-trivial ownership type, e.g., ObjC __strong or __weak
+  // type under ARC.
+  if (!FieldType.hasNonTrivialObjCLifetime())
+    return false;
+
+  // Don't make the defaulted default constructor defined as deleted if the
+  // member has an in-class initializer.
+  if (CSM == Sema::CXXDefaultConstructor && FD->hasInClassInitializer())
+    return false;
+
+  if (Diagnose) {
+    auto *ParentClass = cast<CXXRecordDecl>(FD->getParent());
+    S.Diag(FD->getLocation(),
+           diag::note_deleted_special_member_class_subobject)
+        << getEffectiveCSM() << ParentClass << /*IsField*/true
+        << FD << 4 << /*IsDtorCallInCtor*/false << /*IsObjCPtr*/true;
+  }
+
+  return true;
+}
+
 /// Check whether we should delete a special member function due to the class
 /// having a particular direct or virtual base class.
 bool SpecialMemberDeletionInfo::shouldDeleteForBase(CXXBaseSpecifier *Base) {
@@ -7039,7 +7067,8 @@ bool SpecialMemberDeletionInfo::shouldDeleteForBase(CXXBaseSpecifier *Base) {
       S.Diag(Base->getBeginLoc(),
              diag::note_deleted_special_member_class_subobject)
           << getEffectiveCSM() << MD->getParent() << /*IsField*/ false
-          << Base->getType() << /*Deleted*/ 1 << /*IsDtorCallInCtor*/ false;
+          << Base->getType() << /*Deleted*/ 1 << /*IsDtorCallInCtor*/ false
+          << /*IsObjCPtr*/false;
       S.NoteDeletedFunction(BaseCtor);
     }
     return BaseCtor->isDeleted();
@@ -7052,6 +7081,9 @@ bool SpecialMemberDeletionInfo::shouldDeleteForBase(CXXBaseSpecifier *Base) {
 bool SpecialMemberDeletionInfo::shouldDeleteForField(FieldDecl *FD) {
   QualType FieldType = S.Context.getBaseElementType(FD->getType());
   CXXRecordDecl *FieldRecord = FieldType->getAsCXXRecordDecl();
+
+  if (inUnion() && shouldDeleteForVariantObjCPtrMember(FD, FieldType))
+    return true;
 
   if (CSM == Sema::CXXDefaultConstructor) {
     // For a default constructor, all references must be initialized in-class
@@ -7113,6 +7145,9 @@ bool SpecialMemberDeletionInfo::shouldDeleteForField(FieldDecl *FD) {
       // FIXME: Handle anonymous unions declared within anonymous unions.
       for (auto *UI : FieldRecord->fields()) {
         QualType UnionFieldType = S.Context.getBaseElementType(UI->getType());
+
+        if (shouldDeleteForVariantObjCPtrMember(&*UI, UnionFieldType))
+          return true;
 
         if (!UnionFieldType.isConstQualified())
           AllVariantFieldsAreConst = false;
@@ -11809,13 +11844,12 @@ CXXMethodDecl *Sema::DeclareImplicitCopyAssignment(CXXRecordDecl *ClassDecl) {
     return nullptr;
 
   QualType ArgType = Context.getTypeDeclType(ClassDecl);
+  if (Context.getLangOpts().OpenCLCPlusPlus)
+    ArgType = Context.getAddrSpaceQualType(ArgType, LangAS::opencl_generic);
   QualType RetType = Context.getLValueReferenceType(ArgType);
   bool Const = ClassDecl->implicitCopyAssignmentHasConstParam();
   if (Const)
     ArgType = ArgType.withConst();
-
-  if (Context.getLangOpts().OpenCLCPlusPlus)
-    ArgType = Context.getAddrSpaceQualType(ArgType, LangAS::opencl_generic);
 
   ArgType = Context.getLValueReferenceType(ArgType);
 
@@ -12008,7 +12042,7 @@ void Sema::DefineImplicitCopyAssignment(SourceLocation CurrentLocation,
     DerefBuilder DerefThis(This);
     CastBuilder To(DerefThis,
                    Context.getQualifiedType(
-                       BaseType, CopyAssignOperator->getTypeQualifiers()),
+                       BaseType, CopyAssignOperator->getMethodQualifiers()),
                    VK_LValue, BasePath);
 
     // Build the copy.
@@ -12134,6 +12168,8 @@ CXXMethodDecl *Sema::DeclareImplicitMoveAssignment(CXXRecordDecl *ClassDecl) {
   // constructor rules.
 
   QualType ArgType = Context.getTypeDeclType(ClassDecl);
+  if (Context.getLangOpts().OpenCLCPlusPlus)
+    ArgType = Context.getAddrSpaceQualType(ArgType, LangAS::opencl_generic);
   QualType RetType = Context.getLValueReferenceType(ArgType);
   ArgType = Context.getRValueReferenceType(ArgType);
 
@@ -12373,7 +12409,7 @@ void Sema::DefineImplicitMoveAssignment(SourceLocation CurrentLocation,
     // Implicitly cast "this" to the appropriately-qualified base type.
     CastBuilder To(DerefThis,
                    Context.getQualifiedType(
-                       BaseType, MoveAssignOperator->getTypeQualifiers()),
+                       BaseType, MoveAssignOperator->getMethodQualifiers()),
                    VK_LValue, BasePath);
 
     // Build the move.

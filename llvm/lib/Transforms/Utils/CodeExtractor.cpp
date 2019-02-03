@@ -844,7 +844,8 @@ Function *CodeExtractor::constructFunction(const ValueSet &inputs,
       Instruction *TI = newFunction->begin()->getTerminator();
       GetElementPtrInst *GEP = GetElementPtrInst::Create(
           StructTy, &*AI, Idx, "gep_" + inputs[i]->getName(), TI);
-      RewriteVal = new LoadInst(GEP, "loadgep_" + inputs[i]->getName(), TI);
+      RewriteVal = new LoadInst(StructTy->getElementType(i), GEP,
+                                "loadgep_" + inputs[i]->getName(), TI);
     } else
       RewriteVal = &*AI++;
 
@@ -961,11 +962,18 @@ CallInst *CodeExtractor::emitCallAndSwitchStatement(Function *newFunction,
   CallInst *call = nullptr;
 
   // Add inputs as params, or to be filled into the struct
-  for (Value *input : inputs)
+  unsigned ArgNo = 0;
+  SmallVector<unsigned, 1> SwiftErrorArgs;
+  for (Value *input : inputs) {
     if (AggregateArgs)
       StructValues.push_back(input);
-    else
+    else {
       params.push_back(input);
+      if (input->isSwiftError())
+        SwiftErrorArgs.push_back(ArgNo);
+    }
+    ++ArgNo;
+  }
 
   // Create allocas for the outputs
   for (Value *output : outputs) {
@@ -1021,6 +1029,12 @@ CallInst *CodeExtractor::emitCallAndSwitchStatement(Function *newFunction,
   }
   codeReplacer->getInstList().push_back(call);
 
+  // Set swifterror parameter attributes.
+  for (unsigned SwiftErrArgNo : SwiftErrorArgs) {
+    call->addParamAttr(SwiftErrArgNo, Attribute::SwiftError);
+    newFunction->addParamAttr(SwiftErrArgNo, Attribute::SwiftError);
+  }
+
   Function::arg_iterator OutputArgBegin = newFunction->arg_begin();
   unsigned FirstOut = inputs.size();
   if (!AggregateArgs)
@@ -1041,7 +1055,8 @@ CallInst *CodeExtractor::emitCallAndSwitchStatement(Function *newFunction,
     } else {
       Output = ReloadOutputs[i];
     }
-    LoadInst *load = new LoadInst(Output, outputs[i]->getName()+".reload");
+    LoadInst *load = new LoadInst(outputs[i]->getType(), Output,
+                                  outputs[i]->getName() + ".reload");
     Reloads.push_back(load);
     codeReplacer->getInstList().push_back(load);
     std::vector<User *> Users(outputs[i]->user_begin(), outputs[i]->user_end());

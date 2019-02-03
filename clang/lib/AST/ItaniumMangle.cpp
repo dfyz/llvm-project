@@ -60,7 +60,8 @@ static const DeclContext *getEffectiveDeclContext(const Decl *D) {
   }
 
   const DeclContext *DC = D->getDeclContext();
-  if (isa<CapturedDecl>(DC) || isa<OMPDeclareReductionDecl>(DC)) {
+  if (isa<CapturedDecl>(DC) || isa<OMPDeclareReductionDecl>(DC) ||
+      isa<OMPDeclareMapperDecl>(DC)) {
     return getEffectiveDeclContext(cast<Decl>(DC));
   }
 
@@ -1502,7 +1503,7 @@ void CXXNameMangler::mangleNestedName(const NamedDecl *ND,
 
   Out << 'N';
   if (const CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(ND)) {
-    Qualifiers MethodQuals = Method->getTypeQualifiers();
+    Qualifiers MethodQuals = Method->getMethodQualifiers();
     // We do not consider restrict a distinguishing attribute for overloading
     // purposes so we must not mangle it.
     MethodQuals.removeRestrict();
@@ -2734,7 +2735,7 @@ void CXXNameMangler::mangleType(const FunctionProtoType *T) {
 
   // Mangle CV-qualifiers, if present.  These are 'this' qualifiers,
   // e.g. "const" in "int (A::*)() const".
-  mangleQualifiers(T->getTypeQuals());
+  mangleQualifiers(T->getMethodQuals());
 
   // Mangle instantiation-dependent exception-specification, if present,
   // per cxx-abi-dev proposal on 2016-10-11.

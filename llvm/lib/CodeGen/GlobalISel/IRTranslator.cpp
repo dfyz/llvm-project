@@ -16,6 +16,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/OptimizationRemarkEmitter.h"
+#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/CodeGen/Analysis.h"
 #include "llvm/CodeGen/GlobalISel/CallLowering.h"
 #include "llvm/CodeGen/GlobalISel/GISelChangeObserver.h"
@@ -793,13 +794,33 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
   default:
     break;
   case Intrinsic::lifetime_start:
-  case Intrinsic::lifetime_end:
-    // Stack coloring is not enabled in O0 (which we care about now) so we can
-    // drop these. Make sure someone notices when we start compiling at higher
-    // opts though.
-    if (MF->getTarget().getOptLevel() != CodeGenOpt::None)
-      return false;
+  case Intrinsic::lifetime_end: {
+    // No stack colouring in O0, discard region information.
+    if (MF->getTarget().getOptLevel() == CodeGenOpt::None)
+      return true;
+
+    unsigned Op = ID == Intrinsic::lifetime_start ? TargetOpcode::LIFETIME_START
+                                                  : TargetOpcode::LIFETIME_END;
+
+    // Get the underlying objects for the location passed on the lifetime
+    // marker.
+    SmallVector<Value *, 4> Allocas;
+    GetUnderlyingObjects(CI.getArgOperand(1), Allocas, *DL);
+
+    // Iterate over each underlying object, creating lifetime markers for each
+    // static alloca. Quit if we find a non-static alloca.
+    for (Value *V : Allocas) {
+      AllocaInst *AI = dyn_cast<AllocaInst>(V);
+      if (!AI)
+        continue;
+
+      if (!AI->isStaticAlloca())
+        return true;
+
+      MIRBuilder.buildInstr(Op).addFrameIndex(getOrCreateFrameIndex(*AI));
+    }
     return true;
+  }
   case Intrinsic::dbg_declare: {
     const DbgDeclareInst &DI = cast<DbgDeclareInst>(CI);
     assert(DI.getVariable() && "Missing variable");
@@ -847,10 +868,11 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
     Value *Ptr = CI.getArgOperand(0);
     unsigned ListSize = TLI.getVaListSizeInBits(*DL) / 8;
 
+    // FIXME: Get alignment
     MIRBuilder.buildInstr(TargetOpcode::G_VASTART)
         .addUse(getOrCreateVReg(*Ptr))
         .addMemOperand(MF->getMachineMemOperand(
-            MachinePointerInfo(Ptr), MachineMemOperand::MOStore, ListSize, 0));
+            MachinePointerInfo(Ptr), MachineMemOperand::MOStore, ListSize, 1));
     return true;
   }
   case Intrinsic::dbg_value: {
@@ -1055,6 +1077,21 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
         .addDef(getOrCreateVReg(CI))
         .addUse(getOrCreateVReg(*CI.getArgOperand(0)));
     return true;
+  case Intrinsic::cos:
+    MIRBuilder.buildInstr(TargetOpcode::G_FCOS)
+        .addDef(getOrCreateVReg(CI))
+        .addUse(getOrCreateVReg(*CI.getArgOperand(0)));
+    return true;
+  case Intrinsic::sin:
+    MIRBuilder.buildInstr(TargetOpcode::G_FSIN)
+        .addDef(getOrCreateVReg(CI))
+        .addUse(getOrCreateVReg(*CI.getArgOperand(0)));
+    return true;
+  case Intrinsic::sqrt:
+    MIRBuilder.buildInstr(TargetOpcode::G_FSQRT)
+        .addDef(getOrCreateVReg(CI))
+        .addUse(getOrCreateVReg(*CI.getArgOperand(0)));
+    return true;
   }
   return false;
 }
@@ -1176,9 +1213,13 @@ bool IRTranslator::translateCall(const User &U, MachineIRBuilder &MIRBuilder) {
   TargetLowering::IntrinsicInfo Info;
   // TODO: Add a GlobalISel version of getTgtMemIntrinsic.
   if (TLI.getTgtMemIntrinsic(Info, CI, *MF, ID)) {
+    unsigned Align = Info.align;
+    if (Align == 0)
+      Align = DL->getABITypeAlignment(Info.memVT.getTypeForEVT(F->getContext()));
+
     uint64_t Size = Info.memVT.getStoreSize();
     MIB.addMemOperand(MF->getMachineMemOperand(MachinePointerInfo(Info.ptrVal),
-                                               Info.flags, Size, Info.align));
+                                               Info.flags, Size, Align));
   }
 
   return true;

@@ -7,19 +7,21 @@
 //===-------------------------------------------------------------------===//
 
 #include "ClangdServer.h"
+#include "ClangdUnit.h"
 #include "CodeComplete.h"
 #include "FindSymbols.h"
 #include "Headers.h"
 #include "SourceCode.h"
 #include "Trace.h"
-#include "XRefs.h"
 #include "index/FileIndex.h"
 #include "index/Merge.h"
+#include "refactor/Tweak.h"
 #include "clang/Format/Format.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Tooling/CompilationDatabase.h"
+#include "clang/Tooling/Core/Replacement.h"
 #include "clang/Tooling/Refactoring/RefactoringResultConsumer.h"
 #include "clang/Tooling/Refactoring/Rename/RenamingAction.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -27,10 +29,12 @@
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Errc.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 #include <future>
+#include <memory>
 #include <mutex>
 
 namespace clang {
@@ -106,6 +110,7 @@ ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
                      ? new FileIndex(Opts.HeavyweightDynamicSymbolIndex)
                      : nullptr),
       ClangTidyOptProvider(Opts.ClangTidyOptProvider),
+      SuggestMissingIncludes(Opts.SuggestMissingIncludes),
       WorkspaceRoot(Opts.WorkspaceRoot),
       PCHs(std::make_shared<PCHContainerOperations>()),
       // Pass a callback into `WorkScheduler` to extract symbols from a newly
@@ -141,17 +146,22 @@ ClangdServer::ClangdServer(const GlobalCompilationDatabase &CDB,
 
 void ClangdServer::addDocument(PathRef File, llvm::StringRef Contents,
                                WantDiagnostics WantDiags) {
-  tidy::ClangTidyOptions Options = tidy::ClangTidyOptions::getDefaults();
+  ParseOptions Opts;
+  Opts.ClangTidyOpts = tidy::ClangTidyOptions::getDefaults();
   if (ClangTidyOptProvider)
-    Options = ClangTidyOptProvider->getOptions(File);
+    Opts.ClangTidyOpts = ClangTidyOptProvider->getOptions(File);
+  Opts.SuggestMissingIncludes = SuggestMissingIncludes;
   // FIXME: some build systems like Bazel will take time to preparing
   // environment to build the file, it would be nice if we could emit a
   // "PreparingBuild" status to inform users, it is non-trivial given the
   // current implementation.
-  WorkScheduler.update(File, ParseInputs{getCompileCommand(File),
-                                         FSProvider.getFileSystem(),
-                                         Contents.str(), Options},
-                       WantDiags);
+  ParseInputs Inputs;
+  Inputs.CompileCommand = getCompileCommand(File);
+  Inputs.FS = FSProvider.getFileSystem();
+  Inputs.Contents = Contents;
+  Inputs.Opts = std::move(Opts);
+  Inputs.Index = Index;
+  WorkScheduler.update(File, Inputs, WantDiags);
 }
 
 void ClangdServer::removeDocument(PathRef File) { WorkScheduler.remove(File); }
@@ -318,6 +328,56 @@ void ClangdServer::rename(PathRef File, Position Pos, llvm::StringRef NewName,
       "Rename", File, Bind(Action, File.str(), NewName.str(), std::move(CB)));
 }
 
+static llvm::Expected<Tweak::Selection>
+tweakSelection(const Range &Sel, const InputsAndAST &AST) {
+  auto Begin = positionToOffset(AST.Inputs.Contents, Sel.start);
+  if (!Begin)
+    return Begin.takeError();
+  auto End = positionToOffset(AST.Inputs.Contents, Sel.end);
+  if (!End)
+    return End.takeError();
+  return Tweak::Selection(AST.AST, *Begin, *End);
+}
+
+void ClangdServer::enumerateTweaks(PathRef File, Range Sel,
+                                   Callback<std::vector<TweakRef>> CB) {
+  auto Action = [Sel](decltype(CB) CB, std::string File,
+                      Expected<InputsAndAST> InpAST) {
+    if (!InpAST)
+      return CB(InpAST.takeError());
+    auto Selection = tweakSelection(Sel, *InpAST);
+    if (!Selection)
+      return CB(Selection.takeError());
+    std::vector<TweakRef> Res;
+    for (auto &T : prepareTweaks(*Selection))
+      Res.push_back({T->id(), T->title()});
+    CB(std::move(Res));
+  };
+
+  WorkScheduler.runWithAST("EnumerateTweaks", File,
+                           Bind(Action, std::move(CB), File.str()));
+}
+
+void ClangdServer::applyTweak(PathRef File, Range Sel, StringRef TweakID,
+                              Callback<tooling::Replacements> CB) {
+  auto Action = [Sel](decltype(CB) CB, std::string File, std::string TweakID,
+                      Expected<InputsAndAST> InpAST) {
+    if (!InpAST)
+      return CB(InpAST.takeError());
+    auto Selection = tweakSelection(Sel, *InpAST);
+    if (!Selection)
+      return CB(Selection.takeError());
+    auto A = prepareTweak(TweakID, *Selection);
+    if (!A)
+      return CB(A.takeError());
+    // FIXME: run formatter on top of resulting replacements.
+    return CB((*A)->apply(*Selection));
+  };
+  WorkScheduler.runWithAST(
+      "ApplyTweak", File,
+      Bind(Action, std::move(CB), File.str(), TweakID.str()));
+}
+
 void ClangdServer::dumpAST(PathRef File,
                            llvm::unique_function<void(std::string)> Callback) {
   auto Action = [](decltype(Callback) Callback,
@@ -338,13 +398,13 @@ void ClangdServer::dumpAST(PathRef File,
   WorkScheduler.runWithAST("DumpAST", File, Bind(Action, std::move(Callback)));
 }
 
-void ClangdServer::findDefinitions(PathRef File, Position Pos,
-                                   Callback<std::vector<Location>> CB) {
-  auto Action = [Pos, this](Callback<std::vector<Location>> CB,
+void ClangdServer::locateSymbolAt(PathRef File, Position Pos,
+                                  Callback<std::vector<LocatedSymbol>> CB) {
+  auto Action = [Pos, this](decltype(CB) CB,
                             llvm::Expected<InputsAndAST> InpAST) {
     if (!InpAST)
       return CB(InpAST.takeError());
-    CB(clangd::findDefinitions(InpAST->AST, Pos, Index));
+    CB(clangd::locateSymbolAt(InpAST->AST, Pos, Index));
   };
 
   WorkScheduler.runWithAST("Definitions", File, Bind(Action, std::move(CB)));

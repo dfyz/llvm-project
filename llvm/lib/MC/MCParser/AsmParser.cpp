@@ -900,6 +900,9 @@ bool AsmParser::Run(bool NoInitialTextSection, bool NoFinalize) {
       eatToEndOfStatement();
   }
 
+  // Make sure we get proper DWARF even for empty files.
+  (void)enabledGenDwarfForAssembly();
+
   getTargetParser().onEndOfFile();
   printPendingErrors();
 
@@ -5038,9 +5041,9 @@ bool AsmParser::parseDirectiveIfdef(SMLoc DirectiveLoc, bool expect_defined) {
     MCSymbol *Sym = getContext().lookupSymbol(Name);
 
     if (expect_defined)
-      TheCondState.CondMet = (Sym && !Sym->isUndefined());
+      TheCondState.CondMet = (Sym && !Sym->isUndefined(false));
     else
-      TheCondState.CondMet = (!Sym || Sym->isUndefined());
+      TheCondState.CondMet = (!Sym || Sym->isUndefined(false));
     TheCondState.Ignore = !TheCondState.CondMet;
   }
 

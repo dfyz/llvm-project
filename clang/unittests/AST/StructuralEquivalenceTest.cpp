@@ -378,10 +378,12 @@ TEST_F(StructuralEquivalenceFunctionTest, FunctionsWithDifferentNoreturnAttr) {
   EXPECT_TRUE(testStructuralMatch(t));
 }
 
-// These attributes may not be available on certain platforms.
-#if defined(__x86_64__) && defined(__linux__)
 TEST_F(StructuralEquivalenceFunctionTest,
     FunctionsWithDifferentCallingConventions) {
+  // These attributes may not be available on certain platforms.
+  if (llvm::Triple(llvm::sys::getDefaultTargetTriple()).getArch() !=
+      llvm::Triple::x86_64)
+    return;
   auto t = makeNamedDecls(
       "__attribute__((preserve_all)) void foo();",
       "__attribute__((ms_abi))   void foo();",
@@ -390,13 +392,15 @@ TEST_F(StructuralEquivalenceFunctionTest,
 }
 
 TEST_F(StructuralEquivalenceFunctionTest, FunctionsWithDifferentSavedRegsAttr) {
+  if (llvm::Triple(llvm::sys::getDefaultTargetTriple()).getArch() !=
+      llvm::Triple::x86_64)
+    return;
   auto t = makeNamedDecls(
       "__attribute__((no_caller_saved_registers)) void foo();",
       "                                           void foo();",
       Lang_C);
   EXPECT_FALSE(testStructuralMatch(t));
 }
-#endif
 
 struct StructuralEquivalenceCXXMethodTest : StructuralEquivalenceTest {
 };
@@ -802,6 +806,25 @@ TEST_F(StructuralEquivalenceEnumTest, EnumsWithDifferentBody) {
   EXPECT_FALSE(testStructuralMatch(t));
 }
 
+struct StructuralEquivalenceTemplateTest : StructuralEquivalenceTest {};
+
+TEST_F(StructuralEquivalenceTemplateTest, ExactlySameTemplates) {
+  auto t = makeNamedDecls("template <class T> struct foo;",
+                          "template <class T> struct foo;", Lang_CXX);
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceTemplateTest, DifferentTemplateArgName) {
+  auto t = makeNamedDecls("template <class T> struct foo;",
+                          "template <class U> struct foo;", Lang_CXX);
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceTemplateTest, DifferentTemplateArgKind) {
+  auto t = makeNamedDecls("template <class T> struct foo;",
+                          "template <int T> struct foo;", Lang_CXX);
+  EXPECT_FALSE(testStructuralMatch(t));
+}
 
 } // end namespace ast_matchers
 } // end namespace clang

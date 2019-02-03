@@ -975,12 +975,11 @@ Value *InstCombiner::simplifyAMDGCNMemoryIntrinsicDemanded(IntrinsicInst *II,
     return nullptr;
 
   // Need to change to new instruction format
-  ConstantInt *TFC = nullptr;
   bool TFELWEEnabled = false;
   if (TFCIdx > 0) {
-    TFC = dyn_cast<ConstantInt>(II->getArgOperand(TFCIdx));
-    TFELWEEnabled =    TFC->getZExtValue() & 0x1  // TFE
-                    || TFC->getZExtValue() & 0x2; // LWE
+    if (ConstantInt *TFC = dyn_cast<ConstantInt>(II->getArgOperand(TFCIdx)))
+      TFELWEEnabled =    TFC->getZExtValue() & 0x1  // TFE
+                      || TFC->getZExtValue() & 0x2; // LWE
   }
 
   if (TFELWEEnabled)
@@ -1183,6 +1182,18 @@ Value *InstCombiner::SimplifyDemandedVectorElts(Value *V, APInt DemandedElts,
   switch (I->getOpcode()) {
   default: break;
 
+  case Instruction::GetElementPtr: {
+    // Conservatively track the demanded elements back through any vector
+    // operands we may have.  We know there must be at least one, or we
+    // wouldn't have a vector result to get here. Note that we intentionally
+    // merge the undef bits here since gepping with either an undef base or
+    // index results in undef. 
+    for (unsigned i = 0; i < I->getNumOperands(); i++)
+      if (I->getOperand(i)->getType()->isVectorTy())
+        simplifyAndSetOp(I, i, DemandedElts, UndefElts);
+
+    break;
+  }
   case Instruction::InsertElement: {
     // If this is a variable index, we don't know which element it overwrites.
     // demand exactly the same input as we produce.

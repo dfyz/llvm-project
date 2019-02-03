@@ -8,11 +8,14 @@
 
 #include "ClangdLSPServer.h"
 #include "Diagnostics.h"
+#include "Protocol.h"
 #include "SourceCode.h"
 #include "Trace.h"
 #include "URI.h"
+#include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/Errc.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/ScopedPrinter.h"
@@ -29,6 +32,28 @@ public:
     return std::make_error_code(std::errc::operation_canceled);
   }
 };
+
+/// Transforms a tweak into a code action that would apply it if executed.
+/// EXPECTS: T.prepare() was called and returned true.
+CodeAction toCodeAction(const ClangdServer::TweakRef &T, const URIForFile &File,
+                        Range Selection) {
+  CodeAction CA;
+  CA.title = T.Title;
+  CA.kind = CodeAction::REFACTOR_KIND;
+  // This tweak may have an expensive second stage, we only run it if the user
+  // actually chooses it in the UI. We reply with a command that would run the
+  // corresponding tweak.
+  // FIXME: for some tweaks, computing the edits is cheap and we could send them
+  //        directly.
+  CA.command.emplace();
+  CA.command->title = T.Title;
+  CA.command->command = Command::CLANGD_APPLY_TWEAK;
+  CA.command->tweakArgs.emplace();
+  CA.command->tweakArgs->file = File;
+  CA.command->tweakArgs->tweakID = T.ID;
+  CA.command->tweakArgs->selection = Selection;
+  return CA;
+}
 
 void adjustSymbolKinds(llvm::MutableArrayRef<DocumentSymbol> Syms,
                        SymbolKindBitset Kinds) {
@@ -329,6 +354,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
              llvm::json::Object{
                  {"triggerCharacters", {"(", ","}},
              }},
+            {"declarationProvider", true},
             {"definitionProvider", true},
             {"documentHighlightProvider", true},
             {"hoverProvider", true},
@@ -338,7 +364,9 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
             {"referencesProvider", true},
             {"executeCommandProvider",
              llvm::json::Object{
-                 {"commands", {ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND}},
+                 {"commands",
+                  {ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND,
+                   ExecuteCommandParams::CLANGD_APPLY_TWEAK}},
              }},
         }}}});
 }
@@ -400,7 +428,7 @@ void ClangdLSPServer::onFileEvent(const DidChangeWatchedFilesParams &Params) {
 
 void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
                                 Callback<llvm::json::Value> Reply) {
-  auto ApplyEdit = [&](WorkspaceEdit WE) {
+  auto ApplyEdit = [this](WorkspaceEdit WE) {
     ApplyWorkspaceEditParams Edit;
     Edit.edit = std::move(WE);
     // Ideally, we would wait for the response and if there is no error, we
@@ -420,6 +448,31 @@ void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
 
     Reply("Fix applied.");
     ApplyEdit(*Params.workspaceEdit);
+  } else if (Params.command == ExecuteCommandParams::CLANGD_APPLY_TWEAK &&
+             Params.tweakArgs) {
+    auto Code = DraftMgr.getDraft(Params.tweakArgs->file.file());
+    if (!Code)
+      return Reply(llvm::createStringError(
+          llvm::inconvertibleErrorCode(),
+          "trying to apply a code action for a non-added file"));
+
+    auto Action = [ApplyEdit](decltype(Reply) Reply, URIForFile File,
+                              std::string Code,
+                              llvm::Expected<tooling::Replacements> R) {
+      if (!R)
+        return Reply(R.takeError());
+
+      WorkspaceEdit WE;
+      WE.changes.emplace();
+      (*WE.changes)[File.uri()] = replacementsToEdits(Code, *R);
+
+      Reply("Fix applied.");
+      ApplyEdit(std::move(WE));
+    };
+    Server->applyTweak(Params.tweakArgs->file.file(),
+                       Params.tweakArgs->selection, Params.tweakArgs->tweakID,
+                       Bind(Action, std::move(Reply), Params.tweakArgs->file,
+                            std::move(*Code)));
   } else {
     // We should not get here because ExecuteCommandParams would not have
     // parsed in the first place and this handler should not be called. But if
@@ -601,28 +654,47 @@ static llvm::Optional<Command> asCommand(const CodeAction &Action) {
 
 void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
                                    Callback<llvm::json::Value> Reply) {
-  auto Code = DraftMgr.getDraft(Params.textDocument.uri.file());
+  URIForFile File = Params.textDocument.uri;
+  auto Code = DraftMgr.getDraft(File.file());
   if (!Code)
     return Reply(llvm::make_error<LSPError>(
         "onCodeAction called for non-added file", ErrorCode::InvalidParams));
   // We provide a code action for Fixes on the specified diagnostics.
-  std::vector<CodeAction> Actions;
+  std::vector<CodeAction> FixIts;
   for (const Diagnostic &D : Params.context.diagnostics) {
-    for (auto &F : getFixes(Params.textDocument.uri.file(), D)) {
-      Actions.push_back(toCodeAction(F, Params.textDocument.uri));
-      Actions.back().diagnostics = {D};
+    for (auto &F : getFixes(File.file(), D)) {
+      FixIts.push_back(toCodeAction(F, Params.textDocument.uri));
+      FixIts.back().diagnostics = {D};
     }
   }
 
-  if (SupportsCodeAction)
-    Reply(llvm::json::Array(Actions));
-  else {
-    std::vector<Command> Commands;
-    for (const auto &Action : Actions)
-      if (auto Command = asCommand(Action))
-        Commands.push_back(std::move(*Command));
-    Reply(llvm::json::Array(Commands));
-  }
+  // Now enumerate the semantic code actions.
+  auto ConsumeActions =
+      [this](decltype(Reply) Reply, URIForFile File, std::string Code,
+             Range Selection, std::vector<CodeAction> FixIts,
+             llvm::Expected<std::vector<ClangdServer::TweakRef>> Tweaks) {
+        if (!Tweaks)
+          return Reply(Tweaks.takeError());
+
+        std::vector<CodeAction> Actions = std::move(FixIts);
+        Actions.reserve(Actions.size() + Tweaks->size());
+        for (const auto &T : *Tweaks)
+          Actions.push_back(toCodeAction(T, File, Selection));
+
+        if (SupportsCodeAction)
+          return Reply(llvm::json::Array(Actions));
+        std::vector<Command> Commands;
+        for (const auto &Action : Actions) {
+          if (auto Command = asCommand(Action))
+            Commands.push_back(std::move(*Command));
+        }
+        return Reply(llvm::json::Array(Commands));
+      };
+
+  Server->enumerateTweaks(File.file(), Params.range,
+                          Bind(ConsumeActions, std::move(Reply), File,
+                               std::move(*Code), Params.range,
+                               std::move(FixIts)));
 }
 
 void ClangdLSPServer::onCompletion(const CompletionParams &Params,
@@ -654,10 +726,65 @@ void ClangdLSPServer::onSignatureHelp(const TextDocumentPositionParams &Params,
                         std::move(Reply));
 }
 
+// Go to definition has a toggle function: if def and decl are distinct, then
+// the first press gives you the def, the second gives you the matching def.
+// getToggle() returns the counterpart location that under the cursor.
+//
+// We return the toggled location alone (ignoring other symbols) to encourage
+// editors to "bounce" quickly between locations, without showing a menu.
+static Location *getToggle(const TextDocumentPositionParams &Point,
+                           LocatedSymbol &Sym) {
+  // Toggle only makes sense with two distinct locations.
+  if (!Sym.Definition || *Sym.Definition == Sym.PreferredDeclaration)
+    return nullptr;
+  if (Sym.Definition->uri.file() == Point.textDocument.uri.file() &&
+      Sym.Definition->range.contains(Point.position))
+    return &Sym.PreferredDeclaration;
+  if (Sym.PreferredDeclaration.uri.file() == Point.textDocument.uri.file() &&
+      Sym.PreferredDeclaration.range.contains(Point.position))
+    return &*Sym.Definition;
+  return nullptr;
+}
+
 void ClangdLSPServer::onGoToDefinition(const TextDocumentPositionParams &Params,
                                        Callback<std::vector<Location>> Reply) {
-  Server->findDefinitions(Params.textDocument.uri.file(), Params.position,
-                          std::move(Reply));
+  Server->locateSymbolAt(
+      Params.textDocument.uri.file(), Params.position,
+      Bind(
+          [&, Params](decltype(Reply) Reply,
+                      llvm::Expected<std::vector<LocatedSymbol>> Symbols) {
+            if (!Symbols)
+              return Reply(Symbols.takeError());
+            std::vector<Location> Defs;
+            for (auto &S : *Symbols) {
+              if (Location *Toggle = getToggle(Params, S))
+                return Reply(std::vector<Location>{std::move(*Toggle)});
+              Defs.push_back(S.Definition.getValueOr(S.PreferredDeclaration));
+            }
+            Reply(std::move(Defs));
+          },
+          std::move(Reply)));
+}
+
+void ClangdLSPServer::onGoToDeclaration(
+    const TextDocumentPositionParams &Params,
+    Callback<std::vector<Location>> Reply) {
+  Server->locateSymbolAt(
+      Params.textDocument.uri.file(), Params.position,
+      Bind(
+          [&, Params](decltype(Reply) Reply,
+                      llvm::Expected<std::vector<LocatedSymbol>> Symbols) {
+            if (!Symbols)
+              return Reply(Symbols.takeError());
+            std::vector<Location> Decls;
+            for (auto &S : *Symbols) {
+              if (Location *Toggle = getToggle(Params, S))
+                return Reply(std::vector<Location>{std::move(*Toggle)});
+              Decls.push_back(std::move(S.PreferredDeclaration));
+            }
+            Reply(std::move(Decls));
+          },
+          std::move(Reply)));
 }
 
 void ClangdLSPServer::onSwitchSourceHeader(const TextDocumentIdentifier &Params,
@@ -743,6 +870,7 @@ ClangdLSPServer::ClangdLSPServer(class Transport &Transp,
   MsgHandler->bind("textDocument/completion", &ClangdLSPServer::onCompletion);
   MsgHandler->bind("textDocument/signatureHelp", &ClangdLSPServer::onSignatureHelp);
   MsgHandler->bind("textDocument/definition", &ClangdLSPServer::onGoToDefinition);
+  MsgHandler->bind("textDocument/declaration", &ClangdLSPServer::onGoToDeclaration);
   MsgHandler->bind("textDocument/references", &ClangdLSPServer::onReference);
   MsgHandler->bind("textDocument/switchSourceHeader", &ClangdLSPServer::onSwitchSourceHeader);
   MsgHandler->bind("textDocument/rename", &ClangdLSPServer::onRename);

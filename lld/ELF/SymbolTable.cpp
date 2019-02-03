@@ -92,7 +92,7 @@ template <class ELFT> void SymbolTable::addFile(InputFile *File) {
   // .so file
   if (auto *F = dyn_cast<SharedFile<ELFT>>(File)) {
     // DSOs are uniquified not by filename but by soname.
-    F->parseSoName();
+    F->parseDynamic();
     if (errorCount())
       return;
 
@@ -326,7 +326,7 @@ Symbol *SymbolTable::addUndefined(StringRef Name, uint8_t Binding,
 
     // We don't report backward references to weak symbols as they can be
     // overridden later.
-    if (Backref && S->Binding != STB_WEAK)
+    if (Backref && !S->isWeak())
       warn("backward reference detected: " + Name + " in " + toString(File) +
            " refers to " + toString(S->File));
   }

@@ -122,7 +122,8 @@ config("compiler_defaults") {
     }
   }
 
-  if (use_lld) {
+  # On Windows, the linker is not invoked through the compiler driver.
+  if (use_lld && host_os != "win") {
     ldflags += [ "-fuse-ld=lld" ]
   }
 }
@@ -132,6 +133,14 @@ config("no_rtti") {
     cflags_cc = [ "/GR-" ]
   } else {
     cflags_cc = [ "-fno-rtti" ]
+  }
+}
+
+# To make an archive that can be distributed, you need to remove this config and
+# set complete_static_lib.
+config("thin_archive") {
+  if (current_os != "win" && current_os != "mac") {
+    arflags = [ "-T" ]
   }
 }
 

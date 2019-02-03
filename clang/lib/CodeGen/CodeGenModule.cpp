@@ -47,7 +47,6 @@
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Intrinsics.h"
@@ -731,9 +730,11 @@ void CodeGenModule::setGlobalVisibility(llvm::GlobalValue *GV,
   }
   if (!D)
     return;
-  // Set visibility for definitions.
+  // Set visibility for definitions, and for declarations if requested globally
+  // or set explicitly.
   LinkageInfo LV = D->getLinkageAndVisibility();
-  if (LV.isVisibilityExplicit() || !GV->isDeclarationForLinker())
+  if (LV.isVisibilityExplicit() || getLangOpts().SetVisibilityForExternDecls ||
+      !GV->isDeclarationForLinker())
     GV->setVisibility(GetLLVMVisibility(LV.getVisibility()));
 }
 
@@ -2190,6 +2191,10 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
       if (MustBeEmitted(Global))
         EmitOMPDeclareReduction(DRD);
       return;
+    } else if (auto *DMD = dyn_cast<OMPDeclareMapperDecl>(Global)) {
+      if (MustBeEmitted(Global))
+        EmitOMPDeclareMapper(DMD);
+      return;
     }
   }
 
@@ -2571,8 +2576,7 @@ void CodeGenModule::emitCPUDispatchDefinition(GlobalDecl GD) {
   assert(FD && "Not a FunctionDecl?");
   const auto *DD = FD->getAttr<CPUDispatchAttr>();
   assert(DD && "Not a cpu_dispatch Function?");
-  QualType CanonTy = Context.getCanonicalType(FD->getType());
-  llvm::Type *DeclTy = getTypes().ConvertFunctionType(CanonTy, FD);
+  llvm::Type *DeclTy = getTypes().ConvertType(FD->getType());
 
   if (const auto *CXXFD = dyn_cast<CXXMethodDecl>(FD)) {
     const CGFunctionInfo &FInfo = getTypes().arrangeCXXMethodDeclaration(CXXFD);
@@ -2911,8 +2915,7 @@ llvm::Constant *CodeGenModule::GetAddrOfFunction(GlobalDecl GD,
   // If there was no specific requested type, just convert it now.
   if (!Ty) {
     const auto *FD = cast<FunctionDecl>(GD.getDecl());
-    auto CanonTy = Context.getCanonicalType(FD->getType());
-    Ty = getTypes().ConvertFunctionType(CanonTy, FD);
+    Ty = getTypes().ConvertType(FD->getType());
   }
 
   // Devirtualized destructor calls may come through here instead of via
@@ -3895,9 +3898,10 @@ static void replaceUsesOfNonProtoConstant(llvm::Constant *old,
     }
 
     // Recognize calls to the function.
-    llvm::CallSite callSite(user);
+    llvm::CallBase *callSite = dyn_cast<llvm::CallBase>(user);
     if (!callSite) continue;
-    if (!callSite.isCallee(&*use)) continue;
+    if (!callSite->isCallee(&*use))
+      continue;
 
     // If the return types don't match exactly, then we can't
     // transform this call unless it's dead.
@@ -3906,18 +3910,19 @@ static void replaceUsesOfNonProtoConstant(llvm::Constant *old,
 
     // Get the call site's attribute list.
     SmallVector<llvm::AttributeSet, 8> newArgAttrs;
-    llvm::AttributeList oldAttrs = callSite.getAttributes();
+    llvm::AttributeList oldAttrs = callSite->getAttributes();
 
     // If the function was passed too few arguments, don't transform.
     unsigned newNumArgs = newFn->arg_size();
-    if (callSite.arg_size() < newNumArgs) continue;
+    if (callSite->arg_size() < newNumArgs)
+      continue;
 
     // If extra arguments were passed, we silently drop them.
     // If any of the types mismatch, we don't transform.
     unsigned argNo = 0;
     bool dontTransform = false;
     for (llvm::Argument &A : newFn->args()) {
-      if (callSite.getArgument(argNo)->getType() != A.getType()) {
+      if (callSite->getArgOperand(argNo)->getType() != A.getType()) {
         dontTransform = true;
         break;
       }
@@ -3931,35 +3936,33 @@ static void replaceUsesOfNonProtoConstant(llvm::Constant *old,
 
     // Okay, we can transform this.  Create the new call instruction and copy
     // over the required information.
-    newArgs.append(callSite.arg_begin(), callSite.arg_begin() + argNo);
+    newArgs.append(callSite->arg_begin(), callSite->arg_begin() + argNo);
 
     // Copy over any operand bundles.
-    callSite.getOperandBundlesAsDefs(newBundles);
+    callSite->getOperandBundlesAsDefs(newBundles);
 
-    llvm::CallSite newCall;
-    if (callSite.isCall()) {
-      newCall = llvm::CallInst::Create(newFn, newArgs, newBundles, "",
-                                       callSite.getInstruction());
+    llvm::CallBase *newCall;
+    if (dyn_cast<llvm::CallInst>(callSite)) {
+      newCall =
+          llvm::CallInst::Create(newFn, newArgs, newBundles, "", callSite);
     } else {
-      auto *oldInvoke = cast<llvm::InvokeInst>(callSite.getInstruction());
-      newCall = llvm::InvokeInst::Create(newFn,
-                                         oldInvoke->getNormalDest(),
-                                         oldInvoke->getUnwindDest(),
-                                         newArgs, newBundles, "",
-                                         callSite.getInstruction());
+      auto *oldInvoke = cast<llvm::InvokeInst>(callSite);
+      newCall = llvm::InvokeInst::Create(newFn, oldInvoke->getNormalDest(),
+                                         oldInvoke->getUnwindDest(), newArgs,
+                                         newBundles, "", callSite);
     }
     newArgs.clear(); // for the next iteration
 
     if (!newCall->getType()->isVoidTy())
-      newCall->takeName(callSite.getInstruction());
-    newCall.setAttributes(llvm::AttributeList::get(
+      newCall->takeName(callSite);
+    newCall->setAttributes(llvm::AttributeList::get(
         newFn->getContext(), oldAttrs.getFnAttributes(),
         oldAttrs.getRetAttributes(), newArgAttrs));
-    newCall.setCallingConv(callSite.getCallingConv());
+    newCall->setCallingConv(callSite->getCallingConv());
 
     // Finally, remove the old call, replacing any uses with the new one.
     if (!callSite->use_empty())
-      callSite->replaceAllUsesWith(newCall.getInstruction());
+      callSite->replaceAllUsesWith(newCall);
 
     // Copy debug location attached to CI.
     if (callSite->getDebugLoc())
@@ -5050,6 +5053,10 @@ void CodeGenModule::EmitTopLevelDecl(Decl *D) {
 
   case Decl::OMPDeclareReduction:
     EmitOMPDeclareReduction(cast<OMPDeclareReductionDecl>(D));
+    break;
+
+  case Decl::OMPDeclareMapper:
+    EmitOMPDeclareMapper(cast<OMPDeclareMapperDecl>(D));
     break;
 
   case Decl::OMPRequires:

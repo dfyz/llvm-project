@@ -26,7 +26,6 @@
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Intrinsics.h"
@@ -495,10 +494,11 @@ getDefaultBuiltinObjectSizeResult(unsigned Type, llvm::IntegerType *ResType) {
 llvm::Value *
 CodeGenFunction::evaluateOrEmitBuiltinObjectSize(const Expr *E, unsigned Type,
                                                  llvm::IntegerType *ResType,
-                                                 llvm::Value *EmittedE) {
+                                                 llvm::Value *EmittedE,
+                                                 bool IsDynamic) {
   uint64_t ObjectSize;
   if (!E->tryEvaluateObjectSize(ObjectSize, getContext(), Type))
-    return emitBuiltinObjectSize(E, Type, ResType, EmittedE);
+    return emitBuiltinObjectSize(E, Type, ResType, EmittedE, IsDynamic);
   return ConstantInt::get(ResType, ObjectSize, /*isSigned=*/true);
 }
 
@@ -514,7 +514,7 @@ CodeGenFunction::evaluateOrEmitBuiltinObjectSize(const Expr *E, unsigned Type,
 llvm::Value *
 CodeGenFunction::emitBuiltinObjectSize(const Expr *E, unsigned Type,
                                        llvm::IntegerType *ResType,
-                                       llvm::Value *EmittedE) {
+                                       llvm::Value *EmittedE, bool IsDynamic) {
   // We need to reference an argument if the pointer is a parameter with the
   // pass_object_size attribute.
   if (auto *D = dyn_cast<DeclRefExpr>(E->IgnoreParenImpCasts())) {
@@ -550,7 +550,8 @@ CodeGenFunction::emitBuiltinObjectSize(const Expr *E, unsigned Type,
   Value *Min = Builder.getInt1((Type & 2) != 0);
   // For GCC compatibility, __builtin_object_size treat NULL as unknown size.
   Value *NullIsUnknown = Builder.getTrue();
-  return Builder.CreateCall(F, {Ptr, Min, NullIsUnknown});
+  Value *Dynamic = Builder.getInt1(IsDynamic);
+  return Builder.CreateCall(F, {Ptr, Min, NullIsUnknown, Dynamic});
 }
 
 namespace {
@@ -799,9 +800,9 @@ static RValue EmitMSVCRTSetJmp(CodeGenFunction &CGF, MSVCSetJmpKind SJKind,
   llvm::Value *Buf = CGF.Builder.CreateBitOrPointerCast(
       CGF.EmitScalarExpr(E->getArg(0)), CGF.Int8PtrTy);
   llvm::Value *Args[] = {Buf, Arg1};
-  llvm::CallSite CS = CGF.EmitRuntimeCallOrInvoke(SetJmpFn, Args);
-  CS.setAttributes(ReturnsTwiceAttr);
-  return RValue::get(CS.getInstruction());
+  llvm::CallBase *CB = CGF.EmitRuntimeCallOrInvoke(SetJmpFn, Args);
+  CB->setAttributes(ReturnsTwiceAttr);
+  return RValue::get(CB);
 }
 
 // Many of MSVC builtins are on x64, ARM and AArch64; to avoid repeating code,
@@ -1002,9 +1003,9 @@ Value *CodeGenFunction::EmitMSVCBuiltinExpr(MSVCIntrin BuiltinID,
     llvm::AttributeList NoReturnAttr = llvm::AttributeList::get(
         getLLVMContext(), llvm::AttributeList::FunctionIndex,
         llvm::Attribute::NoReturn);
-    CallSite CS = Builder.CreateCall(IA, EmitScalarExpr(E->getArg(0)));
-    CS.setAttributes(NoReturnAttr);
-    return CS.getInstruction();
+    llvm::CallInst *CI = Builder.CreateCall(IA, EmitScalarExpr(E->getArg(0)));
+    CI->setAttributes(NoReturnAttr);
+    return CI;
   }
   }
   llvm_unreachable("Incorrect MSVC intrinsic!");
@@ -1978,6 +1979,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
       Result = Builder.CreateIntCast(Result, ResultType, /*isSigned*/false);
     return RValue::get(Result);
   }
+  case Builtin::BI__builtin_dynamic_object_size:
   case Builtin::BI__builtin_object_size: {
     unsigned Type =
         E->getArg(1)->EvaluateKnownConstInt(getContext()).getZExtValue();
@@ -1985,8 +1987,9 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
 
     // We pass this builtin onto the optimizer so that it can figure out the
     // object size in more complex cases.
+    bool IsDynamic = BuiltinID == Builtin::BI__builtin_dynamic_object_size;
     return RValue::get(emitBuiltinObjectSize(E->getArg(0), Type, ResType,
-                                             /*EmittedE=*/nullptr));
+                                             /*EmittedE=*/nullptr, IsDynamic));
   }
   case Builtin::BI__builtin_prefetch: {
     Value *Locality, *RW, *Address = EmitScalarExpr(E->getArg(0));
@@ -9149,6 +9152,20 @@ static Value *EmitX86ExpandLoad(CodeGenFunction &CGF,
   return CGF.Builder.CreateCall(F, { Ptr, MaskVec, Ops[1] });
 }
 
+static Value *EmitX86CompressExpand(CodeGenFunction &CGF,
+                                    ArrayRef<Value *> Ops,
+                                    bool IsCompress) {
+  llvm::Type *ResultTy = Ops[1]->getType();
+
+  Value *MaskVec = getMaskVecValue(CGF, Ops[2],
+                                   ResultTy->getVectorNumElements());
+
+  Intrinsic::ID IID = IsCompress ? Intrinsic::x86_avx512_mask_compress
+                                 : Intrinsic::x86_avx512_mask_expand;
+  llvm::Function *F = CGF.CGM.getIntrinsic(IID, ResultTy);
+  return CGF.Builder.CreateCall(F, { Ops[0], Ops[1], MaskVec });
+}
+
 static Value *EmitX86CompressStore(CodeGenFunction &CGF,
                                    ArrayRef<Value *> Ops) {
   llvm::Type *ResultTy = Ops[1]->getType();
@@ -10159,6 +10176,46 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
   case X86::BI__builtin_ia32_compressstoreqi256_mask:
   case X86::BI__builtin_ia32_compressstoreqi512_mask:
     return EmitX86CompressStore(*this, Ops);
+
+  case X86::BI__builtin_ia32_expanddf128_mask:
+  case X86::BI__builtin_ia32_expanddf256_mask:
+  case X86::BI__builtin_ia32_expanddf512_mask:
+  case X86::BI__builtin_ia32_expandsf128_mask:
+  case X86::BI__builtin_ia32_expandsf256_mask:
+  case X86::BI__builtin_ia32_expandsf512_mask:
+  case X86::BI__builtin_ia32_expanddi128_mask:
+  case X86::BI__builtin_ia32_expanddi256_mask:
+  case X86::BI__builtin_ia32_expanddi512_mask:
+  case X86::BI__builtin_ia32_expandsi128_mask:
+  case X86::BI__builtin_ia32_expandsi256_mask:
+  case X86::BI__builtin_ia32_expandsi512_mask:
+  case X86::BI__builtin_ia32_expandhi128_mask:
+  case X86::BI__builtin_ia32_expandhi256_mask:
+  case X86::BI__builtin_ia32_expandhi512_mask:
+  case X86::BI__builtin_ia32_expandqi128_mask:
+  case X86::BI__builtin_ia32_expandqi256_mask:
+  case X86::BI__builtin_ia32_expandqi512_mask:
+    return EmitX86CompressExpand(*this, Ops, /*IsCompress*/false);
+
+  case X86::BI__builtin_ia32_compressdf128_mask:
+  case X86::BI__builtin_ia32_compressdf256_mask:
+  case X86::BI__builtin_ia32_compressdf512_mask:
+  case X86::BI__builtin_ia32_compresssf128_mask:
+  case X86::BI__builtin_ia32_compresssf256_mask:
+  case X86::BI__builtin_ia32_compresssf512_mask:
+  case X86::BI__builtin_ia32_compressdi128_mask:
+  case X86::BI__builtin_ia32_compressdi256_mask:
+  case X86::BI__builtin_ia32_compressdi512_mask:
+  case X86::BI__builtin_ia32_compresssi128_mask:
+  case X86::BI__builtin_ia32_compresssi256_mask:
+  case X86::BI__builtin_ia32_compresssi512_mask:
+  case X86::BI__builtin_ia32_compresshi128_mask:
+  case X86::BI__builtin_ia32_compresshi256_mask:
+  case X86::BI__builtin_ia32_compresshi512_mask:
+  case X86::BI__builtin_ia32_compressqi128_mask:
+  case X86::BI__builtin_ia32_compressqi256_mask:
+  case X86::BI__builtin_ia32_compressqi512_mask:
+    return EmitX86CompressExpand(*this, Ops, /*IsCompress*/true);
 
   case X86::BI__builtin_ia32_gather3div2df:
   case X86::BI__builtin_ia32_gather3div2di:
@@ -11797,9 +11854,9 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
     llvm::AttributeList NoReturnAttr = llvm::AttributeList::get(
         getLLVMContext(), llvm::AttributeList::FunctionIndex,
         llvm::Attribute::NoReturn);
-    CallSite CS = Builder.CreateCall(IA);
-    CS.setAttributes(NoReturnAttr);
-    return CS.getInstruction();
+    llvm::CallInst *CI = Builder.CreateCall(IA);
+    CI->setAttributes(NoReturnAttr);
+    return CI;
   }
   case X86::BI__readfsbyte:
   case X86::BI__readfsword:
@@ -12424,6 +12481,14 @@ Value *CodeGenFunction::EmitAMDGPUBuiltinExpr(unsigned BuiltinID,
   case AMDGPU::BI__builtin_amdgcn_fmed3f:
   case AMDGPU::BI__builtin_amdgcn_fmed3h:
     return emitTernaryBuiltin(*this, E, Intrinsic::amdgcn_fmed3);
+  case AMDGPU::BI__builtin_amdgcn_ds_append:
+  case AMDGPU::BI__builtin_amdgcn_ds_consume: {
+    Intrinsic::ID Intrin = BuiltinID == AMDGPU::BI__builtin_amdgcn_ds_append ?
+      Intrinsic::amdgcn_ds_append : Intrinsic::amdgcn_ds_consume;
+    Value *Src0 = EmitScalarExpr(E->getArg(0));
+    Function *F = CGM.getIntrinsic(Intrin, { Src0->getType() });
+    return Builder.CreateCall(F, { Src0, Builder.getFalse() });
+  }
   case AMDGPU::BI__builtin_amdgcn_read_exec: {
     CallInst *CI = cast<CallInst>(
       EmitSpecialRegisterBuiltin(*this, E, Int64Ty, Int64Ty, true, "exec"));

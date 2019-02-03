@@ -18,11 +18,14 @@
 #include "GlobalCompilationDatabase.h"
 #include "Protocol.h"
 #include "TUScheduler.h"
+#include "XRefs.h"
 #include "index/Background.h"
 #include "index/FileIndex.h"
 #include "index/Index.h"
+#include "refactor/Tweak.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Core/Replacement.h"
+#include "llvm/ADT/FunctionExtras.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
@@ -114,6 +117,8 @@ public:
     /// Time to wait after a new file version before computing diagnostics.
     std::chrono::steady_clock::duration UpdateDebounce =
         std::chrono::milliseconds(500);
+
+    bool SuggestMissingIncludes = false;
   };
   // Sensible default options for use in tests.
   // Features like indexing must be enabled if desired.
@@ -163,9 +168,9 @@ public:
   /// called for tracked files.
   void signatureHelp(PathRef File, Position Pos, Callback<SignatureHelp> CB);
 
-  /// Get definition of symbol at a specified \p Line and \p Column in \p File.
-  void findDefinitions(PathRef File, Position Pos,
-                       Callback<std::vector<Location>> CB);
+  /// Find declaration/definition locations of symbol at a specified position.
+  void locateSymbolAt(PathRef File, Position Pos,
+                      Callback<std::vector<LocatedSymbol>> CB);
 
   /// Helper function that returns a path to the corresponding source file when
   /// given a header file and vice versa.
@@ -208,6 +213,18 @@ public:
   /// \p NewName.
   void rename(PathRef File, Position Pos, llvm::StringRef NewName,
               Callback<std::vector<tooling::Replacement>> CB);
+
+  struct TweakRef {
+    std::string ID;    /// ID to pass for applyTweak.
+    std::string Title; /// A single-line message to show in the UI.
+  };
+  /// Enumerate the code tweaks available to the user at a specified point.
+  void enumerateTweaks(PathRef File, Range Sel,
+                       Callback<std::vector<TweakRef>> CB);
+
+  /// Apply the code tweak with a specified \p ID.
+  void applyTweak(PathRef File, Range Sel, StringRef ID,
+                  Callback<tooling::Replacements> CB);
 
   /// Only for testing purposes.
   /// Waits until all requests to worker thread are finished and dumps AST for
@@ -267,6 +284,10 @@ private:
 
   // The provider used to provide a clang-tidy option for a specific file.
   tidy::ClangTidyOptionsProvider *ClangTidyOptProvider = nullptr;
+
+  // If this is true, suggest include insertion fixes for diagnostic errors that
+  // can be caused by missing includes (e.g. member access in incomplete type).
+  bool SuggestMissingIncludes = false;
 
   // GUARDED_BY(CachedCompletionFuzzyFindRequestMutex)
   llvm::StringMap<llvm::Optional<FuzzyFindRequest>>

@@ -165,6 +165,8 @@ std::string mainMessage(const Diag &D) {
   std::string Result;
   llvm::raw_string_ostream OS(Result);
   OS << D.Message;
+  if (!D.Fixes.empty())
+    OS << " (" << (D.Fixes.size() > 1 ? "fixes" : "fix") << " available)";
   for (auto &Note : D.Notes) {
     OS << "\n\n";
     printDiag(OS, Note);
@@ -374,6 +376,11 @@ void StoreDiags::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
 
     if (!Info.getFixItHints().empty())
       AddFix(true /* try to invent a message instead of repeating the diag */);
+    if (Fixer) {
+      auto ExtraFixes = Fixer(DiagLevel, Info);
+      LastDiag->Fixes.insert(LastDiag->Fixes.end(), ExtraFixes.begin(),
+                             ExtraFixes.end());
+    }
   } else {
     // Handle a note to an existing diagnostic.
     if (!LastDiag) {

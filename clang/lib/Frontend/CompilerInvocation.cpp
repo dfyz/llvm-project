@@ -26,6 +26,7 @@
 #include "clang/Basic/Visibility.h"
 #include "clang/Basic/XRayInstr.h"
 #include "clang/Config/config.h"
+#include "clang/Driver/Driver.h"
 #include "clang/Driver/DriverDiagnostic.h"
 #include "clang/Driver/Options.h"
 #include "clang/Frontend/CommandLineSourceLoc.h"
@@ -1321,6 +1322,8 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
 
   Opts.DefaultFunctionAttrs = Args.getAllArgValues(OPT_default_function_attr);
 
+  Opts.PassPlugins = Args.getAllArgValues(OPT_fpass_plugin_EQ);
+
   return Success;
 }
 
@@ -1893,18 +1896,7 @@ std::string CompilerInvocation::GetResourcesPath(const char *Argv0,
                                                  void *MainAddr) {
   std::string ClangExecutable =
       llvm::sys::fs::getMainExecutable(Argv0, MainAddr);
-  StringRef Dir = llvm::sys::path::parent_path(ClangExecutable);
-
-  // Compute the path to the resource directory.
-  StringRef ClangResourceDir(CLANG_RESOURCE_DIR);
-  SmallString<128> P(Dir);
-  if (ClangResourceDir != "")
-    llvm::sys::path::append(P, ClangResourceDir);
-  else
-    llvm::sys::path::append(P, "..", Twine("lib") + CLANG_LIBDIR_SUFFIX,
-                            "clang", CLANG_VERSION_STRING);
-
-  return P.str();
+  return Driver::GetResourcesPath(ClangExecutable, CLANG_RESOURCE_DIR);
 }
 
 static void ParseHeaderSearchArgs(HeaderSearchOptions &Opts, ArgList &Args,
@@ -2500,6 +2492,9 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
 
   if (Args.hasArg(OPT_fvisibility_global_new_delete_hidden))
     Opts.GlobalAllocationFunctionVisibilityHidden = 1;
+
+  if (Args.hasArg(OPT_fapply_global_visibility_to_externs))
+    Opts.SetVisibilityForExternDecls = 1;
 
   if (Args.hasArg(OPT_ftrapv)) {
     Opts.setSignedOverflowBehavior(LangOptions::SOB_Trapping);

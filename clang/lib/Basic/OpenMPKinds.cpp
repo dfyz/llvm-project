@@ -67,6 +67,8 @@ const char *clang::getOpenMPClauseName(OpenMPClauseKind Kind) {
   case OMPC_##Name:                                                            \
     return #Name;
 #include "clang/Basic/OpenMPKinds.def"
+  case OMPC_flush:
+    return "flush";
   case OMPC_uniform:
     return "uniform";
   case OMPC_threadprivate:
@@ -764,6 +766,16 @@ bool clang::isAllowedClauseForDirective(OpenMPDirectiveKind DKind,
       break;
     }
     break;
+  case OMPD_declare_mapper:
+    switch (CKind) {
+#define OPENMP_DECLARE_MAPPER_CLAUSE(Name)                                     \
+  case OMPC_##Name:                                                            \
+    return true;
+#include "clang/Basic/OpenMPKinds.def"
+    default:
+      break;
+    }
+    break;
   case OMPD_declare_target:
   case OMPD_end_declare_target:
   case OMPD_unknown:
@@ -998,6 +1010,7 @@ void clang::getOpenMPCaptureRegions(
   case OMPD_cancel:
   case OMPD_flush:
   case OMPD_declare_reduction:
+  case OMPD_declare_mapper:
   case OMPD_declare_simd:
   case OMPD_declare_target:
   case OMPD_end_declare_target:

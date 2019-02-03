@@ -304,8 +304,6 @@ public:
 
 } // end anonymous namespace
 
-#include "AArch64GenCallingConv.inc"
-
 /// Check if the sign-/zero-extend will be a noop.
 static bool isIntExtFree(const Instruction *I) {
   assert((isa<ZExtInst>(I) || isa<SExtInst>(I)) &&
@@ -407,10 +405,9 @@ unsigned AArch64FastISel::materializeFP(const ConstantFP *CFP, MVT VT) {
   bool Is64Bit = (VT == MVT::f64);
   // This checks to see if we can use FMOV instructions to materialize
   // a constant, otherwise we have to materialize via the constant pool.
-  if (TLI.isFPImmLegal(Val, VT)) {
-    int Imm =
-        Is64Bit ? AArch64_AM::getFP64Imm(Val) : AArch64_AM::getFP32Imm(Val);
-    assert((Imm != -1) && "Cannot encode floating-point constant.");
+  int Imm =
+      Is64Bit ? AArch64_AM::getFP64Imm(Val) : AArch64_AM::getFP32Imm(Val);
+  if (Imm != -1) {
     unsigned Opc = Is64Bit ? AArch64::FMOVDi : AArch64::FMOVSi;
     return fastEmitInst_i(Opc, TLI.getRegClassFor(VT), Imm);
   }
@@ -5170,10 +5167,6 @@ bool AArch64FastISel::fastSelectInstruction(const Instruction *I) {
   case Instruction::AtomicCmpXchg:
     return selectAtomicCmpXchg(cast<AtomicCmpXchgInst>(I));
   }
-
-  // Silence warnings.
-  (void)&CC_AArch64_DarwinPCS_VarArg;
-  (void)&CC_AArch64_Win64_VarArg;
 
   // fall-back to target-independent instruction selection.
   return selectOperator(I, I->getOpcode());

@@ -40,11 +40,13 @@ add_clang_library(clangDaemon
   FuzzyMatch.cpp
   GlobalCompilationDatabase.cpp
   Headers.cpp
+  IncludeFixer.cpp
   JSONTransport.cpp
   Logger.cpp
   Protocol.cpp
   Quality.cpp
   RIFF.cpp
+  Selection.cpp
   SourceCode.cpp
   Threading.cpp
   Trace.cpp
@@ -69,6 +71,8 @@ add_clang_library(clangDaemon
   index/dex/Iterator.cpp
   index/dex/PostingList.cpp
   index/dex/Trigram.cpp
+
+  refactor/Tweak.cpp
 
   LINK_LIBS
   clangAST
@@ -107,6 +111,7 @@ add_clang_library(clangDaemon
   ${CLANGD_ATOMIC_LIB}
   )
 
+add_subdirectory(refactor/tweaks)
 if( LLVM_LIB_FUZZING_ENGINE OR LLVM_USE_SANITIZE_COVERAGE )
   add_subdirectory(fuzzer)
 endif()

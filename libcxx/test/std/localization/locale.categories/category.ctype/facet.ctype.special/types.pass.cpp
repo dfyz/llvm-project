@@ -21,7 +21,9 @@
 #include <type_traits>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::locale l = std::locale::classic();
     {
@@ -35,4 +37,6 @@ int main()
         static_assert((std::is_base_of<std::ctype_base, std::ctype<char> >::value), "");
         static_assert((std::is_base_of<std::locale::facet, std::ctype<char> >::value), "");
     }
+
+  return 0;
 }

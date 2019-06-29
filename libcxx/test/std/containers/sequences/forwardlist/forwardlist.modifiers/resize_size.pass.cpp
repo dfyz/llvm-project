@@ -13,10 +13,11 @@
 #include <forward_list>
 #include <cassert>
 
+#include "test_macros.h"
 #include "DefaultOnly.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef DefaultOnly T;
@@ -110,4 +111,6 @@ int main()
         assert(*next(c.begin(), 5) == 0);
     }
 #endif
+
+  return 0;
 }

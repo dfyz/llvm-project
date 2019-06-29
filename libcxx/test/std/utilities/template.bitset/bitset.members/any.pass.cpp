@@ -12,6 +12,8 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <std::size_t N>
 void test_any()
 {
@@ -31,7 +33,7 @@ void test_any()
     }
 }
 
-int main()
+int main(int, char**)
 {
     test_any<0>();
     test_any<1>();
@@ -42,4 +44,6 @@ int main()
     test_any<64>();
     test_any<65>();
     test_any<1000>();
+
+  return 0;
 }

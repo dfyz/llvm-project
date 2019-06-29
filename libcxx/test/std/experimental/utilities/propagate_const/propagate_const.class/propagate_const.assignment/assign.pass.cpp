@@ -13,6 +13,7 @@
 // template <class U> propagate_const& propagate_const::operator=(const propagate_const<U>&)=delete;
 
 #include <experimental/propagate_const>
+#include "test_macros.h"
 #include "propagate_const_helpers.h"
 #include <type_traits>
 
@@ -20,4 +21,6 @@ using std::experimental::propagate_const;
 
 typedef propagate_const<X> P;
 
-int main() { static_assert(!std::is_assignable<P, const P &>::value, ""); }
+int main(int, char**) { static_assert(!std::is_assignable<P, const P &>::value, ""); 
+  return 0;
+}

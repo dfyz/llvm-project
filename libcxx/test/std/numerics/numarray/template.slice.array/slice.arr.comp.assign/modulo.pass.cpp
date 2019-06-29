@@ -15,7 +15,9 @@
 #include <valarray>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     int a1[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
     int a2[] = {-1, -2, -3, -4, -5};
@@ -39,4 +41,6 @@ int main()
     assert(v1[13] ==  3);
     assert(v1[14] == 14);
     assert(v1[15] == 15);
+
+  return 0;
 }

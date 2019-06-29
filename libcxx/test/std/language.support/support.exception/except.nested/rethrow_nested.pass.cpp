@@ -17,6 +17,8 @@
 #include <cstdlib>
 #include <cassert>
 
+#include "test_macros.h"
+
 class A
 {
     int data_;
@@ -31,7 +33,7 @@ void go_quietly()
     std::exit(0);
 }
 
-int main()
+int main(int, char**)
 {
     {
         try
@@ -67,4 +69,6 @@ int main()
             assert(false);
         }
     }
+
+  return 0;
 }

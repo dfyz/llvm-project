@@ -16,13 +16,17 @@
 //  is defined before including <memory>, then auto_ptr will be restored.
 
 // MODULES_DEFINES: _LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR
-
 #define _LIBCPP_ENABLE_CXX17_REMOVED_AUTO_PTR
+#define _LIBCPP_DISABLE_DEPRECATION_WARNINGS
 
 #include <memory>
 #include <type_traits>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::auto_ptr<int> p;
+
+  return 0;
 }

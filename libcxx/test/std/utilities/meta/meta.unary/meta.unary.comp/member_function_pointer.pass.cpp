@@ -12,6 +12,8 @@
 
 #include <type_traits>
 
+#include "test_macros.h"
+
 template <class T>
 void test_member_function_pointer_imp()
 {
@@ -37,9 +39,11 @@ class Class
 {
 };
 
-int main()
+int main(int, char**)
 {
     test_member_function_pointer<void (Class::*)()>();
     test_member_function_pointer<void (Class::*)(int)>();
     test_member_function_pointer<void (Class::*)(int, char)>();
+
+  return 0;
 }

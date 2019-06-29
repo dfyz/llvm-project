@@ -14,9 +14,13 @@
 
 #include <thread>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
 #ifndef __STDCPP_THREADS__
 #error __STDCPP_THREADS__ is not defined
 #endif
+
+  return 0;
 }

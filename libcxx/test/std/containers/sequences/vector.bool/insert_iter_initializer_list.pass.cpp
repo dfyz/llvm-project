@@ -15,9 +15,10 @@
 #include <vector>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
     std::vector<bool> d(10, true);
@@ -59,4 +60,6 @@ int main()
     assert(d[12] == true);
     assert(d[13] == true);
     }
+
+  return 0;
 }

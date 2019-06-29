@@ -17,10 +17,12 @@
 #include <sstream>
 #include <cassert>
 
+#include "test_macros.h"
+
 using std::string_view;
 using std::wstring_view;
 
-int main()
+int main(int, char**)
 {
     {
         std::ostringstream out;
@@ -54,4 +56,6 @@ int main()
         assert(out.good());
         assert(L"   " + s == out.str());
     }
+
+  return 0;
 }

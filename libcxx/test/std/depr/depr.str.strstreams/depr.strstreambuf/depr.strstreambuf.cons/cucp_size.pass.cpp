@@ -15,7 +15,9 @@
 #include <strstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         unsigned char buf[] = "abcd";
@@ -36,4 +38,6 @@ int main()
         assert(sb.snextc() == 'd');
         assert(sb.snextc() == EOF);
     }
+
+  return 0;
 }

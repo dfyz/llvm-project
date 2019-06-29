@@ -11,7 +11,9 @@
 #include <chrono>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     using namespace std::chrono;
 
@@ -67,4 +69,6 @@ int main()
     assert(November  == month(11));
     assert(December  == month(12));
 #endif
+
+  return 0;
 }

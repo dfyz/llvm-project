@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: c++experimental
 // UNSUPPORTED: c++98, c++03
 
 // <experimental/memory_resource>
@@ -20,9 +19,11 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
+
 namespace ex = std::experimental::pmr;
 
-int main()
+int main(int, char**)
 {
     typedef ex::polymorphic_allocator<void> A;
     {
@@ -49,4 +50,6 @@ int main()
         assert(other.resource() == mptr);
         assert(a.resource() == nullptr);
     }
+
+  return 0;
 }

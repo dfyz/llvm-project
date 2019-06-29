@@ -76,6 +76,10 @@ class VectorType;
 
       PIC_ADD,      // Add with a PC operand and a PIC label.
 
+      ASRL,         // MVE long arithmetic shift right.
+      LSRL,         // MVE long shift right.
+      LSLL,         // MVE long shift left.
+
       CMP,          // ARM compare instructions.
       CMN,          // ARM CMN instructions.
       CMPZ,         // ARM compare that sets only Z flag.
@@ -321,17 +325,21 @@ class VectorType;
     /// is "fast" by reference in the second argument.
     bool allowsMisalignedMemoryAccesses(EVT VT, unsigned AddrSpace,
                                         unsigned Align,
+                                        MachineMemOperand::Flags Flags,
                                         bool *Fast) const override;
 
     EVT getOptimalMemOpType(uint64_t Size,
                             unsigned DstAlign, unsigned SrcAlign,
                             bool IsMemset, bool ZeroMemset,
                             bool MemcpyStrSrc,
-                            MachineFunction &MF) const override;
+                            const AttributeList &FuncAttributes) const override;
 
     bool isTruncateFree(Type *SrcTy, Type *DstTy) const override;
     bool isTruncateFree(EVT SrcVT, EVT DstVT) const override;
     bool isZExtFree(SDValue Val, EVT VT2) const override;
+    bool shouldSinkOperands(Instruction *I,
+                            SmallVectorImpl<Use *> &Ops) const override;
+
     bool isFNegFree(EVT VT) const override;
 
     bool isVectorLoadExtDesirable(SDValue ExtVal) const override;
@@ -453,7 +461,8 @@ class VectorType;
 
     /// getRegClassFor - Return the register class that should be used for the
     /// specified value type.
-    const TargetRegisterClass *getRegClassFor(MVT VT) const override;
+    const TargetRegisterClass *
+    getRegClassFor(MVT VT, bool isDivergent = false) const override;
 
     /// Returns true if a cast between SrcAS and DestAS is a noop.
     bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const override {
@@ -478,7 +487,8 @@ class VectorType;
     /// isFPImmLegal - Returns true if the target can instruction select the
     /// specified FP immediate natively. If false, the legalizer will
     /// materialize the FP immediate as a load from a constant pool.
-    bool isFPImmLegal(const APFloat &Imm, EVT VT) const override;
+    bool isFPImmLegal(const APFloat &Imm, EVT VT,
+                      bool ForCodeSize = false) const override;
 
     bool getTgtMemIntrinsic(IntrinsicInfo &Info,
                             const CallInst &I,
@@ -567,11 +577,7 @@ class VectorType;
       return HasStandaloneRem;
     }
 
-    bool shouldExpandShift(SelectionDAG &DAG, SDNode *N) const override {
-      if (DAG.getMachineFunction().getFunction().optForMinSize())
-        return false;
-      return true;
-    }
+    bool shouldExpandShift(SelectionDAG &DAG, SDNode *N) const override;
 
     CCAssignFn *CCAssignFnForCall(CallingConv::ID CC, bool isVarArg) const;
     CCAssignFn *CCAssignFnForReturn(CallingConv::ID CC, bool isVarArg) const;
@@ -598,8 +604,8 @@ class VectorType;
     bool isDesirableToCommuteWithShift(const SDNode *N,
                                        CombineLevel Level) const override;
 
-    bool shouldFoldShiftPairToMask(const SDNode *N,
-                                   CombineLevel Level) const override;
+    bool shouldFoldConstantShiftPairToMask(const SDNode *N,
+                                           CombineLevel Level) const override;
   protected:
     std::pair<const TargetRegisterClass *, uint8_t>
     findRepresentativeClass(const TargetRegisterInfo *TRI,
@@ -698,6 +704,8 @@ class VectorType;
     SDValue LowerFP_EXTEND(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerFP_TO_INT(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerINT_TO_FP(SDValue Op, SelectionDAG &DAG) const;
+    void lowerABS(SDNode *N, SmallVectorImpl<SDValue> &Results,
+                  SelectionDAG &DAG) const;
 
     unsigned getRegisterByName(const char* RegName, EVT VT,
                                SelectionDAG &DAG) const override;
@@ -760,15 +768,13 @@ class VectorType;
     /// IsEligibleForTailCallOptimization - Check whether the call is eligible
     /// for tail call optimization. Targets which want to do tail call
     /// optimization should implement this function.
-    bool IsEligibleForTailCallOptimization(SDValue Callee,
-                                           CallingConv::ID CalleeCC,
-                                           bool isVarArg,
-                                           bool isCalleeStructRet,
-                                           bool isCallerStructRet,
-                                    const SmallVectorImpl<ISD::OutputArg> &Outs,
-                                    const SmallVectorImpl<SDValue> &OutVals,
-                                    const SmallVectorImpl<ISD::InputArg> &Ins,
-                                           SelectionDAG& DAG) const;
+    bool IsEligibleForTailCallOptimization(
+        SDValue Callee, CallingConv::ID CalleeCC, bool isVarArg,
+        bool isCalleeStructRet, bool isCallerStructRet,
+        const SmallVectorImpl<ISD::OutputArg> &Outs,
+        const SmallVectorImpl<SDValue> &OutVals,
+        const SmallVectorImpl<ISD::InputArg> &Ins, SelectionDAG &DAG,
+        const bool isIndirect) const;
 
     bool CanLowerReturn(CallingConv::ID CallConv,
                         MachineFunction &MF, bool isVarArg,
@@ -811,6 +817,9 @@ class VectorType;
                                            MachineBasicBlock *MBB) const;
     MachineBasicBlock *EmitLowered__dbzchk(MachineInstr &MI,
                                            MachineBasicBlock *MBB) const;
+    void addMVEVectorTypes(bool HasMVEFP);
+    void addAllExtLoads(const MVT From, const MVT To, LegalizeAction Action);
+    void setAllExpand(MVT VT);
   };
 
   enum NEONModImmType {

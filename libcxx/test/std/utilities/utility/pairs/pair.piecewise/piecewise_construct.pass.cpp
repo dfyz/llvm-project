@@ -19,6 +19,8 @@
 #include <tuple>
 #include <cassert>
 
+#include "test_macros.h"
+
 class A
 {
     int i_;
@@ -41,7 +43,7 @@ public:
     unsigned get_u2() const {return u2_;}
 };
 
-int main()
+int main(int, char**)
 {
     std::pair<A, B> p(std::piecewise_construct,
                       std::make_tuple(4, 'a'),
@@ -51,4 +53,6 @@ int main()
     assert(p.second.get_d() == 3.5);
     assert(p.second.get_u1() == 6u);
     assert(p.second.get_u2() == 2u);
+
+  return 0;
 }

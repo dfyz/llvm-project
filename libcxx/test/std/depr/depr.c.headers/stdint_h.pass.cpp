@@ -17,7 +17,9 @@
 #include <limits>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     // typedef int8_t
     static_assert(sizeof(int8_t)*CHAR_BIT == 8,
@@ -287,4 +289,6 @@ int main()
 #ifndef UINTMAX_C
 #error UINTMAX_C not defined
 #endif
+
+  return 0;
 }

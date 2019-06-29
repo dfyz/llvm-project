@@ -13,6 +13,7 @@
 #include <string>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 template <class S>
@@ -146,7 +147,7 @@ void test1()
     test(S("abcdeabcdeabcdeabcde"), "abcdeabcdeabcdeabcde", 0);
 }
 
-int main()
+int main(int, char**)
 {
     {
     typedef std::string S;
@@ -160,4 +161,6 @@ int main()
     test1<S>();
     }
 #endif
+
+  return 0;
 }

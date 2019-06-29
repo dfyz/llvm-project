@@ -19,9 +19,10 @@
 #include <sstream>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         std::string s("initial text");
@@ -45,4 +46,6 @@ int main()
         getline(std::wistringstream(L" abc\n  def\n   ghij"), s);
         assert(s == L" abc");
     }
+
+  return 0;
 }

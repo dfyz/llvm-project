@@ -20,6 +20,8 @@
 #include <ostream>
 #include <cassert>
 
+#include "test_macros.h"
+
 
 template <class CharT>
 class testbuf
@@ -54,7 +56,7 @@ protected:
 };
 
 
-int main()
+int main(int, char**)
 {
     {
         testbuf<char> sb;
@@ -66,4 +68,6 @@ int main()
         std::wostream(&sb) << L"123";
         assert(sb.str() == L"123");
     }
+
+  return 0;
 }

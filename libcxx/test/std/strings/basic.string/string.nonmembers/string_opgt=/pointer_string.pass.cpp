@@ -14,6 +14,7 @@
 #include <string>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 template <class S>
@@ -23,7 +24,7 @@ test(const typename S::value_type* lhs, const S& rhs, bool x)
     assert((lhs >= rhs) == x);
 }
 
-int main()
+int main(int, char**)
 {
     {
     typedef std::string S;
@@ -65,4 +66,6 @@ int main()
     test("abcdefghijklmnopqrst", S("abcdefghijklmnopqrst"), true);
     }
 #endif
+
+  return 0;
 }

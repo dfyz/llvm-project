@@ -16,6 +16,8 @@
 #include <streambuf>
 #include <cassert>
 
+#include "test_macros.h"
+
 int pbackfail_called = 0;
 
 struct test
@@ -38,7 +40,7 @@ protected:
     }
 };
 
-int main()
+int main(int, char**)
 {
     {
         test t;
@@ -52,4 +54,6 @@ int main()
         assert(t.sputbackc('A') == 'a');
         assert(pbackfail_called == 2);
     }
+
+  return 0;
 }

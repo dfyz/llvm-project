@@ -15,6 +15,8 @@
 #include <functional>
 #include <cassert>
 
+#include "test_macros.h"
+
 
 int count = 0;
 
@@ -401,7 +403,7 @@ void test_int_2()
     }
 }
 
-int main()
+int main(int, char**)
 {
     test_void_0();
     test_int_0();
@@ -409,4 +411,6 @@ int main()
     test_int_1();
     test_void_2();
     test_int_2();
+
+  return 0;
 }

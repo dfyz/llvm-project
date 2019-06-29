@@ -12,6 +12,8 @@
 
 #include <type_traits>
 
+#include "test_macros.h"
+
 template <class T>
 void test_member_object_pointer_imp()
 {
@@ -37,7 +39,9 @@ class Class
 {
 };
 
-int main()
+int main(int, char**)
 {
     test_member_object_pointer<int Class::*>();
+
+  return 0;
 }

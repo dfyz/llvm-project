@@ -30,6 +30,7 @@
 #include <iterator>
 #include <type_traits>
 
+#include "test_macros.h"
 #include "test_allocator.h"
 #include "../../Copyable.h"
 #include "min_allocator.h"
@@ -67,7 +68,7 @@ test()
         std::reverse_iterator<typename C::const_iterator> >::value), "");
 }
 
-int main()
+int main(int, char**)
 {
     test<test_allocator<bool> >();
     test<std::allocator<bool> >();
@@ -76,4 +77,6 @@ int main()
 #if TEST_STD_VER >= 11
     test<min_allocator<bool> >();
 #endif
+
+  return 0;
 }

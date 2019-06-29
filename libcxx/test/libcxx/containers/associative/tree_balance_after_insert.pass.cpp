@@ -16,6 +16,8 @@
 #include <__tree>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct Node
 {
     Node* __left_;
@@ -1608,11 +1610,13 @@ test5()
     assert(h.__is_black_ == true);
 }
 
-int main()
+int main(int, char**)
 {
     test1();
     test2();
     test3();
     test4();
     test5();
+
+  return 0;
 }

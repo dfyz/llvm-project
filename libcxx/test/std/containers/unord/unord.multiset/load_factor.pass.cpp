@@ -19,9 +19,10 @@
 #include <cfloat>
 #include <cmath>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::unordered_multiset<int> C;
@@ -71,4 +72,6 @@ int main()
         assert(c.load_factor() == 0);
     }
 #endif
+
+  return 0;
 }

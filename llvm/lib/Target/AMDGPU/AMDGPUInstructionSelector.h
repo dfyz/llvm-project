@@ -57,23 +57,30 @@ private:
     GEPInfo(const MachineInstr &GEP) : GEP(GEP), Imm(0) { }
   };
 
+  bool isInstrUniform(const MachineInstr &MI) const;
   /// tblgen-erated 'select' implementation.
   bool selectImpl(MachineInstr &I, CodeGenCoverage &CoverageInfo) const;
 
   MachineOperand getSubOperand64(MachineOperand &MO, unsigned SubIdx) const;
   bool selectCOPY(MachineInstr &I) const;
+  bool selectG_TRUNC(MachineInstr &I) const;
+  bool selectG_SZA_EXT(MachineInstr &I) const;
   bool selectG_CONSTANT(MachineInstr &I) const;
   bool selectG_ADD(MachineInstr &I) const;
+  bool selectG_EXTRACT(MachineInstr &I) const;
   bool selectG_GEP(MachineInstr &I) const;
   bool selectG_IMPLICIT_DEF(MachineInstr &I) const;
+  bool selectG_INSERT(MachineInstr &I) const;
   bool selectG_INTRINSIC(MachineInstr &I, CodeGenCoverage &CoverageInfo) const;
   bool selectG_INTRINSIC_W_SIDE_EFFECTS(MachineInstr &I,
                                         CodeGenCoverage &CoverageInfo) const;
+  bool selectG_ICMP(MachineInstr &I) const;
   bool hasVgprParts(ArrayRef<GEPInfo> AddrInfo) const;
   void getAddrModeInfo(const MachineInstr &Load, const MachineRegisterInfo &MRI,
                        SmallVectorImpl<GEPInfo> &AddrInfo) const;
   bool selectSMRD(MachineInstr &I, ArrayRef<GEPInfo> AddrInfo) const;
   bool selectG_LOAD(MachineInstr &I) const;
+  bool selectG_SELECT(MachineInstr &I) const;
   bool selectG_STORE(MachineInstr &I) const;
 
   InstructionSelector::ComplexRendererFns
@@ -88,6 +95,13 @@ private:
   selectVOP3OMods(MachineOperand &Root) const;
   InstructionSelector::ComplexRendererFns
   selectVOP3Mods(MachineOperand &Root) const;
+
+  InstructionSelector::ComplexRendererFns
+  selectSmrdImm(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
+  selectSmrdImm32(MachineOperand &Root) const;
+  InstructionSelector::ComplexRendererFns
+  selectSmrdSgpr(MachineOperand &Root) const;
 
   const SIInstrInfo &TII;
   const SIRegisterInfo &TRI;

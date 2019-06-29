@@ -16,6 +16,8 @@
 #include <random>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class T>
 void
 rand0()
@@ -56,7 +58,7 @@ other()
     assert(e1 == e2);
 }
 
-int main()
+int main(int, char**)
 {
     rand0<unsigned int>();
     rand0<unsigned long>();
@@ -69,4 +71,6 @@ int main()
     other<unsigned int>();
     other<unsigned long>();
     other<unsigned long long>();
+
+  return 0;
 }

@@ -15,6 +15,7 @@
 #include <set>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 struct TemplateConstructor
@@ -25,7 +26,7 @@ struct TemplateConstructor
 
 bool operator<(const TemplateConstructor&, const TemplateConstructor&) { return false; }
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::set<int> M;
@@ -199,4 +200,6 @@ int main()
             c.erase(it);
     }
 #endif
+
+  return 0;
 }

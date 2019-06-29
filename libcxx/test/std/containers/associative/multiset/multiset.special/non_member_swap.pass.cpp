@@ -14,10 +14,11 @@
 
 #include <set>
 #include <cassert>
+#include "test_macros.h"
 #include "test_allocator.h"
 #include "../../../test_compare.h"
 
-int main()
+int main(int, char**)
 {
     typedef int V;
     {
@@ -163,4 +164,6 @@ int main()
         assert(m2.key_comp() == C(1));
         assert(m2.get_allocator() == A(1));
     }
+
+  return 0;
 }

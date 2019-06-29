@@ -8,6 +8,7 @@
 //
 // UNSUPPORTED: libcpp-has-no-threads
 // UNSUPPORTED: c++98, c++03, c++11
+// XFAIL: dylib-has-no-shared_mutex
 
 // <shared_mutex>
 
@@ -19,7 +20,9 @@
 #include <cassert>
 #include "nasty_containers.hpp"
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
     typedef std::shared_timed_mutex M;
@@ -35,4 +38,6 @@ int main()
     assert(lk.mutex() == std::addressof(m));
     assert(lk.owns_lock() == false);
     }
+
+  return 0;
 }

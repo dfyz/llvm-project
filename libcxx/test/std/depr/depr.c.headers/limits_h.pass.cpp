@@ -10,6 +10,8 @@
 
 #include <limits.h>
 
+#include "test_macros.h"
+
 #ifndef CHAR_BIT
 #error CHAR_BIT not defined
 #endif
@@ -86,6 +88,8 @@
 #error ULLONG_MAX not defined
 #endif
 
-int main()
+int main(int, char**)
 {
+
+  return 0;
 }

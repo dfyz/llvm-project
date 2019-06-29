@@ -14,6 +14,7 @@
 
 #include <memory>
 #include <cassert>
+#include "test_macros.h"
 #include "deleter_types.h"
 
 struct A
@@ -27,7 +28,7 @@ struct A
 
 int A::count = 0;
 
-int main()
+int main(int, char**)
 {
     {
         {
@@ -63,4 +64,6 @@ int main()
         std::default_delete<A>* d = std::get_deleter<std::default_delete<A> >(p);
         assert(d == 0);
     }
+
+  return 0;
 }

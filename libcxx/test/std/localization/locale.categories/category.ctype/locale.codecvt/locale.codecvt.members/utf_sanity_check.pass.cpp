@@ -20,7 +20,9 @@
 
 #include <stdio.h>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     typedef std::codecvt<char32_t, char, std::mbstate_t> F32_8;
     typedef std::codecvt<char16_t, char, std::mbstate_t> F16_8;
@@ -123,4 +125,6 @@ int main()
             assert(c32 == c32x);
         }
     }
+
+  return 0;
 }

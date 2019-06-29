@@ -16,6 +16,8 @@
 #include <streambuf>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class CharT>
 struct test
     : public std::basic_streambuf<CharT>
@@ -33,7 +35,7 @@ struct test
     }
 };
 
-int main()
+int main(int, char**)
 {
     {
         test<char> t;
@@ -45,4 +47,6 @@ int main()
         wchar_t in[] = L"ABC";
         t.setg(in, in+1, in+sizeof(in)/sizeof(in[0]));
     }
+
+  return 0;
 }

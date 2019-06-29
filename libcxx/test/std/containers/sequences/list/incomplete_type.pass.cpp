@@ -13,6 +13,8 @@
 
 #include <list>
 
+#include "test_macros.h"
+
 struct A {
     std::list<A> l;
     std::list<A>::iterator it;
@@ -21,6 +23,8 @@ struct A {
     std::list<A>::const_reverse_iterator crit;
 };
 
-int main() {
+int main(int, char**) {
     A a;
+
+  return 0;
 }

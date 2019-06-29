@@ -15,6 +15,7 @@
 #include <iterator>
 #include <cstddef>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 typedef int T;
@@ -38,7 +39,7 @@ testd(const C& c, int p, int l)
     assert(distance(c.begin(), c.end()) == size_t1 + l);
 }
 
-int main()
+int main(int, char**)
 {
     {
     // splicing different containers
@@ -72,4 +73,6 @@ int main()
     }
     }
 #endif
+
+  return 0;
 }

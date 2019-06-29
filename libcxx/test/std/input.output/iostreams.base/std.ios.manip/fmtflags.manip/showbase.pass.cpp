@@ -16,13 +16,17 @@
 #include <streambuf>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct testbuf : public std::streambuf {};
 
-int main()
+int main(int, char**)
 {
     testbuf sb;
     std::ios ios(&sb);
     std::ios_base& r = std::showbase(ios);
     assert(&r == &ios);
     assert(ios.flags() & std::ios::showbase);
+
+  return 0;
 }

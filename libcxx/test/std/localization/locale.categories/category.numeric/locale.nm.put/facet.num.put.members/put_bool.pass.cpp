@@ -16,6 +16,7 @@
 #include <ios>
 #include <cassert>
 #include <streambuf>
+#include "test_macros.h"
 #include "test_iterators.h"
 
 typedef std::num_put<char, output_iterator<char*> > F;
@@ -39,7 +40,7 @@ protected:
     virtual string_type do_falsename() const {return "no";}
 };
 
-int main()
+int main(int, char**)
 {
     const my_facet f(1);
     {
@@ -96,4 +97,6 @@ int main()
             assert(ex == "yes");
         }
     }
+
+  return 0;
 }

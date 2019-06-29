@@ -11,6 +11,8 @@
 #include <inttypes.h>
 #include <type_traits>
 
+#include "test_macros.h"
+
 #ifndef INT8_MIN
 #error INT8_MIN not defined
 #endif
@@ -877,7 +879,7 @@ template <class T> void test()
     ((void)t); // Prevent unused warning
 }
 
-int main()
+int main(int, char**)
 {
     test<int8_t >();
     test<int16_t>();
@@ -927,4 +929,6 @@ int main()
     static_assert((std::is_same<decltype(strtoumax("", (char**)0, 0)), uintmax_t>::value), "");
     static_assert((std::is_same<decltype(wcstoimax(L"", (wchar_t**)0, 0)), intmax_t>::value), "");
     static_assert((std::is_same<decltype(wcstoumax(L"", (wchar_t**)0, 0)), uintmax_t>::value), "");
+
+  return 0;
 }

@@ -21,8 +21,12 @@
 #include <mutex>
 #include <type_traits>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     static_assert((std::is_same<std::lock_guard<std::mutex>::mutex_type,
                    std::mutex>::value), "");
+
+  return 0;
 }

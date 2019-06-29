@@ -18,9 +18,11 @@
 
 #include "test_memory_resource.hpp"
 
+#include "test_macros.h"
+
 namespace ex = std::experimental::pmr;
 
-int main()
+int main(int, char**)
 {
     // check return types
     {
@@ -71,4 +73,6 @@ int main()
         assert(!(mr2 != mr1));
         assert(r1.checkIsEqualCalledEq(0));
     }
+
+  return 0;
 }

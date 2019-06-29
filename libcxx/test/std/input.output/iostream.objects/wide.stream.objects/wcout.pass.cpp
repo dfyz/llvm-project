@@ -14,11 +14,15 @@
 
 #include <iostream>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
 #if 0
     std::wcout << L"Hello World!\n";
 #else
     (void)std::wcout;
 #endif
+
+  return 0;
 }

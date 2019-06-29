@@ -12,6 +12,8 @@
 
 #include <type_traits>
 
+#include "test_macros.h"
+
 template <class T>
 void test_enum_imp()
 {
@@ -35,7 +37,9 @@ void test_enum()
 
 enum Enum {zero, one};
 
-int main()
+int main(int, char**)
 {
     test_enum<Enum>();
+
+  return 0;
 }

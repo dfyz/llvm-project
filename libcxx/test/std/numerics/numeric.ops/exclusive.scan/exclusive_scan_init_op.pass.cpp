@@ -22,6 +22,7 @@
 #include <iterator>
 #include <vector>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 
 template <class Iter1, class T, class Op, class Iter2>
@@ -59,7 +60,7 @@ test()
         }
 }
 
-int main()
+int main(int, char**)
 {
 //  All the iterator categories
     test<input_iterator        <const int*> >();
@@ -85,4 +86,6 @@ int main()
         assert(res[i] == j);
     }
     }
+
+  return 0;
 }

@@ -18,7 +18,9 @@
 #include <cassert>
 #include <cstddef>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         for (unsigned i = 1; i < 256; ++i)
@@ -38,4 +40,6 @@ int main()
             assert(b.end() == j);
         }
     }
+
+  return 0;
 }

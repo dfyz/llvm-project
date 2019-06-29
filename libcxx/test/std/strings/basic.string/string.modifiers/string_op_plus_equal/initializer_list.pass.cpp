@@ -15,9 +15,10 @@
 #include <string>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         std::string s("123");
@@ -30,4 +31,6 @@ int main()
         s += {'a', 'b', 'c'};
         assert(s == "123abc");
     }
+
+  return 0;
 }

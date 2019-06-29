@@ -13,6 +13,8 @@
 
 #include <optional>
 
+#include "test_macros.h"
+
 using std::optional;
 
 struct X {
@@ -25,7 +27,7 @@ constexpr bool operator<=(const X& lhs, const X& rhs) {
   return lhs.i_ <= rhs.i_;
 }
 
-int main() {
+int main(int, char**) {
   {
     typedef optional<X> O;
 
@@ -79,4 +81,6 @@ int main() {
     static_assert(o1 <= O2(42), "");
     static_assert(!(O2(101) <= o1), "");
   }
+
+  return 0;
 }

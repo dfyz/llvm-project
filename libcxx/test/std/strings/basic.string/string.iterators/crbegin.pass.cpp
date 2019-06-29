@@ -13,6 +13,7 @@
 #include <string>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 template <class S>
@@ -27,7 +28,7 @@ test(const S& s)
     assert(cb == s.rbegin());
 }
 
-int main()
+int main(int, char**)
 {
     {
     typedef std::string S;
@@ -41,4 +42,6 @@ int main()
     test(S("123"));
     }
 #endif
+
+  return 0;
 }

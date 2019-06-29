@@ -29,6 +29,8 @@
 #include <cstdint>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <typename T>
 void test_octal(const char *expected)
 {
@@ -58,7 +60,7 @@ void test_hex(const char *expected)
     assert(str == expected);
 }
 
-int main()
+int main(int, char**)
 {
 
     test_octal<uint16_t>(                "177777");
@@ -110,4 +112,6 @@ int main()
         test_hex<unsigned long long>("FFFFFFFFFFFFFFFF");
         test_hex<         long long>("FFFFFFFFFFFFFFFF");
     }
+
+  return 0;
 }

@@ -12,6 +12,8 @@
 #include <experimental/coroutine>
 #include <cassert>
 
+#include "test_macros.h"
+
 using namespace std::experimental;
 
 // This file tests, multishot, movable std::function like thing using coroutine
@@ -80,7 +82,9 @@ int Do(int acc, int n, func<int> f) {
   return acc;
 }
 
-int main() {
+int main(int, char**) {
   int result = Do(1, 10, [](int a, int b) {return a + b;});
   assert(result == 46);
+
+  return 0;
 }

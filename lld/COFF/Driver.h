@@ -69,13 +69,15 @@ public:
   void link(llvm::ArrayRef<const char *> Args);
 
   // Used by the resolver to parse .drectve section contents.
-  void parseDirectives(StringRef S);
+  void parseDirectives(InputFile *File);
 
   // Used by ArchiveFile to enqueue members.
   void enqueueArchiveMember(const Archive::Child &C, StringRef SymName,
                             StringRef ParentName);
 
   MemoryBufferRef takeBuffer(std::unique_ptr<MemoryBuffer> MB);
+
+  void enqueuePath(StringRef Path, bool WholeArchive);
 
 private:
   std::unique_ptr<llvm::TarWriter> Tar; // for /linkrepro
@@ -96,6 +98,8 @@ private:
   // Library search path. The first element is always "" (current directory).
   std::vector<StringRef> SearchPaths;
 
+  void maybeExportMinGWSymbols(const llvm::opt::InputArgList &Args);
+
   // We don't want to add the same file more than once.
   // Files are uniquified by their filesystem and file number.
   std::set<llvm::sys::fs::UniqueID> VisitedFiles;
@@ -103,6 +107,8 @@ private:
   std::set<std::string> VisitedLibs;
 
   Symbol *addUndefined(StringRef Sym);
+
+  StringRef mangleMaybe(Symbol *S);
 
   // Windows specific -- "main" is not the only main function in Windows.
   // You can choose one from these four -- {w,}{WinMain,main}.
@@ -116,9 +122,7 @@ private:
 
   void addBuffer(std::unique_ptr<MemoryBuffer> MB, bool WholeArchive);
   void addArchiveBuffer(MemoryBufferRef MBRef, StringRef SymName,
-                        StringRef ParentName);
-
-  void enqueuePath(StringRef Path, bool WholeArchive);
+                        StringRef ParentName, uint64_t OffsetInArchive);
 
   void enqueueTask(std::function<void()> Task);
   bool run();
@@ -133,10 +137,6 @@ private:
 // Functions below this line are defined in DriverUtils.cpp.
 
 void printHelp(const char *Argv0);
-
-// For /machine option.
-MachineTypes getMachineType(StringRef Arg);
-StringRef machineToStr(MachineTypes MT);
 
 // Parses a string in the form of "<integer>[,<integer>]".
 void parseNumbers(StringRef Arg, uint64_t *Addr, uint64_t *Size = nullptr);
@@ -156,11 +156,17 @@ void parseMerge(StringRef);
 void parseSection(StringRef);
 void parseAligncomm(StringRef);
 
+// Parses a string in the form of "[:<integer>]"
+void parseFunctionPadMin(llvm::opt::Arg *A, llvm::COFF::MachineTypes Machine);
+
 // Parses a string in the form of "EMBED[,=<integer>]|NO".
 void parseManifest(StringRef Arg);
 
 // Parses a string in the form of "level=<string>|uiAccess=<string>"
 void parseManifestUAC(StringRef Arg);
+
+// Parses a string in the form of "cd|net[,(cd|net)]*"
+void parseSwaprun(StringRef Arg);
 
 // Create a resource file containing a manifest XML.
 std::unique_ptr<MemoryBuffer> createManifestRes();
@@ -175,7 +181,7 @@ void assignExportOrdinals();
 // if value matches previous values for the key.
 // This feature used in the directive section to reject
 // incompatible objects.
-void checkFailIfMismatch(StringRef Arg);
+void checkFailIfMismatch(StringRef Arg, InputFile *Source);
 
 // Convert Windows resource files (.res files) to a .obj file.
 MemoryBufferRef convertResToCOFF(ArrayRef<MemoryBufferRef> MBs);

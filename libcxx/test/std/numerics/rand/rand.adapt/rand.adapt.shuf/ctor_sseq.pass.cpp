@@ -17,6 +17,8 @@
 #include <sstream>
 #include <cassert>
 
+#include "test_macros.h"
+
 void
 test1()
 {
@@ -72,7 +74,9 @@ test1()
     assert(os.str() == a);
 }
 
-int main()
+int main(int, char**)
 {
     test1();
+
+  return 0;
 }

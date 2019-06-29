@@ -19,6 +19,8 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
+
 
 void test_path_method() {
   using namespace fs;
@@ -81,7 +83,9 @@ void test_path_conversion() {
   }
 }
 
-int main() {
+int main(int, char**) {
   test_path_method();
   test_path_conversion();
+
+  return 0;
 }

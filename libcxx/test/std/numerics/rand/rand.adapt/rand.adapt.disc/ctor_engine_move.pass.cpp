@@ -16,7 +16,9 @@
 #include <random>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::ranlux24_base Engine;
@@ -26,4 +28,6 @@ int main()
         Adaptor a(std::move(e0));
         assert(a.base() == e);
     }
+
+  return 0;
 }

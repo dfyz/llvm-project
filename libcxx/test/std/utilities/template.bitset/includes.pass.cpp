@@ -10,9 +10,11 @@
 
 #include <bitset>
 
+#include "test_macros.h"
+
 template <class> void test_typedef() {}
 
-int main()
+int main(int, char**)
 {
   { // test for <string>
     std::string s; ((void)s);
@@ -24,4 +26,6 @@ int main()
     test_typedef<std::ostream>();
     test_typedef<std::iostream>();
   }
+
+  return 0;
 }

@@ -33,6 +33,10 @@ bool RISCVAsmBackend::shouldForceRelocation(const MCAssembler &Asm,
   switch ((unsigned)Fixup.getKind()) {
   default:
     break;
+  case RISCV::fixup_riscv_got_hi20:
+  case RISCV::fixup_riscv_tls_got_hi20:
+  case RISCV::fixup_riscv_tls_gd_hi20:
+    return true;
   case RISCV::fixup_riscv_pcrel_lo12_i:
   case RISCV::fixup_riscv_pcrel_lo12_s:
     // For pcrel_lo12, force a relocation if the target of the corresponding
@@ -47,6 +51,11 @@ bool RISCVAsmBackend::shouldForceRelocation(const MCAssembler &Asm,
     switch ((unsigned)T->getKind()) {
     default:
       llvm_unreachable("Unexpected fixup kind for pcrel_lo12");
+      break;
+    case RISCV::fixup_riscv_got_hi20:
+    case RISCV::fixup_riscv_tls_got_hi20:
+    case RISCV::fixup_riscv_tls_gd_hi20:
+      ShouldForce = true;
       break;
     case RISCV::fixup_riscv_pcrel_hi20:
       ShouldForce = T->getValue()->findAssociatedFragment() !=
@@ -153,16 +162,12 @@ bool RISCVAsmBackend::writeNopData(raw_ostream &OS, uint64_t Count) const {
     return false;
 
   // The canonical nop on RISC-V is addi x0, x0, 0.
-  uint64_t Nop32Count = Count / 4;
-  for (uint64_t i = Nop32Count; i != 0; --i)
+  for (; Count >= 4; Count -= 4)
     OS.write("\x13\0\0\0", 4);
 
   // The canonical nop on RVC is c.nop.
-  if (HasStdExtC) {
-    uint64_t Nop16Count = (Count - Nop32Count * 4) / 2;
-    for (uint64_t i = Nop16Count; i != 0; --i)
-      OS.write("\x01\0", 2);
-  }
+  if (Count && HasStdExtC)
+    OS.write("\x01\0", 2);
 
   return true;
 }
@@ -173,6 +178,10 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
   switch (Kind) {
   default:
     llvm_unreachable("Unknown fixup kind!");
+  case RISCV::fixup_riscv_got_hi20:
+  case RISCV::fixup_riscv_tls_got_hi20:
+  case RISCV::fixup_riscv_tls_gd_hi20:
+    llvm_unreachable("Relocation should be unconditionally forced\n");
   case FK_Data_1:
   case FK_Data_2:
   case FK_Data_4:
@@ -180,12 +189,15 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     return Value;
   case RISCV::fixup_riscv_lo12_i:
   case RISCV::fixup_riscv_pcrel_lo12_i:
+  case RISCV::fixup_riscv_tprel_lo12_i:
     return Value & 0xfff;
   case RISCV::fixup_riscv_lo12_s:
   case RISCV::fixup_riscv_pcrel_lo12_s:
+  case RISCV::fixup_riscv_tprel_lo12_s:
     return (((Value >> 5) & 0x7f) << 25) | ((Value & 0x1f) << 7);
   case RISCV::fixup_riscv_hi20:
   case RISCV::fixup_riscv_pcrel_hi20:
+  case RISCV::fixup_riscv_tprel_hi20:
     // Add 1 if bit 11 is 1, to compensate for low 12 bits being negative.
     return ((Value + 0x800) >> 12) & 0xfffff;
   case RISCV::fixup_riscv_jal: {
@@ -223,7 +235,8 @@ static uint64_t adjustFixupValue(const MCFixup &Fixup, uint64_t Value,
     Value = (Sbit << 31) | (Mid6 << 25) | (Lo4 << 8) | (Hi1 << 7);
     return Value;
   }
-  case RISCV::fixup_riscv_call: {
+  case RISCV::fixup_riscv_call:
+  case RISCV::fixup_riscv_call_plt: {
     // Jalr will add UpperImm with the sign-extended 12-bit LowerImm,
     // we need to add 0x800ULL before extract upper bits to reflect the
     // effect of the sign extension.
@@ -349,5 +362,5 @@ MCAsmBackend *llvm::createRISCVAsmBackend(const Target &T,
                                           const MCTargetOptions &Options) {
   const Triple &TT = STI.getTargetTriple();
   uint8_t OSABI = MCELFObjectTargetWriter::getOSABI(TT.getOS());
-  return new RISCVAsmBackend(STI, OSABI, TT.isArch64Bit());
+  return new RISCVAsmBackend(STI, OSABI, TT.isArch64Bit(), Options);
 }

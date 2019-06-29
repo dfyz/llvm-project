@@ -29,6 +29,8 @@
 #include <type_traits>
 #include <vector>
 
+#include "test_macros.h"
+
 template <class C>
 struct find_container
     : private std::front_insert_iterator<C>
@@ -53,7 +55,9 @@ test()
     static_assert((std::is_same<typename R::iterator_category, std::output_iterator_tag>::value), "");
 }
 
-int main()
+int main(int, char**)
 {
     test<std::vector<int> >();
+
+  return 0;
 }

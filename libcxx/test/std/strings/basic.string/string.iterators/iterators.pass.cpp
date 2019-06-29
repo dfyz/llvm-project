@@ -20,7 +20,9 @@
 #include <string>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     { // N3644 testing
         typedef std::string C;
@@ -83,4 +85,6 @@ int main()
         assert ( !(ii1 != ii2 ));
         assert ( !(ii1 != cii ));
     }
+
+  return 0;
 }

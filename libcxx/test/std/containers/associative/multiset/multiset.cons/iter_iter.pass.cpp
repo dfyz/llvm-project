@@ -16,10 +16,11 @@
 #include <set>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
     typedef int V;
@@ -79,4 +80,6 @@ int main()
     assert(*next(m.begin(), 8) == 3);
     }
 #endif
+
+  return 0;
 }

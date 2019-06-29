@@ -14,6 +14,7 @@
 #include <cassert>
 #include <cstddef>
 
+#include "test_macros.h"
 #include "test_allocator.h"
 #include "min_allocator.h"
 
@@ -30,7 +31,7 @@ test(unsigned n, const T& x)
         assert(*i == x);
 }
 
-int main()
+int main(int, char**)
 {
     test<int, std::allocator<int> >(0, 5);
     test<int, std::allocator<int> >(1, 10);
@@ -48,4 +49,6 @@ int main()
 #if TEST_STD_VER >= 11
     test<int, min_allocator<int> >(4095, 90);
 #endif
+
+  return 0;
 }

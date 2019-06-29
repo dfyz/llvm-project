@@ -18,8 +18,12 @@
 
 // REQUIRES: c++98 || c++03 || c++11 || c++14
 
+#define _LIBCPP_DISABLE_DEPRECATION_WARNINGS
+
 #include <memory>
 #include <type_traits>
+
+#include "test_macros.h"
 
 template <class T>
 void
@@ -30,9 +34,11 @@ test()
     ((void)p);
 }
 
-int main()
+int main(int, char**)
 {
     test<int>();
     test<double>();
     test<void>();
+
+  return 0;
 }

@@ -13,6 +13,7 @@
 #include <string>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_allocator.h"
 #include "min_allocator.h"
 
@@ -23,7 +24,7 @@ test(const S& s, const typename S::allocator_type& a)
     assert(s.get_allocator() == a);
 }
 
-int main()
+int main(int, char**)
 {
     {
     typedef test_allocator<char> A;
@@ -43,4 +44,6 @@ int main()
     test(S("abcdefghijklmnopqrst", A()), A());
     }
 #endif
+
+  return 0;
 }

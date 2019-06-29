@@ -23,6 +23,7 @@
 #include <iterator>
 #include <vector>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 
 template <class Iter1, class T, class Op, class Iter2>
@@ -97,7 +98,7 @@ void basic_tests()
 }
 
 
-int main()
+int main(int, char**)
 {
 
     basic_tests();
@@ -110,4 +111,6 @@ int main()
 //     test<const int*>();
 //     test<      int*>();
 
+
+  return 0;
 }

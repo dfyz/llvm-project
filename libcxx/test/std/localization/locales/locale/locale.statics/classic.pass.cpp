@@ -13,6 +13,8 @@
 #include <locale>
 #include <cassert>
 
+#include "test_macros.h"
+
 void check(const std::locale& loc)
 {
     assert(std::has_facet<std::collate<char> >(loc));
@@ -48,11 +50,13 @@ void check(const std::locale& loc)
     assert((std::has_facet<std::messages<wchar_t> >(loc)));
 }
 
-int main()
+int main(int, char**)
 {
     std::locale loc = std::locale::classic();
     assert(loc.name() == "C");
     assert(loc == std::locale("C"));
     check(loc);
     check(std::locale("C"));
+
+  return 0;
 }

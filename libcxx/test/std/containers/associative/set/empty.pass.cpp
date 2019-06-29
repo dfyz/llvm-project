@@ -15,9 +15,10 @@
 #include <set>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
     typedef std::set<int> M;
@@ -39,4 +40,6 @@ int main()
     assert(m.empty());
     }
 #endif
+
+  return 0;
 }

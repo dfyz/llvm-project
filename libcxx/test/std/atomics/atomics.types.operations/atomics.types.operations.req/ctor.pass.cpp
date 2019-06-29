@@ -21,6 +21,7 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
 #include "atomic_helpers.h"
 
 struct UserType {
@@ -56,8 +57,10 @@ struct TestFunc {
 };
 
 
-int main()
+int main(int, char**)
 {
     TestFunc<UserType>()();
     TestEachIntegralType<TestFunc>()();
+
+  return 0;
 }

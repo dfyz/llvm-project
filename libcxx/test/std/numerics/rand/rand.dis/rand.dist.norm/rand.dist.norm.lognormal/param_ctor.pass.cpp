@@ -17,7 +17,9 @@
 #include <limits>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::lognormal_distribution<> D;
@@ -40,4 +42,6 @@ int main()
         assert(p.m() == 10);
         assert(p.s() == 5);
     }
+
+  return 0;
 }

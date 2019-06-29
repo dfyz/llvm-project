@@ -20,6 +20,7 @@
 #include <streambuf>
 #include <cassert>
 
+#include "test_macros.h"
 #include "platform_support.h" // locale name macros
 
 template <class CharT>
@@ -34,7 +35,7 @@ struct test
     }
 };
 
-int main()
+int main(int, char**)
 {
     {
         test<char> t;
@@ -48,4 +49,6 @@ int main()
                LOCALE_en_US_UTF_8);
         assert(t.getloc().name() == LOCALE_fr_FR_UTF_8);
     }
+
+  return 0;
 }

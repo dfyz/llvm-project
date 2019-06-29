@@ -15,9 +15,13 @@
 #include <chrono>
 #include <ctime>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     typedef std::chrono::system_clock C;
     C::time_point t1 = C::from_time_t(C::to_time_t(C::now()));
     ((void)t1);
+
+  return 0;
 }

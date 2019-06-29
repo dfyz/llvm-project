@@ -570,6 +570,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(align);
   KEYWORD(addrspace);
   KEYWORD(section);
+  KEYWORD(partition);
   KEYWORD(alias);
   KEYWORD(ifunc);
   KEYWORD(module);
@@ -682,8 +683,10 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(swifterror);
   KEYWORD(swiftself);
   KEYWORD(uwtable);
+  KEYWORD(willreturn);
   KEYWORD(writeonly);
   KEYWORD(zeroext);
+  KEYWORD(immarg);
 
   KEYWORD(type);
   KEYWORD(opaque);
@@ -732,6 +735,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(notEligibleToImport);
   KEYWORD(live);
   KEYWORD(dsoLocal);
+  KEYWORD(canAutoHide);
   KEYWORD(function);
   KEYWORD(insts);
   KEYWORD(funcFlags);
@@ -858,6 +862,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   INSTKEYWORD(invoke,      Invoke);
   INSTKEYWORD(resume,      Resume);
   INSTKEYWORD(unreachable, Unreachable);
+  INSTKEYWORD(callbr,      CallBr);
 
   INSTKEYWORD(alloca,      Alloca);
   INSTKEYWORD(load,        Load);
@@ -1046,7 +1051,17 @@ lltok::Kind LLLexer::LexDigitOrNegative() {
   for (; isdigit(static_cast<unsigned char>(CurPtr[0])); ++CurPtr)
     /*empty*/;
 
-  // Check to see if this really is a label afterall, e.g. "-1:".
+  // Check if this is a fully-numeric label:
+  if (isdigit(TokStart[0]) && CurPtr[0] == ':') {
+    uint64_t Val = atoull(TokStart, CurPtr);
+    ++CurPtr; // Skip the colon.
+    if ((unsigned)Val != Val)
+      Error("invalid value number (too large)!");
+    UIntVal = unsigned(Val);
+    return lltok::LabelID;
+  }
+
+  // Check to see if this really is a string label, e.g. "-1:".
   if (isLabelChar(CurPtr[0]) || CurPtr[0] == ':') {
     if (const char *End = isLabelTail(CurPtr)) {
       StrVal.assign(TokStart, End-1);

@@ -13,7 +13,9 @@
 #include <locale>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::locale l;
     assert( std::isspace(' ', l));
@@ -27,4 +29,6 @@ int main()
     assert(!std::isspace('f', l));
     assert(!std::isspace('9', l));
     assert(!std::isspace('+', l));
+
+  return 0;
 }

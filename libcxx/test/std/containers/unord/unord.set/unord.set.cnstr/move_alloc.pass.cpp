@@ -22,12 +22,13 @@
 #include <cmath>
 #include <cstddef>
 
+#include "test_macros.h"
 #include "../../../test_compare.h"
 #include "../../../test_hash.h"
 #include "test_allocator.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef int P;
@@ -152,4 +153,6 @@ int main()
 
         assert(c0.empty());
     }
+
+  return 0;
 }

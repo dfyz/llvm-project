@@ -16,9 +16,13 @@
 #include <typeindex>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::type_info const & info = typeid(int);
     std::type_index t1(info);
     assert(t1.name() == info.name());
+
+  return 0;
 }

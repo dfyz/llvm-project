@@ -16,6 +16,8 @@
 #include <random>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class T>
 void
 randu()
@@ -70,7 +72,7 @@ Haldir()
     assert(e() == 217250280);
 }
 
-int main()
+int main(int, char**)
 {
     randu<unsigned int>();
     randu<unsigned long>();
@@ -83,4 +85,6 @@ int main()
     Haldir<unsigned int>();
     Haldir<unsigned long>();
     Haldir<unsigned long long>();
+
+  return 0;
 }

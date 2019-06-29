@@ -38,9 +38,11 @@
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
+
 void do_nothing(int*) {}
 
-int main()
+int main(int, char**)
 {
     const std::shared_ptr<int> p1(new int(1));
     assert(!(p1 == nullptr));
@@ -65,4 +67,6 @@ int main()
     assert(!(nullptr > p2));
     assert( (p2 >= nullptr));
     assert( (nullptr >= p2));
+
+  return 0;
 }

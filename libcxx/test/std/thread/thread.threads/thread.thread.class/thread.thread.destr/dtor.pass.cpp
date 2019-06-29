@@ -20,6 +20,8 @@
 #include <cstdlib>
 #include <cassert>
 
+#include "test_macros.h"
+
 class G
 {
     int alive_;
@@ -47,7 +49,7 @@ void f1()
     std::_Exit(0);
 }
 
-int main()
+int main(int, char**)
 {
     std::set_terminate(f1);
     {
@@ -60,4 +62,6 @@ int main()
         }
     }
     assert(false);
+
+  return 0;
 }

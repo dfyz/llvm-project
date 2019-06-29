@@ -16,9 +16,11 @@
 #include <streambuf>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct testbuf : public std::streambuf {};
 
-int main()
+int main(int, char**)
 {
     {
         std::ios ios(0);
@@ -33,4 +35,6 @@ int main()
         ios.setstate(std::ios::eofbit);
         assert(ios.eof());
     }
+
+  return 0;
 }

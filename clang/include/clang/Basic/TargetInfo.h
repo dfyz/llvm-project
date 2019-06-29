@@ -542,7 +542,9 @@ public:
 
   /// getMinGlobalAlign - Return the minimum alignment of a global variable,
   /// unless its alignment is explicitly reduced via attributes.
-  unsigned getMinGlobalAlign() const { return MinGlobalAlign; }
+  virtual unsigned getMinGlobalAlign (uint64_t) const {
+    return MinGlobalAlign;
+  }
 
   /// Return the largest alignment for which a suitably-sized allocation with
   /// '::operator new(size_t)' is guaranteed to produce a correctly-aligned
@@ -634,6 +636,21 @@ public:
   /// value is type-specific, but this alignment can be used for most of the
   /// types for the given target.
   unsigned getSimdDefaultAlign() const { return SimdDefaultAlign; }
+
+  /// Return the alignment (in bits) of the thrown exception object. This is
+  /// only meaningful for targets that allocate C++ exceptions in a system
+  /// runtime, such as those using the Itanium C++ ABI.
+  virtual unsigned getExnObjectAlignment() const {
+    // Itanium says that an _Unwind_Exception has to be "double-word"
+    // aligned (and thus the end of it is also so-aligned), meaning 16
+    // bytes.  Of course, that was written for the actual Itanium,
+    // which is a 64-bit platform.  Classically, the ABI doesn't really
+    // specify the alignment on other platforms, but in practice
+    // libUnwind declares the struct with __attribute__((aligned)), so
+    // we assume that alignment here.  (It's generally 16 bytes, but
+    // some targets overwrite it.)
+    return getDefaultAlignForAttributeAligned();
+  }
 
   /// Return the size of intmax_t and uintmax_t for this target, in bits.
   unsigned getIntMaxTWidth() const {
@@ -816,6 +833,7 @@ public:
     struct {
       int Min;
       int Max;
+      bool isConstrained;
     } ImmRange;
     llvm::SmallSet<int, 4> ImmSet;
 
@@ -826,6 +844,7 @@ public:
         : Flags(0), TiedOperand(-1), ConstraintStr(ConstraintStr.str()),
           Name(Name.str()) {
       ImmRange.Min = ImmRange.Max = 0;
+      ImmRange.isConstrained = false;
     }
 
     const std::string &getConstraintStr() const { return ConstraintStr; }
@@ -854,8 +873,11 @@ public:
       return (Flags & CI_ImmediateConstant) != 0;
     }
     bool isValidAsmImmediate(const llvm::APInt &Value) const {
-      return (Value.sge(ImmRange.Min) && Value.sle(ImmRange.Max)) ||
-             ImmSet.count(Value.getZExtValue()) != 0;
+      if (!ImmSet.empty())
+        return Value.isSignedIntN(32) &&
+               ImmSet.count(Value.getZExtValue()) != 0;
+      return !ImmRange.isConstrained ||
+             (Value.sge(ImmRange.Min) && Value.sle(ImmRange.Max));
     }
 
     void setIsReadWrite() { Flags |= CI_ReadWrite; }
@@ -867,6 +889,7 @@ public:
       Flags |= CI_ImmediateConstant;
       ImmRange.Min = Min;
       ImmRange.Max = Max;
+      ImmRange.isConstrained = true;
     }
     void setRequiresImmediate(llvm::ArrayRef<int> Exacts) {
       Flags |= CI_ImmediateConstant;
@@ -879,8 +902,6 @@ public:
     }
     void setRequiresImmediate() {
       Flags |= CI_ImmediateConstant;
-      ImmRange.Min = INT_MIN;
-      ImmRange.Max = INT_MAX;
     }
 
     /// Indicate that this is an input operand that is tied to

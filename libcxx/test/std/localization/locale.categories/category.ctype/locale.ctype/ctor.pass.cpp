@@ -15,6 +15,8 @@
 #include <locale>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class C>
 class my_facet
     : public std::ctype<C>
@@ -30,7 +32,7 @@ public:
 
 template <class C> int my_facet<C>::count = 0;
 
-int main()
+int main(int, char**)
 {
     {
         std::locale l(std::locale::classic(), new my_facet<wchar_t>);
@@ -47,4 +49,6 @@ int main()
         assert(my_facet<wchar_t>::count == 1);
     }
     assert(my_facet<wchar_t>::count == 0);
+
+  return 0;
 }

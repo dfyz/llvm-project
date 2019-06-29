@@ -13,6 +13,8 @@
 #include <complex>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class T>
 void
 test()
@@ -43,9 +45,11 @@ test()
     assert(c3.imag() == -6);
 }
 
-int main()
+int main(int, char**)
 {
     test<float>();
     test<double>();
     test<long double>();
+
+  return 0;
 }

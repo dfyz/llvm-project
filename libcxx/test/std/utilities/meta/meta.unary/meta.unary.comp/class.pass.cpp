@@ -12,6 +12,8 @@
 
 #include <type_traits>
 
+#include "test_macros.h"
+
 template <class T>
 void test_class_imp()
 {
@@ -39,8 +41,10 @@ class Class
 
 class incomplete_type;
 
-int main()
+int main(int, char**)
 {
     test_class<Class>();
     test_class<incomplete_type>();
+
+  return 0;
 }

@@ -18,6 +18,8 @@
 #include <cassert>
 #include "nasty_containers.hpp"
 
+#include "test_macros.h"
+
 template <class C>
 void
 test(C c)
@@ -39,8 +41,10 @@ public:
         {return x.data_ == y.data_;}
 };
 
-int main()
+int main(int, char**)
 {
     test(std::list<Copyable>());
     test(nasty_list<Copyable>());
+
+  return 0;
 }

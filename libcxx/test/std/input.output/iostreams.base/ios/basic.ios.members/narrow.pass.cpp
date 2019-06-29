@@ -15,9 +15,13 @@
 #include <ios>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     const std::wios ios(0);
     assert(ios.narrow(L'c', '*') == 'c');
     assert(ios.narrow(L'\u203C', '*') == '*');
+
+  return 0;
 }

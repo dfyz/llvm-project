@@ -111,13 +111,13 @@ static DWARFExpression MakeLocationExpressionInternal(lldb::ModuleSP module,
   uint32_t address_size = architecture.GetAddressByteSize();
   uint32_t byte_size = architecture.GetDataByteSize();
   if (byte_order == eByteOrderInvalid || address_size == 0)
-    return DWARFExpression(nullptr);
+    return DWARFExpression();
 
   RegisterKind register_kind = eRegisterKindDWARF;
   StreamBuffer<32> stream(Stream::eBinary, address_size, byte_order);
 
   if (!writer(stream, register_kind))
-    return DWARFExpression(nullptr);
+    return DWARFExpression();
 
   DataBufferSP buffer =
       std::make_shared<DataBufferHeap>(stream.GetData(), stream.GetSize());
@@ -207,13 +207,7 @@ DWARFExpression lldb_private::npdb::MakeGlobalLocationExpression(
         SectionList *section_list = module->GetSectionList();
         assert(section_list);
 
-        // Section indices in PDB are 1-based, but in DWARF they are 0-based, so
-        // we need to subtract 1.
-        uint32_t section_idx = section - 1;
-        if (section_idx >= section_list->GetSize())
-          return false;
-
-        auto section_ptr = section_list->GetSectionAtIndex(section_idx);
+        auto section_ptr = section_list->FindSectionByID(section);
         if (!section_ptr)
           return false;
 

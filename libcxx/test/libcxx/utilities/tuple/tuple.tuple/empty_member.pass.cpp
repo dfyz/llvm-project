@@ -16,11 +16,13 @@
 
 #include <tuple>
 
+#include "test_macros.h"
+
 struct A {};
 
 struct B {};
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::tuple<int, A> T;
@@ -42,4 +44,6 @@ int main()
         typedef std::tuple<int, A, B> T;
         static_assert((sizeof(T) == sizeof(int)), "");
     }
+
+  return 0;
 }

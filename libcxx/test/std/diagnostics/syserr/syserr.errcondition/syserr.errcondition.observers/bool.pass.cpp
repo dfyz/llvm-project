@@ -16,7 +16,9 @@
 #include <string>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         const std::error_condition ec(6, std::generic_category());
@@ -26,4 +28,6 @@ int main()
         const std::error_condition ec(0, std::generic_category());
         assert(!static_cast<bool>(ec));
     }
+
+  return 0;
 }

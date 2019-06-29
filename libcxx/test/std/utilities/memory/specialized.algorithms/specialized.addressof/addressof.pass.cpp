@@ -13,6 +13,8 @@
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct A
 {
     void operator&() const {}
@@ -26,7 +28,7 @@ struct nothing {
     }
 };
 
-int main()
+int main(int, char**)
 {
     {
     int i;
@@ -47,4 +49,6 @@ int main()
     };
     assert(std::addressof(n) == (void*)std::addressof(i));
     }
+
+  return 0;
 }

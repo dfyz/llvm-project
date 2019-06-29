@@ -15,11 +15,15 @@
 #include <ios>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     typedef std::fpos<std::mbstate_t> P;
     P p(5);
     P q(6);
     assert(p == p);
     assert(p != q);
+
+  return 0;
 }

@@ -16,7 +16,9 @@
 #include <random>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::negative_binomial_distribution<> D;
@@ -26,4 +28,6 @@ int main()
         assert(d.k() == 5);
         assert(d.p() == 0.25);
     }
+
+  return 0;
 }

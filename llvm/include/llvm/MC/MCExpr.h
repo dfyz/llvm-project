@@ -284,16 +284,17 @@ public:
     VK_Hexagon_IE,
     VK_Hexagon_IE_GOT,
 
-    VK_WebAssembly_FUNCTION, // Function table index, rather than virtual addr
-    VK_WebAssembly_GLOBAL,   // Global object index
-    VK_WebAssembly_TYPEINDEX,// Type table index
-    VK_WebAssembly_EVENT,    // Event index
+    VK_WASM_TYPEINDEX, // Reference to a symbol's type (signature)
+    VK_WASM_MBREL,     // Memory address relative to memory base
+    VK_WASM_TBREL,     // Table index relative to table bare
 
     VK_AMDGPU_GOTPCREL32_LO, // symbol@gotpcrel32@lo
     VK_AMDGPU_GOTPCREL32_HI, // symbol@gotpcrel32@hi
     VK_AMDGPU_REL32_LO,      // symbol@rel32@lo
     VK_AMDGPU_REL32_HI,      // symbol@rel32@hi
     VK_AMDGPU_REL64,         // symbol@rel64
+    VK_AMDGPU_ABS32_LO,      // symbol@abs32@lo
+    VK_AMDGPU_ABS32_HI,      // symbol@abs32@hi
 
     VK_TPREL,
     VK_DTPREL

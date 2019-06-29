@@ -26,9 +26,11 @@
 #include <cassert>
 #include "test_memory_resource.hpp"
 
+#include "test_macros.h"
+
 using std::experimental::pmr::memory_resource;
 
-int main()
+int main(int, char**)
 {
     {
         memory_resource const* r1 = nullptr;
@@ -89,4 +91,6 @@ int main()
         assert(P2.checkIsEqualCalledEq(1));
         assert(P1.checkIsEqualCalledEq(1));
     }
+
+  return 0;
 }

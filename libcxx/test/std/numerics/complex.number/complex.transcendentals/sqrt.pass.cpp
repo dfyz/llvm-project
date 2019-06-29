@@ -15,6 +15,7 @@
 #include <complex>
 #include <cassert>
 
+#include "test_macros.h"
 #include "../cases.h"
 
 template <class T>
@@ -99,10 +100,12 @@ void test_edges()
     }
 }
 
-int main()
+int main(int, char**)
 {
     test<float>();
     test<double>();
     test<long double>();
     test_edges();
+
+  return 0;
 }

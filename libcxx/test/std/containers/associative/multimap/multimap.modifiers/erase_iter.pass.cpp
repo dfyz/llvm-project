@@ -15,6 +15,7 @@
 #include <map>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 struct TemplateConstructor
@@ -25,7 +26,7 @@ struct TemplateConstructor
 
 bool operator<(const TemplateConstructor&, const TemplateConstructor&) { return false; }
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::multimap<int, double> M;
@@ -297,4 +298,6 @@ int main()
             c.erase(it);
     }
 #endif
+
+  return 0;
 }

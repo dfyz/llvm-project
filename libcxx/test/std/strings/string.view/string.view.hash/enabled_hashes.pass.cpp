@@ -17,7 +17,9 @@
 
 #include "poisoned_hash_helper.hpp"
 
-int main() {
+#include "test_macros.h"
+
+int main(int, char**) {
   test_library_hash_specializations_available();
   {
     test_hash_enabled_for_type<std::string_view>();
@@ -30,4 +32,6 @@ int main() {
     test_hash_enabled_for_type<std::u32string_view>();
 #endif
   }
+
+  return 0;
 }

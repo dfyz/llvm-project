@@ -18,6 +18,8 @@
 #include <functional>
 #include <cassert>
 
+#include "test_macros.h"
+
 // 0 args, return void
 
 int count = 0;
@@ -61,7 +63,9 @@ test_void_0()
     }
 }
 
-int main()
+int main(int, char**)
 {
     test_void_0();
+
+  return 0;
 }

@@ -19,11 +19,13 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class T>
 void test(const T &) {}
 
 
-int main()
+int main(int, char**)
 {
     static_assert((std::is_same<std::locale::category, int>::value), "");
     assert(std::locale::none == 0);
@@ -55,4 +57,6 @@ int main()
     test(std::locale::time);
     test(std::locale::messages);
     test(std::locale::all);
+
+  return 0;
 }

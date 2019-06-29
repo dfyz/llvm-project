@@ -21,7 +21,9 @@
 #include <codecvt>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::codecvt_utf8_utf16<wchar_t> C;
@@ -59,4 +61,6 @@ int main()
         int r = c.max_length();
         assert(r == 7);
     }
+
+  return 0;
 }

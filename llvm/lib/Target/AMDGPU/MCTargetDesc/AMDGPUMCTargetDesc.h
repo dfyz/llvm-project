@@ -33,9 +33,6 @@ class Target;
 class Triple;
 class raw_pwrite_stream;
 
-Target &getTheAMDGPUTarget();
-Target &getTheGCNTarget();
-
 MCCodeEmitter *createR600MCCodeEmitter(const MCInstrInfo &MCII,
                                        const MCRegisterInfo &MRI,
                                        MCContext &Ctx);
@@ -52,7 +49,7 @@ MCAsmBackend *createAMDGPUAsmBackend(const Target &T,
 
 std::unique_ptr<MCObjectTargetWriter>
 createAMDGPUELFObjectWriter(bool Is64Bit, uint8_t OSABI,
-                            bool HasRelocationAddend);
+                            bool HasRelocationAddend, uint8_t ABIVersion);
 } // End llvm namespace
 
 #define GET_REGINFO_ENUM

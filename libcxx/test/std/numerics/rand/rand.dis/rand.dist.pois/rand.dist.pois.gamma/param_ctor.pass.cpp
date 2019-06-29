@@ -17,7 +17,9 @@
 #include <limits>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::gamma_distribution<> D;
@@ -40,4 +42,6 @@ int main()
         assert(p.alpha() == 10);
         assert(p.beta() == 5);
     }
+
+  return 0;
 }

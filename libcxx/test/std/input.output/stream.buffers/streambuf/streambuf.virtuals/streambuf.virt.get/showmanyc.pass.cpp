@@ -16,6 +16,8 @@
 #include <streambuf>
 #include <cassert>
 
+#include "test_macros.h"
+
 int showmanyc_called = 0;
 
 template <class CharT>
@@ -25,8 +27,10 @@ struct test
     test() {}
 };
 
-int main()
+int main(int, char**)
 {
     test<char> t;
     assert(t.in_avail() == 0);
+
+  return 0;
 }

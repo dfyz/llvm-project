@@ -17,7 +17,9 @@
 #include <limits>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::binomial_distribution<> D;
@@ -40,4 +42,6 @@ int main()
         assert(p.t() == 10);
         assert(p.p() == 0.25);
     }
+
+  return 0;
 }

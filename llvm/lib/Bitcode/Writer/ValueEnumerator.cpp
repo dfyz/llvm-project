@@ -414,10 +414,8 @@ ValueEnumerator::ValueEnumerator(const Module &M,
           EnumerateMetadata(&F, MD->getMetadata());
         }
         EnumerateType(I.getType());
-        if (const CallInst *CI = dyn_cast<CallInst>(&I))
-          EnumerateAttributes(CI->getAttributes());
-        else if (const InvokeInst *II = dyn_cast<InvokeInst>(&I))
-          EnumerateAttributes(II->getAttributes());
+        if (const auto *Call = dyn_cast<CallBase>(&I))
+          EnumerateAttributes(Call->getAttributes());
 
         // Enumerate metadata attached with this instruction.
         MDs.clear();
@@ -751,7 +749,8 @@ void ValueEnumerator::organizeMetadata() {
 
   // Rebuild MDs, index the metadata ranges for each function in FunctionMDs,
   // and fix up MetadataMap.
-  std::vector<const Metadata *> OldMDs = std::move(MDs);
+  std::vector<const Metadata *> OldMDs;
+  MDs.swap(OldMDs);
   MDs.reserve(OldMDs.size());
   for (unsigned I = 0, E = Order.size(); I != E && !Order[I].F; ++I) {
     auto *MD = Order[I].get(OldMDs);
@@ -950,9 +949,11 @@ void ValueEnumerator::incorporateFunction(const Function &F) {
   incorporateFunctionMetadata(F);
 
   // Adding function arguments to the value table.
-  for (const auto &I : F.args())
+  for (const auto &I : F.args()) {
     EnumerateValue(&I);
-
+    if (I.hasAttribute(Attribute::ByVal))
+      EnumerateType(I.getParamByValType());
+  }
   FirstFuncConstantID = Values.size();
 
   // Add all function-level constants to the value table.

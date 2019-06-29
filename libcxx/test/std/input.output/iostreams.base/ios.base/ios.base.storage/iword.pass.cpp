@@ -19,6 +19,8 @@
 #include <string>
 #include <cassert>
 
+#include "test_macros.h"
+
 class test
     : public std::ios
 {
@@ -29,7 +31,7 @@ public:
     }
 };
 
-int main()
+int main(int, char**)
 {
     test t;
     std::ios_base& b = t;
@@ -41,4 +43,6 @@ int main()
         for (int j = 0; j <= i; ++j)
             assert(b.iword(j) == j);
     }
+
+  return 0;
 }

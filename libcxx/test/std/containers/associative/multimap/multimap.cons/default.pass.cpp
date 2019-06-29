@@ -15,9 +15,10 @@
 #include <map>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
     std::multimap<int, double> m;
@@ -50,4 +51,6 @@ int main()
     assert(m.begin() == m.end());
     }
 #endif
+
+  return 0;
 }

@@ -16,11 +16,15 @@
 #include <algorithm>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     int i = 1;
     int j = 2;
     std::iter_swap(&i, &j);
     assert(i == 2);
     assert(j == 1);
+
+  return 0;
 }

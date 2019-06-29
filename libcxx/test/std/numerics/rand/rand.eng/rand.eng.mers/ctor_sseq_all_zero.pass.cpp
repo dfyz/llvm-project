@@ -27,6 +27,8 @@
 #include <cstddef>
 #if TEST_STD_VER >= 11
 #include <initializer_list>
+
+#include "test_macros.h"
 #endif
 
 struct all_zero_seed_seq {
@@ -71,10 +73,12 @@ void test(void) {
   assert(e() == X0);
 }
 
-int main() {
+int main(int, char**) {
   // Test for k == 1: word_size <= 32.
   test<unsigned short, 3u>();
 
   // Test for k == 2: (32 < word_size <= 64).
   test<unsigned long long, 33u>();
+
+  return 0;
 }

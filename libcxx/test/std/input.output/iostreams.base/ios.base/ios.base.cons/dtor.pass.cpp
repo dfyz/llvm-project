@@ -17,6 +17,8 @@
 #include <locale>
 #include <cassert>
 
+#include "test_macros.h"
+
 class test
     : public std::ios
 {
@@ -70,7 +72,7 @@ void f3(std::ios_base::event ev, std::ios_base& stream, int index)
     }
 }
 
-int main()
+int main(int, char**)
 {
     {
         test t;
@@ -82,4 +84,6 @@ int main()
     assert(f1_called);
     assert(f2_called);
     assert(f3_called);
+
+  return 0;
 }

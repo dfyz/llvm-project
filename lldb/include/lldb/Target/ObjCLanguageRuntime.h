@@ -16,10 +16,10 @@
 
 #include "llvm/Support/Casting.h"
 
+#include "lldb/Breakpoint/BreakpointPrecondition.h"
 #include "lldb/Core/PluginInterface.h"
 #include "lldb/Core/ThreadSafeDenseMap.h"
 #include "lldb/Symbol/CompilerType.h"
-#include "lldb/Symbol/DeclVendor.h"
 #include "lldb/Symbol/Type.h"
 #include "lldb/Target/LanguageRuntime.h"
 #include "lldb/lldb-private.h"
@@ -151,10 +151,10 @@ public:
                                      const char *name, bool for_expression) = 0;
 
   protected:
-    std::unique_ptr<ClangASTContext> m_scratch_ast_ctx_ap;
+    std::unique_ptr<ClangASTContext> m_scratch_ast_ctx_up;
   };
 
-  class ObjCExceptionPrecondition : public Breakpoint::BreakpointPrecondition {
+  class ObjCExceptionPrecondition : public BreakpointPrecondition {
   public:
     ObjCExceptionPrecondition();
 
@@ -170,6 +170,10 @@ public:
   private:
     std::unordered_set<std::string> m_class_names;
   };
+
+  static lldb::BreakpointPreconditionSP
+  GetBreakpointExceptionPrecondition(lldb::LanguageType language,
+                                     bool throw_bp);
 
   class TaggedPointerVendor {
   public:
@@ -189,6 +193,21 @@ public:
 
   ~ObjCLanguageRuntime() override;
 
+  static char ID;
+
+  bool isA(const void *ClassID) const override {
+    return ClassID == &ID || LanguageRuntime::isA(ClassID);
+  }
+
+  static bool classof(const LanguageRuntime *runtime) {
+    return runtime->isA(&ID);
+  }
+
+  static ObjCLanguageRuntime *Get(Process &process) {
+    return llvm::cast_or_null<ObjCLanguageRuntime>(
+        process.GetLanguageRuntime(lldb::eLanguageTypeObjC));
+  }
+
   virtual TaggedPointerVendor *GetTaggedPointerVendor() { return nullptr; }
 
   typedef std::shared_ptr<EncodingToType> EncodingToTypeSP;
@@ -200,7 +219,7 @@ public:
   ClassDescriptorSP GetNonKVOClassDescriptor(ValueObject &in_value);
 
   virtual ClassDescriptorSP
-  GetClassDescriptorFromClassName(const ConstString &class_name);
+  GetClassDescriptorFromClassName(ConstString class_name);
 
   virtual ClassDescriptorSP GetClassDescriptorFromISA(ObjCISA isa);
 
@@ -215,9 +234,6 @@ public:
   virtual bool ReadObjCLibrary(const lldb::ModuleSP &module_sp) = 0;
 
   virtual bool HasReadObjCLibrary() = 0;
-
-  virtual lldb::ThreadPlanSP GetStepThroughTrampolinePlan(Thread &thread,
-                                                          bool stop_others) = 0;
 
   lldb::addr_t LookupInMethodCache(lldb::addr_t class_addr, lldb::addr_t sel);
 
@@ -253,26 +269,17 @@ public:
     }
   }
 
-  virtual ObjCISA GetISA(const ConstString &name);
+  virtual ObjCISA GetISA(ConstString name);
 
   virtual ConstString GetActualTypeName(ObjCISA isa);
 
   virtual ObjCISA GetParentClass(ObjCISA isa);
-
-  virtual DeclVendor *GetDeclVendor() { return nullptr; }
 
   // Finds the byte offset of the child_type ivar in parent_type.  If it can't
   // find the offset, returns LLDB_INVALID_IVAR_OFFSET.
 
   virtual size_t GetByteOffsetForIvar(CompilerType &parent_qual_type,
                                       const char *ivar_name);
-
-  // Given the name of an Objective-C runtime symbol (e.g., ivar offset
-  // symbol), try to determine from the runtime what the value of that symbol
-  // would be. Useful when the underlying binary is stripped.
-  virtual lldb::addr_t LookupRuntimeSymbol(const ConstString &name) {
-    return LLDB_INVALID_ADDRESS;
-  }
 
   bool HasNewLiteralsAndIndexing() {
     if (m_has_new_literals_and_indexing == eLazyBoolCalculate) {
@@ -285,17 +292,20 @@ public:
     return (m_has_new_literals_and_indexing == eLazyBoolYes);
   }
 
-  virtual void SymbolsDidLoad(const ModuleList &module_list) {
+  void SymbolsDidLoad(const ModuleList &module_list) override {
     m_negative_complete_class_cache.clear();
   }
 
   bool GetTypeBitSize(const CompilerType &compiler_type,
                       uint64_t &size) override;
 
+  /// Check whether the name is "self" or "_cmd" and should show up in
+  /// "frame variable".
+  static bool IsWhitelistedRuntimeValue(ConstString name);
+  bool IsRuntimeSupportValue(ValueObject &valobj) override;
+
 protected:
-  //------------------------------------------------------------------
   // Classes that inherit from ObjCLanguageRuntime can see and modify these
-  //------------------------------------------------------------------
   ObjCLanguageRuntime(Process *process);
 
   virtual bool CalculateHasNewLiteralsAndIndexing() { return false; }
@@ -386,12 +396,12 @@ protected:
   CompleteClassMap m_complete_class_cache;
 
   struct ConstStringSetHelpers {
-    size_t operator()(const ConstString &arg) const // for hashing
+    size_t operator()(ConstString arg) const // for hashing
     {
       return (size_t)arg.GetCString();
     }
-    bool operator()(const ConstString &arg1,
-                    const ConstString &arg2) const // for equality
+    bool operator()(ConstString arg1,
+                    ConstString arg2) const // for equality
     {
       return arg1.operator==(arg2);
     }
@@ -401,7 +411,7 @@ protected:
       CompleteClassSet;
   CompleteClassSet m_negative_complete_class_cache;
 
-  ISAToDescriptorIterator GetDescriptorIterator(const ConstString &name);
+  ISAToDescriptorIterator GetDescriptorIterator(ConstString name);
 
   friend class ::CommandObjectObjC_ClassTable_Dump;
 

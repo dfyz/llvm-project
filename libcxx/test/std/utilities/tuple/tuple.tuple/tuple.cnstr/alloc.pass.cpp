@@ -22,6 +22,7 @@
 #include <tuple>
 #include <cassert>
 
+#include "test_macros.h"
 #include "DefaultOnly.h"
 #include "allocators.h"
 #include "../alloc_first.h"
@@ -39,7 +40,7 @@ struct NonDefaultConstructible {
 
 struct DerivedFromAllocArgT : std::allocator_arg_t {};
 
-int main()
+int main(int, char**)
 {
     {
         std::tuple<> t(std::allocator_arg, A1<int>());
@@ -105,4 +106,6 @@ int main()
         std::tuple<T, T> t2(42, 42);
         (void)t2;
     }
+
+  return 0;
 }

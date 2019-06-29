@@ -13,7 +13,9 @@
 #include <vector>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     int ia[] = {1, 2, 3};
     std::vector<int> v(ia, ia + sizeof(ia)/sizeof(ia[0]));
@@ -21,4 +23,6 @@ int main()
     assert(*i == 1);
     *i = 2;
     assert(*i == 2);
+
+  return 0;
 }

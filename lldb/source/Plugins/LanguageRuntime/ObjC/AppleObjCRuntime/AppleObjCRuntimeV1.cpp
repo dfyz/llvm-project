@@ -31,10 +31,13 @@
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/StreamString.h"
 
+#include <memory>
 #include <vector>
 
 using namespace lldb;
 using namespace lldb_private;
+
+char AppleObjCRuntimeV1::ID = 0;
 
 AppleObjCRuntimeV1::AppleObjCRuntimeV1(Process *process)
     : AppleObjCRuntime(process), m_hash_signature(),
@@ -60,9 +63,7 @@ bool AppleObjCRuntimeV1::GetDynamicTypeAndAddress(
   return !class_type_or_name.IsEmpty();
 }
 
-//------------------------------------------------------------------
 // Static Functions
-//------------------------------------------------------------------
 lldb_private::LanguageRuntime *
 AppleObjCRuntimeV1::CreateInstance(Process *process,
                                    lldb::LanguageType language) {
@@ -76,15 +77,16 @@ AppleObjCRuntimeV1::CreateInstance(Process *process,
         ObjCRuntimeVersions::eAppleObjC_V1)
       return new AppleObjCRuntimeV1(process);
     else
-      return NULL;
+      return nullptr;
   } else
-    return NULL;
+    return nullptr;
 }
 
 void AppleObjCRuntimeV1::Initialize() {
   PluginManager::RegisterPlugin(
       GetPluginNameStatic(), "Apple Objective-C Language Runtime - Version 1",
-      CreateInstance);
+      CreateInstance,
+      /*command_callback = */ nullptr, GetBreakpointExceptionPrecondition);
 }
 
 void AppleObjCRuntimeV1::Terminate() {
@@ -96,9 +98,7 @@ lldb_private::ConstString AppleObjCRuntimeV1::GetPluginNameStatic() {
   return g_name;
 }
 
-//------------------------------------------------------------------
 // PluginInterface protocol
-//------------------------------------------------------------------
 ConstString AppleObjCRuntimeV1::GetPluginName() {
   return GetPluginNameStatic();
 }
@@ -111,10 +111,10 @@ AppleObjCRuntimeV1::CreateExceptionResolver(Breakpoint *bkpt, bool catch_bp,
   BreakpointResolverSP resolver_sp;
 
   if (throw_bp)
-    resolver_sp.reset(new BreakpointResolverName(
+    resolver_sp = std::make_shared<BreakpointResolverName>(
         bkpt, std::get<1>(GetExceptionThrowLocation()).AsCString(),
         eFunctionNameTypeBase, eLanguageTypeUnknown, Breakpoint::Exact, 0,
-        eLazyBoolNo));
+        eLazyBoolNo);
   // FIXME: don't do catch yet.
   return resolver_sp;
 }

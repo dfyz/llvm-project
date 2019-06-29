@@ -20,6 +20,7 @@
 
 #include <iostream>
 
+#include "test_macros.h"
 #include "../../../test_compare.h"
 #include "test_allocator.h"
 #include "min_allocator.h"
@@ -108,7 +109,7 @@ bool balanced_allocs() {
     }
 #endif
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::pair<const int, double> V;
@@ -337,4 +338,6 @@ int main()
     }
     assert(balanced_allocs());
 #endif
+
+  return 0;
 }

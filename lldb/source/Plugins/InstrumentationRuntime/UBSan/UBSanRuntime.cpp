@@ -31,6 +31,8 @@
 #include "lldb/Utility/Stream.h"
 #include <ctype.h>
 
+#include <memory>
+
 using namespace lldb;
 using namespace lldb_private;
 
@@ -129,7 +131,7 @@ StructuredData::ObjectSP UndefinedBehaviorSanitizerRuntime::RetrieveReportData(
   options.SetTryAllThreads(true);
   options.SetStopOthers(true);
   options.SetIgnoreBreakpoints(true);
-  options.SetTimeout(std::chrono::seconds(2));
+  options.SetTimeout(process_sp->GetUtilityExpressionTimeout());
   options.SetPrefix(ub_sanitizer_retrieve_report_data_prefix);
   options.SetAutoApplyFixIts(false);
   options.SetLanguage(eLanguageTypeObjC_plus_plus);
@@ -303,7 +305,7 @@ lldb::ThreadCollectionSP
 UndefinedBehaviorSanitizerRuntime::GetBacktracesFromExtendedStopInfo(
     StructuredData::ObjectSP info) {
   ThreadCollectionSP threads;
-  threads.reset(new ThreadCollection());
+  threads = std::make_shared<ThreadCollection>();
 
   ProcessSP process_sp = GetProcessSP();
 
@@ -325,10 +327,7 @@ UndefinedBehaviorSanitizerRuntime::GetBacktracesFromExtendedStopInfo(
       info->GetObjectForDotSeparatedPath("tid");
   tid_t tid = thread_id_obj ? thread_id_obj->GetIntegerValue() : 0;
 
-  uint32_t stop_id = 0;
-  bool stop_id_is_valid = false;
-  HistoryThread *history_thread =
-      new HistoryThread(*process_sp, tid, PCs, stop_id, stop_id_is_valid);
+  HistoryThread *history_thread = new HistoryThread(*process_sp, tid, PCs);
   ThreadSP new_thread_sp(history_thread);
   std::string stop_reason_description = GetStopReasonDescription(info);
   new_thread_sp->SetName(stop_reason_description.c_str());

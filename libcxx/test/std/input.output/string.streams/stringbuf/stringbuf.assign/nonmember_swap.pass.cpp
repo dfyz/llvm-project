@@ -18,7 +18,9 @@
 #include <sstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::stringbuf buf1("testing");
@@ -62,4 +64,6 @@ int main()
         assert(buf.str() == L"testing");
         assert(buf1.str() == L"");
     }
+
+  return 0;
 }

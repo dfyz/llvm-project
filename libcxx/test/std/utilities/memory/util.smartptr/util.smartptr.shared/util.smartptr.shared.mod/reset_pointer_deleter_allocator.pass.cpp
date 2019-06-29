@@ -14,6 +14,7 @@
 
 #include <memory>
 #include <cassert>
+#include "test_macros.h"
 #include "deleter_types.h"
 #include "test_allocator.h"
 
@@ -40,7 +41,7 @@ struct A
 
 int A::count = 0;
 
-int main()
+int main(int, char**)
 {
     {
         std::shared_ptr<B> p(new B);
@@ -84,4 +85,6 @@ int main()
     assert(test_deleter<A>::dealloc_count == 2);
     assert(test_allocator<A>::count == 0);
     assert(test_allocator<A>::alloc_count == 0);
+
+  return 0;
 }

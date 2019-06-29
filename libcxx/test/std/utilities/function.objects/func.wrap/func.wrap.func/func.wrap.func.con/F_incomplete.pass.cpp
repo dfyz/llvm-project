@@ -17,6 +17,8 @@
 #include <functional>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct X{
     typedef std::function<void(X&)> callback_type;
     virtual ~X() {}
@@ -58,6 +60,8 @@ void test_pr34298()
   }
 }
 
-int main() {
+int main(int, char**) {
   test_pr34298();
+
+  return 0;
 }

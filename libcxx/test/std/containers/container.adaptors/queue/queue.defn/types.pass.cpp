@@ -26,6 +26,8 @@
 #include <queue>
 #include <type_traits>
 
+#include "test_macros.h"
+
 struct test
     : private std::queue<int>
 {
@@ -43,7 +45,7 @@ struct C
     typedef int size_type;
 };
 
-int main()
+int main(int, char**)
 {
     static_assert(( std::is_same<std::queue<int>::container_type, std::deque<int> >::value), "");
     static_assert(( std::is_same<std::queue<int, std::vector<int> >::container_type, std::vector<int> >::value), "");
@@ -54,4 +56,6 @@ int main()
     static_assert(( std::uses_allocator<std::queue<int>, std::allocator<int> >::value), "");
     static_assert((!std::uses_allocator<std::queue<int, C>, std::allocator<int> >::value), "");
     test t;
+
+  return 0;
 }

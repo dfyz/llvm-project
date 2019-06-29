@@ -41,15 +41,14 @@ class AMDGPUDisassembler : public MCDisassembler {
 private:
   std::unique_ptr<MCInstrInfo const> const MCII;
   const MCRegisterInfo &MRI;
+  const unsigned TargetMaxInstBytes;
   mutable ArrayRef<uint8_t> Bytes;
   mutable uint32_t Literal;
   mutable bool HasLiteral;
 
 public:
   AMDGPUDisassembler(const MCSubtargetInfo &STI, MCContext &Ctx,
-                     MCInstrInfo const *MCII) :
-    MCDisassembler(STI, Ctx), MCII(MCII), MRI(*Ctx.getRegisterInfo()) {}
-
+                     MCInstrInfo const *MCII);
   ~AMDGPUDisassembler() override = default;
 
   DecodeStatus getInstruction(MCInst &MI, uint64_t &Size,
@@ -68,9 +67,12 @@ public:
                              uint64_t Address) const;
 
   DecodeStatus convertSDWAInst(MCInst &MI) const;
+  DecodeStatus convertDPP8Inst(MCInst &MI) const;
   DecodeStatus convertMIMGInst(MCInst &MI) const;
 
   MCOperand decodeOperand_VGPR_32(unsigned Val) const;
+  MCOperand decodeOperand_VRegOrLds_32(unsigned Val) const;
+
   MCOperand decodeOperand_VS_32(unsigned Val) const;
   MCOperand decodeOperand_VS_64(unsigned Val) const;
   MCOperand decodeOperand_VS_128(unsigned Val) const;
@@ -84,6 +86,7 @@ public:
   MCOperand decodeOperand_SReg_32(unsigned Val) const;
   MCOperand decodeOperand_SReg_32_XM0_XEXEC(unsigned Val) const;
   MCOperand decodeOperand_SReg_32_XEXEC_HI(unsigned Val) const;
+  MCOperand decodeOperand_SRegOrLds_32(unsigned Val) const;
   MCOperand decodeOperand_SReg_64(unsigned Val) const;
   MCOperand decodeOperand_SReg_64_XEXEC(unsigned Val) const;
   MCOperand decodeOperand_SReg_128(unsigned Val) const;
@@ -120,11 +123,14 @@ public:
   MCOperand decodeSDWASrc32(unsigned Val) const;
   MCOperand decodeSDWAVopcDst(unsigned Val) const;
 
+  MCOperand decodeBoolReg(unsigned Val) const;
+
   int getTTmpIdx(unsigned Val) const;
 
   bool isVI() const;
   bool isGFX9() const;
-  };
+  bool isGFX10() const;
+};
 
 //===----------------------------------------------------------------------===//
 // AMDGPUSymbolizer

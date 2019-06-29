@@ -18,7 +18,9 @@
 #include <future>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::promise<int> p;
@@ -35,4 +37,6 @@ int main()
         std::future<void> f = p.get_future();
         assert(f.valid());
     }
+
+  return 0;
 }

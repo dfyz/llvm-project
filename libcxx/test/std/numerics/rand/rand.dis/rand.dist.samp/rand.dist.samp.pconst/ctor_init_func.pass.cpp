@@ -16,17 +16,17 @@
 // piecewise_constant_distribution(initializer_list<result_type> bl,
 //                                 UnaryOperation fw);
 
-#include <iostream>
-
 #include <random>
 #include <cassert>
+
+#include "test_macros.h"
 
 double f(double x)
 {
     return x*2;
 }
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::piecewise_constant_distribution<> D;
@@ -74,4 +74,6 @@ int main()
         assert(dn[0] == 0.203125);
         assert(dn[1] == 0.1484375);
     }
+
+  return 0;
 }

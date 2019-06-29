@@ -18,6 +18,7 @@
 #include <utility>
 #include <cassert>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 
 struct ConstructsWithTupleLeaf
@@ -80,7 +81,7 @@ void test_sfinae() {
     }
 }
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::tuple<> T;
@@ -121,4 +122,6 @@ int main()
         test_sfinae<move_only_ebo>();
         test_sfinae<move_only_large>();
     }
+
+  return 0;
 }

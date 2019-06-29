@@ -15,7 +15,9 @@
 #include <string>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
 #ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
     char16_t s2[3] = {0};
@@ -25,4 +27,6 @@ int main()
     assert(s2[2] == char16_t(5));
     assert(std::char_traits<char16_t>::assign(NULL, 0, char16_t(5)) == NULL);
 #endif  // _LIBCPP_HAS_NO_UNICODE_CHARS
+
+  return 0;
 }

@@ -25,6 +25,8 @@
 #include <cassert>
 #include <tuple>
 
+#include "test_macros.h"
+
 class Moveable
 {
     Moveable(const Moveable&);
@@ -60,7 +62,7 @@ namespace std {
     };
 }
 
-int main()
+int main(int, char**)
 {
 
     { // pair<iterator, bool> try_emplace(const key_type& k, Args&&... args);
@@ -185,4 +187,6 @@ int main()
         assert(r->first.get()  == 3); // key
         assert(r->second.get() == 4); // value
     }
+
+  return 0;
 }

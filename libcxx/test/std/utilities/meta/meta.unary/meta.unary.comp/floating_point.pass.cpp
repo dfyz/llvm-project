@@ -12,6 +12,8 @@
 
 #include <type_traits>
 
+#include "test_macros.h"
+
 template <class T>
 void test_floating_point_imp()
 {
@@ -33,9 +35,11 @@ void test_floating_point()
     test_floating_point_imp<const volatile T>();
 }
 
-int main()
+int main(int, char**)
 {
     test_floating_point<float>();
     test_floating_point<double>();
     test_floating_point<long double>();
+
+  return 0;
 }

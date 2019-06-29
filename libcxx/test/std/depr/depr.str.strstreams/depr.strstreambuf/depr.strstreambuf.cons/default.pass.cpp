@@ -15,7 +15,9 @@
 #include <strstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::strstreambuf s;
@@ -27,4 +29,6 @@ int main()
         assert(s.str() == nullptr);
         assert(s.pcount() == 0);
     }
+
+  return 0;
 }

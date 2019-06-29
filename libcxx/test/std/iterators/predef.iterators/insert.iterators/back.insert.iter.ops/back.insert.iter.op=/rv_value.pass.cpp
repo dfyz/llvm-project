@@ -22,6 +22,8 @@
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class C>
 void
 test(C c)
@@ -31,7 +33,9 @@ test(C c)
     assert(c.back() == typename C::value_type());
 }
 
-int main()
+int main(int, char**)
 {
     test(std::vector<std::unique_ptr<int> >());
+
+  return 0;
 }

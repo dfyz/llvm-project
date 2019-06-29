@@ -10,6 +10,8 @@
 
 #include <stdbool.h>
 
+#include "test_macros.h"
+
 #ifndef __bool_true_false_are_defined
 #error __bool_true_false_are_defined not defined
 #endif
@@ -26,6 +28,8 @@
 #error false should not be defined
 #endif
 
-int main()
+int main(int, char**)
 {
+
+  return 0;
 }

@@ -15,6 +15,8 @@
 
 #include <iterator>
 
+#include "test_macros.h"
+
 struct not_an_iterator
 {
 };
@@ -30,8 +32,10 @@ public:
     static const bool value = sizeof(test<T>(0)) == 1;
 };
 
-int main()
+int main(int, char**)
 {
     typedef std::iterator_traits<not_an_iterator> It;
     static_assert(!(has_value_type<It>::value), "");
+
+  return 0;
 }

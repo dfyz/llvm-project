@@ -13,6 +13,7 @@
 #include <deque>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_allocator.h"
 #include "../../../NotConstructible.h"
 #include "min_allocator.h"
@@ -29,7 +30,7 @@ test()
 #endif
 }
 
-int main()
+int main(int, char**)
 {
     test<int, std::allocator<int> >();
     test<NotConstructible, limited_allocator<NotConstructible, 1> >();
@@ -37,4 +38,6 @@ int main()
     test<int, min_allocator<int> >();
     test<NotConstructible, min_allocator<NotConstructible> >();
 #endif
+
+  return 0;
 }

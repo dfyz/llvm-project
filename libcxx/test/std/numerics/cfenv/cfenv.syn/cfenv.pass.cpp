@@ -13,6 +13,8 @@
 #include <cfenv>
 #include <type_traits>
 
+#include "test_macros.h"
+
 #ifndef FE_DIVBYZERO
 #error FE_DIVBYZERO not defined
 #endif
@@ -57,7 +59,7 @@
 #error FE_DFL_ENV not defined
 #endif
 
-int main()
+int main(int, char**)
 {
     std::fenv_t fenv;
     std::fexcept_t fex;
@@ -74,4 +76,6 @@ int main()
     static_assert((std::is_same<decltype(std::feholdexcept(&fenv)), int>::value), "");
     static_assert((std::is_same<decltype(std::fesetenv(&fenv)), int>::value), "");
     static_assert((std::is_same<decltype(std::feupdateenv(&fenv)), int>::value), "");
+
+  return 0;
 }

@@ -16,6 +16,8 @@
 #include <algorithm>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct Tag {
     Tag() : val(0), tag("Default") {}
     Tag(int a, const char *b) : val(a), tag(b) {}
@@ -36,7 +38,7 @@ test(const T& a, const T& lo, const T& hi, const T& x)
     assert(&std::clamp(a, lo, hi) == &x);
 }
 
-int main()
+int main(int, char**)
 {
     {
     int x = 0;
@@ -121,4 +123,6 @@ int main()
     static_assert(std::clamp(x, y, z) == x, "" );
     static_assert(std::clamp(y, x, z) == x, "" );
     }
+
+  return 0;
 }

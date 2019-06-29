@@ -16,7 +16,9 @@
 #include <sstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::istringstream inf(" 1 23");
     std::istream_iterator<int> i(inf);
@@ -30,4 +32,6 @@ int main()
     assert(j == 23);
     j = *i;
     assert(j == 23);
+
+  return 0;
 }

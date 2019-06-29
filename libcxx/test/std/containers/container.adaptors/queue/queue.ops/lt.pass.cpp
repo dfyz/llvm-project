@@ -23,6 +23,8 @@
 #include <queue>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class C>
 C
 make(int n)
@@ -33,7 +35,7 @@ make(int n)
     return c;
 }
 
-int main()
+int main(int, char**)
 {
     std::queue<int> q1 = make<std::queue<int> >(5);
     std::queue<int> q2 = make<std::queue<int> >(10);
@@ -41,4 +43,6 @@ int main()
     assert(q2 > q1);
     assert(q1 <= q2);
     assert(q2 >= q1);
+
+  return 0;
 }

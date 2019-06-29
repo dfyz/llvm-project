@@ -15,6 +15,8 @@
 #include <experimental/simd>
 #include <cstdint>
 
+#include "test_macros.h"
+
 namespace ex = std::experimental::parallelism_v2;
 
 constexpr inline int reg_width() {
@@ -63,4 +65,6 @@ static_assert(std::is_same<ex::simd_abi::compatible<int8_t>,
                            ex::__simd_abi<ex::_StorageKind::_Array, 16>>::value,
               "");
 
-int main() {}
+int main(int, char**) {
+  return 0;
+}

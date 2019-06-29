@@ -26,6 +26,8 @@
 
 #include "archetypes.hpp"
 
+#include "test_macros.h"
+
 template <class T>
 struct SpecialMemberTest {
     using O = std::optional<T>;
@@ -85,7 +87,7 @@ struct TrivialCopyNonTrivialMove {
     TrivialCopyNonTrivialMove& operator=(TrivialCopyNonTrivialMove&&) { return *this; }
 };
 
-int main()
+int main(int, char**)
 {
     sink(
         ImplicitTypes::ApplyTypes<DoTestsMetafunction>{},
@@ -94,4 +96,6 @@ int main()
         NonTrivialTypes::ApplyTypes<DoTestsMetafunction>{},
         DoTestsMetafunction<TrivialMoveNonTrivialCopy, TrivialCopyNonTrivialMove>{}
     );
+
+  return 0;
 }

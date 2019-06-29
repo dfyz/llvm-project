@@ -14,6 +14,8 @@
 
 #include <unordered_map>
 
+#include "test_macros.h"
+
 template <class Tp>
 struct MyHash {
   MyHash() {}
@@ -31,6 +33,8 @@ struct A {
 
 inline bool operator==(A const& L, A const& R) { return &L == &R; }
 
-int main() {
+int main(int, char**) {
     A a;
+
+  return 0;
 }

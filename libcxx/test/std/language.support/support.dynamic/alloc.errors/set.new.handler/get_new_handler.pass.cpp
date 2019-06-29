@@ -11,14 +11,18 @@
 #include <new>
 #include <cassert>
 
+#include "test_macros.h"
+
 void f1() {}
 void f2() {}
 
-int main()
+int main(int, char**)
 {
     assert(std::get_new_handler() == 0);
     std::set_new_handler(f1);
     assert(std::get_new_handler() == f1);
     std::set_new_handler(f2);
     assert(std::get_new_handler() == f2);
+
+  return 0;
 }

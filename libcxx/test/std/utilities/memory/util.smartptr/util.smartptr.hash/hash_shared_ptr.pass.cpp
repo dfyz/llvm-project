@@ -22,10 +22,12 @@
 #if TEST_STD_VER >= 11
 #include "poisoned_hash_helper.hpp"
 
+#include "test_macros.h"
+
 struct A {};
 #endif
 
-int main()
+int main(int, char**)
 {
   {
     int* ptr = new int;
@@ -40,4 +42,6 @@ int main()
     test_hash_enabled_for_type<std::shared_ptr<A>>();
   }
 #endif
+
+  return 0;
 }

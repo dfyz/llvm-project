@@ -13,7 +13,11 @@
 #include <functional>
 #include <type_traits>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::bad_function_call ex;
+
+  return 0;
 }

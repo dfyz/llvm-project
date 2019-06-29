@@ -15,9 +15,10 @@
 
 // std::array is explicitly allowed to be initialized with A a = { init-list };.
 // Disable the missing braces warning for this reason.
+#include "test_macros.h"
 #include "disable_missing_braces_warning.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef double T;
@@ -48,4 +49,6 @@ int main()
         C c = {};
         assert(c.size() == 1);
     }
+
+  return 0;
 }

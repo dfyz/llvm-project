@@ -15,6 +15,8 @@
 #include <ostream>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class CharT>
 struct testbuf
     : public std::basic_streambuf<CharT>
@@ -22,7 +24,7 @@ struct testbuf
     testbuf() {}
 };
 
-int main()
+int main(int, char**)
 {
     {
         testbuf<char> sb;
@@ -72,4 +74,6 @@ int main()
         os << std::setbase(15);
         assert((os.flags() & std::ios_base::basefield) == 0);
     }
+
+  return 0;
 }

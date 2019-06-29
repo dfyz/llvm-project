@@ -7,10 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Target/ABI.h"
-#include "Plugins/ExpressionParser/Clang/ClangPersistentVariables.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Value.h"
 #include "lldb/Core/ValueObjectConstResult.h"
+#include "lldb/Expression/ExpressionVariable.h"
 #include "lldb/Symbol/CompilerType.h"
 #include "lldb/Symbol/TypeSystem.h"
 #include "lldb/Target/Target.h"
@@ -39,7 +39,7 @@ ABI::FindPlugin(lldb::ProcessSP process_sp, const ArchSpec &arch) {
 
 ABI::~ABI() = default;
 
-bool ABI::GetRegisterInfoByName(const ConstString &name, RegisterInfo &info) {
+bool ABI::GetRegisterInfoByName(ConstString name, RegisterInfo &info) {
   uint32_t count = 0;
   const RegisterInfo *register_info_array = GetRegisterInfoArray(count);
   if (register_info_array) {
@@ -142,16 +142,16 @@ ValueObjectSP ABI::GetReturnValueObject(Thread &thread, CompilerType &ast_type,
     case Value::eValueTypeScalar:
     case Value::eValueTypeVector:
       clang_expr_variable_sp->m_flags |=
-          ClangExpressionVariable::EVIsFreezeDried;
+          ExpressionVariable::EVIsFreezeDried;
       clang_expr_variable_sp->m_flags |=
-          ClangExpressionVariable::EVIsLLDBAllocated;
+          ExpressionVariable::EVIsLLDBAllocated;
       clang_expr_variable_sp->m_flags |=
-          ClangExpressionVariable::EVNeedsAllocation;
+          ExpressionVariable::EVNeedsAllocation;
       break;
     case Value::eValueTypeLoadAddress:
       clang_expr_variable_sp->m_live_sp = live_valobj_sp;
       clang_expr_variable_sp->m_flags |=
-          ClangExpressionVariable::EVIsProgramReference;
+          ExpressionVariable::EVIsProgramReference;
       break;
     }
 

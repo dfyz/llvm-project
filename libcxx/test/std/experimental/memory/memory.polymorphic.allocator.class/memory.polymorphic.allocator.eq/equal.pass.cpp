@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: c++experimental
 // UNSUPPORTED: c++98, c++03
 
 // <experimental/memory_resource>
@@ -24,9 +23,11 @@
 
 #include "test_memory_resource.hpp"
 
+#include "test_macros.h"
+
 namespace ex = std::experimental::pmr;
 
-int main()
+int main(int, char**)
 {
     typedef ex::polymorphic_allocator<void> A1;
     typedef ex::polymorphic_allocator<int> A2;
@@ -130,4 +131,6 @@ int main()
         assert(d1.checkIsEqualCalledEq(0));
         assert(d2.checkIsEqualCalledEq(1));
     }
+
+  return 0;
 }

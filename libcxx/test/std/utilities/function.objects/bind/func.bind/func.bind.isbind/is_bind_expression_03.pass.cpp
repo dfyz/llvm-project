@@ -17,6 +17,8 @@
 
 #include <functional>
 
+#include "test_macros.h"
+
 template <class T>
 void test() {
     static_assert(!std::is_bind_expression<T>::value, "");
@@ -24,7 +26,7 @@ void test() {
 
 struct C {};
 
-int main() {
+int main(int, char**) {
     test<int>();
     test<void>();
     test<C>();
@@ -35,4 +37,6 @@ int main() {
     test<int(*)()>();
     test<int (C::*)()>();
     test<decltype(std::placeholders::_2)>();
+
+  return 0;
 }

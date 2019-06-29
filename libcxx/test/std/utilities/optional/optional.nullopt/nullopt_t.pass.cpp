@@ -19,6 +19,8 @@
 #include <optional>
 #include <type_traits>
 
+#include "test_macros.h"
+
 using std::nullopt_t;
 using std::nullopt;
 
@@ -29,11 +31,13 @@ constexpr bool test()
     return true;
 }
 
-int main()
+int main(int, char**)
 {
     static_assert(std::is_empty_v<nullopt_t>);
     static_assert(!std::is_default_constructible_v<nullopt_t>);
 
     static_assert(std::is_same_v<const nullopt_t, decltype(nullopt)>);
     static_assert(test());
+
+  return 0;
 }

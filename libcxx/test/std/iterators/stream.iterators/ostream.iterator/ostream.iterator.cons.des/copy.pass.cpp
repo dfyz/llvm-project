@@ -16,11 +16,15 @@
 #include <sstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::ostringstream outf;
     std::ostream_iterator<int> i(outf);
     std::ostream_iterator<int> j = i;
     assert(outf.good());
     ((void)j);
+
+  return 0;
 }

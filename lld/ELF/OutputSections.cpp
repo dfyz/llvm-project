@@ -30,6 +30,7 @@ using namespace llvm::ELF;
 using namespace lld;
 using namespace lld::elf;
 
+uint8_t *Out::BufferStart;
 uint8_t Out::First;
 PhdrEntry *Out::TlsPhdr;
 OutputSection *Out::ElfHeader;
@@ -68,9 +69,7 @@ void OutputSection::writeHeaderTo(typename ELFT::Shdr *Shdr) {
 OutputSection::OutputSection(StringRef Name, uint32_t Type, uint64_t Flags)
     : BaseCommand(OutputSectionKind),
       SectionBase(Output, Name, Flags, /*Entsize*/ 0, /*Alignment*/ 1, Type,
-                  /*Info*/ 0, /*Link*/ 0) {
-  Live = false;
-}
+                  /*Info*/ 0, /*Link*/ 0) {}
 
 // We allow sections of types listed below to merged into a
 // single progbits section. This is typically done by linker
@@ -85,10 +84,11 @@ static bool canMergeToProgbits(unsigned Type) {
 }
 
 void OutputSection::addSection(InputSection *IS) {
-  if (!Live) {
+  if (!HasInputSections) {
     // If IS is the first section to be added to this section,
-    // initialize Type, Entsize and flags from IS.
-    Live = true;
+    // initialize Partition, Type, Entsize and flags from IS.
+    HasInputSections = true;
+    Partition = IS->Partition;
     Type = IS->Type;
     Entsize = IS->Entsize;
     Flags = IS->Flags;
@@ -139,13 +139,10 @@ void OutputSection::addSection(InputSection *IS) {
 
 static void sortByOrder(MutableArrayRef<InputSection *> In,
                         llvm::function_ref<int(InputSectionBase *S)> Order) {
-  typedef std::pair<int, InputSection *> Pair;
-  auto Comp = [](const Pair &A, const Pair &B) { return A.first < B.first; };
-
-  std::vector<Pair> V;
+  std::vector<std::pair<int, InputSection *>> V;
   for (InputSection *S : In)
     V.push_back({Order(S), S});
-  std::stable_sort(V.begin(), V.end(), Comp);
+  llvm::stable_sort(V, less_first());
 
   for (size_t I = 0; I < V.size(); ++I)
     In[I] = V[I].second;
@@ -162,7 +159,7 @@ bool OutputSection::classof(const BaseCommand *C) {
 }
 
 void OutputSection::sort(llvm::function_ref<int(InputSectionBase *S)> Order) {
-  assert(Live);
+  assert(isLive());
   for (BaseCommand *B : SectionCommands)
     if (auto *ISD = dyn_cast<InputSectionDescription>(B))
       sortByOrder(ISD->Sections, Order);
@@ -180,7 +177,7 @@ static void fill(uint8_t *Buf, size_t Size,
 
 // Compress section contents if this section contains debug info.
 template <class ELFT> void OutputSection::maybeCompress() {
-  typedef typename ELFT::Chdr Elf_Chdr;
+  using Elf_Chdr = typename ELFT::Chdr;
 
   // Compress only DWARF debug sections.
   if (!Config->CompressDebugSections || (Flags & SHF_ALLOC) ||
@@ -222,8 +219,6 @@ template <class ELFT> void OutputSection::writeTo(uint8_t *Buf) {
   if (Type == SHT_NOBITS)
     return;
 
-  Loc = Buf;
-
   // If -compress-debug-section is specified and if this is a debug seciton,
   // we've already compressed section contents. If that's the case,
   // just write it down.
@@ -264,7 +259,6 @@ template <class ELFT> void OutputSection::writeTo(uint8_t *Buf) {
       writeInt(Buf + Data->Offset, Data->Expression().getValue(), Data->Size);
 }
 
-template <class ELFT>
 static void finalizeShtGroup(OutputSection *OS,
                              InputSection *Section) {
   assert(Config->Relocatable);
@@ -275,17 +269,11 @@ static void finalizeShtGroup(OutputSection *OS,
 
   // sh_info then contain index of an entry in symbol table section which
   // provides signature of the section group.
-  ObjFile<ELFT> *Obj = Section->getFile<ELFT>();
-  ArrayRef<Symbol *> Symbols = Obj->getSymbols();
+  ArrayRef<Symbol *> Symbols = Section->File->getSymbols();
   OS->Info = In.SymTab->getSymbolIndex(Symbols[Section->Info]);
 }
 
-template <class ELFT> void OutputSection::finalize() {
-  if (Type == SHT_NOBITS)
-    for (BaseCommand *Base : SectionCommands)
-      if (isa<ByteCommand>(Base))
-        Type = SHT_PROGBITS;
-
+void OutputSection::finalize() {
   std::vector<InputSection *> V = getInputSections(this);
   InputSection *First = V.empty() ? nullptr : V[0];
 
@@ -294,12 +282,14 @@ template <class ELFT> void OutputSection::finalize() {
     // SHF_LINK_ORDER flag. The dependency is indicated by the sh_link field. We
     // need to translate the InputSection sh_link to the OutputSection sh_link,
     // all InputSections in the OutputSection have the same dependency.
-    if (auto *D = First->getLinkOrderDep())
+    if (auto *EX = dyn_cast<ARMExidxSyntheticSection>(First))
+      Link = EX->getLinkOrderDep()->getParent()->SectionIndex;
+    else if (auto *D = First->getLinkOrderDep())
       Link = D->getParent()->SectionIndex;
   }
 
   if (Type == SHT_GROUP) {
-    finalizeShtGroup<ELFT>(this, First);
+    finalizeShtGroup(this, First);
     return;
   }
 
@@ -372,7 +362,7 @@ static bool compCtors(const InputSection *A, const InputSection *B) {
 void OutputSection::sortCtorsDtors() {
   assert(SectionCommands.size() == 1);
   auto *ISD = cast<InputSectionDescription>(SectionCommands[0]);
-  std::stable_sort(ISD->Sections.begin(), ISD->Sections.end(), compCtors);
+  llvm::stable_sort(ISD->Sections, compCtors);
 }
 
 // If an input string is in the form of "foo.N" where N is a number,
@@ -429,8 +419,3 @@ template void OutputSection::maybeCompress<ELF32LE>();
 template void OutputSection::maybeCompress<ELF32BE>();
 template void OutputSection::maybeCompress<ELF64LE>();
 template void OutputSection::maybeCompress<ELF64BE>();
-
-template void OutputSection::finalize<ELF32LE>();
-template void OutputSection::finalize<ELF32BE>();
-template void OutputSection::finalize<ELF64LE>();
-template void OutputSection::finalize<ELF64BE>();

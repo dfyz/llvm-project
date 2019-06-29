@@ -17,6 +17,7 @@
 #include <unordered_set>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 struct TemplateConstructor
@@ -28,7 +29,7 @@ struct TemplateConstructor
 bool operator==(const TemplateConstructor&, const TemplateConstructor&) { return false; }
 struct Hash { size_t operator() (const TemplateConstructor &) const { return 0; } };
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::unordered_multiset<int> C;
@@ -96,4 +97,6 @@ int main()
             m.erase(it);
     }
 #endif
+
+  return 0;
 }

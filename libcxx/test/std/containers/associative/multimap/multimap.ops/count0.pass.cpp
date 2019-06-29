@@ -23,9 +23,10 @@
 #include <map>
 #include <cassert>
 
+#include "test_macros.h"
 #include "is_transparent.h"
 
-int main()
+int main(int, char**)
 {
     {
     typedef std::multimap<int, double, transparent_less> M;
@@ -35,4 +36,6 @@ int main()
     typedef std::multimap<int, double, transparent_less_not_referenceable> M;
     assert(M().count(C2Int{5}) == 0);
     }
+
+  return 0;
 }

@@ -13,7 +13,9 @@
 #include <ios>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     assert( std::ios_base::sync_with_stdio(false));
     assert(!std::ios_base::sync_with_stdio(false));
@@ -23,4 +25,6 @@ int main()
     assert( std::ios_base::sync_with_stdio(false));
     assert(!std::ios_base::sync_with_stdio());
     assert( std::ios_base::sync_with_stdio());
+
+  return 0;
 }

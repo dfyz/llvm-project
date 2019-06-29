@@ -25,9 +25,11 @@
 #include <functional>
 #include <cassert>
 
+#include "test_macros.h"
+
 int g(int) {return 0;}
 
-int main()
+int main(int, char**)
 {
     {
     std::function<int(int)> f;
@@ -37,4 +39,6 @@ int main()
     assert(f != nullptr);
     assert(nullptr != f);
     }
+
+  return 0;
 }

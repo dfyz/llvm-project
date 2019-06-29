@@ -43,6 +43,15 @@ static inline void initLLVM() {
   initializeCodeGen(*Registry);
 }
 
+// Define a printers to help debugging when things go wrong.
+namespace llvm {
+std::ostream &
+operator<<(std::ostream &OS, const LLT Ty);
+
+std::ostream &
+operator<<(std::ostream &OS, const MachineFunction &MF);
+}
+
 /// Create a TargetMachine. As we lack a dedicated always available target for
 /// unittests, we go for "AArch64".
 static std::unique_ptr<LLVMTargetMachine> createTargetMachine() {
@@ -115,7 +124,7 @@ static MachineFunction *getMFFromMMI(const Module *M,
   return MF;
 }
 
-static void collectCopies(SmallVectorImpl<unsigned> &Copies,
+static void collectCopies(SmallVectorImpl<Register> &Copies,
                           MachineFunction *MF) {
   for (auto &MBB : *MF)
     for (MachineInstr &MI : MBB) {
@@ -143,7 +152,7 @@ protected:
   MachineFunction *MF;
   std::pair<std::unique_ptr<Module>, std::unique_ptr<MachineModuleInfo>>
       ModuleMMIPair;
-  SmallVector<unsigned, 4> Copies;
+  SmallVector<Register, 4> Copies;
   MachineBasicBlock *EntryMBB;
   MachineIRBuilder B;
   MachineRegisterInfo *MRI;
@@ -186,7 +195,9 @@ static inline bool CheckMachineFunction(const MachineFunction &MF,
                         SMLoc());
   Regex PrefixRE = FC.buildCheckPrefixRegex();
   std::vector<FileCheckString> CheckStrings;
-  FC.ReadCheckFile(SM, CheckFileText, PrefixRE, CheckStrings);
+  if (FC.ReadCheckFile(SM, CheckFileText, PrefixRE, CheckStrings))
+    return false;
+
   auto OutBuffer = OutputBuf->getBuffer();
   SM.AddNewSourceBuffer(std::move(OutputBuf), SMLoc());
   return FC.CheckInput(SM, OutBuffer, CheckStrings);

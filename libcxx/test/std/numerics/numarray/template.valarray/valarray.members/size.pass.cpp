@@ -15,7 +15,9 @@
 #include <valarray>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef int T;
@@ -37,4 +39,6 @@ int main()
         std::valarray<T> v1;
         assert(v1.size() == N1);
     }
+
+  return 0;
 }

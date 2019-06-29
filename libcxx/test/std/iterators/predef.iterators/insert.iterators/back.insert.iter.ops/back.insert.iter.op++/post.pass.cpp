@@ -17,6 +17,8 @@
 #include <cassert>
 #include "nasty_containers.hpp"
 
+#include "test_macros.h"
+
 template <class C>
 void
 test(C c)
@@ -28,8 +30,10 @@ test(C c)
     assert(c.back() == 0);
 }
 
-int main()
+int main(int, char**)
 {
     test(std::vector<int>());
     test(nasty_vector<int>());
+
+  return 0;
 }

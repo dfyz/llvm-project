@@ -24,7 +24,9 @@
 
 #include "count_new.hpp"
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     assert(globalMemCounter.checkOutstandingNewEq(0));
     {
@@ -38,4 +40,6 @@ int main()
         assert(globalMemCounter.checkOutstandingNewNotEq(0));
     }
     assert(globalMemCounter.checkOutstandingNewEq(0));
+
+  return 0;
 }

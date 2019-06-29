@@ -21,6 +21,8 @@
 #include <functional>
 #include <cassert>
 
+#include "test_macros.h"
+
 std::condition_variable cv;
 std::mutex mut;
 
@@ -46,7 +48,7 @@ void f()
     assert(test2 != 0);
 }
 
-int main()
+int main(int, char**)
 {
     std::unique_lock<std::mutex>lk(mut);
     std::thread t(f);
@@ -58,4 +60,6 @@ int main()
     lk.unlock();
     cv.notify_one();
     t.join();
+
+  return 0;
 }

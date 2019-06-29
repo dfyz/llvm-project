@@ -16,7 +16,9 @@
 #include <fstream>
 #include <type_traits>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::ifstream fs;
@@ -24,4 +26,6 @@ int main()
     {
         std::wifstream fs;
     }
+
+  return 0;
 }

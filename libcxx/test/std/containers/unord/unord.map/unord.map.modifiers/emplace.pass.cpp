@@ -20,10 +20,11 @@
 #include <unordered_map>
 #include <cassert>
 
+#include "test_macros.h"
 #include "../../../Emplaceable.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::unordered_map<int, Emplaceable> C;
@@ -74,4 +75,6 @@ int main()
         assert(r.first->first == 5);
         assert(r.first->second == Emplaceable(6, 7));
     }
+
+  return 0;
 }

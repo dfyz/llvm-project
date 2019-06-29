@@ -23,7 +23,9 @@
 #include <cassert>
 #include <type_traits>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
   static_assert(std::is_trivially_destructible<
       std::tuple<> >::value, "");
@@ -35,4 +37,6 @@ int main()
       std::tuple<std::string> >::value, "");
   static_assert(!std::is_trivially_destructible<
       std::tuple<int, std::string> >::value, "");
+
+  return 0;
 }

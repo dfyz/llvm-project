@@ -777,6 +777,8 @@ static void relocateInstructionBefore(CoroBeginInst *CoroBegin, Function &F) {
 }
 
 static void splitCoroutine(Function &F, CallGraph &CG, CallGraphSCC &SCC) {
+  EliminateUnreachableBlocks(F);
+
   coro::Shape Shape(F);
   if (!Shape.CoroBegin)
     return;
@@ -944,7 +946,12 @@ struct CoroSplit : public CallGraphSCCPass {
 
 char CoroSplit::ID = 0;
 
-INITIALIZE_PASS(
+INITIALIZE_PASS_BEGIN(
+    CoroSplit, "coro-split",
+    "Split coroutine into a set of functions driving its state machine", false,
+    false)
+INITIALIZE_PASS_DEPENDENCY(CallGraphWrapperPass)
+INITIALIZE_PASS_END(
     CoroSplit, "coro-split",
     "Split coroutine into a set of functions driving its state machine", false,
     false)

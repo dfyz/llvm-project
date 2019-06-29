@@ -14,9 +14,13 @@
 #include <cassert>
 #include <string>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     const std::error_category& e_cat1 = std::iostream_category();
     std::string m1 = e_cat1.name();
     assert(m1 == "iostream");
+
+  return 0;
 }

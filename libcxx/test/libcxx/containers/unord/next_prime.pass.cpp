@@ -19,6 +19,8 @@
 #include <__hash_table>
 #include <cassert>
 
+#include "test_macros.h"
+
 bool
 is_prime(size_t n)
 {
@@ -36,7 +38,7 @@ is_prime(size_t n)
     return true;
 }
 
-int main()
+int main(int, char**)
 {
     assert(std::__next_prime(0) == 0);
     for (std::size_t n = 1; n <= 100000; ++n)
@@ -47,4 +49,6 @@ int main()
             assert(!is_prime(i));
         assert(is_prime(p));
     }
+
+  return 0;
 }

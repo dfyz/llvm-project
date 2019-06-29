@@ -16,7 +16,9 @@
 #include <random>
 #include <type_traits>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::binomial_distribution<> D;
@@ -28,4 +30,6 @@ int main()
         typedef D::result_type result_type;
         static_assert((std::is_same<result_type, long>::value), "");
     }
+
+  return 0;
 }

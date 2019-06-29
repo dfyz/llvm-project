@@ -17,6 +17,7 @@
 #include <cassert>
 
 #include "count_new.hpp"
+#include "test_macros.h"
 #include "platform_support.h" // locale name macros
 
 
@@ -65,7 +66,7 @@ struct my_facet
 
 std::locale::id my_facet::id;
 
-int main()
+int main(int, char**)
 {
     {
         std::locale loc(LOCALE_ru_RU_UTF_8);
@@ -85,4 +86,6 @@ int main()
         assert(loc == loc2);
     }
     assert(globalMemCounter.checkOutstandingNewEq(0));
+
+  return 0;
 }

@@ -17,7 +17,9 @@
 #include <valarray>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef int T;
@@ -27,4 +29,6 @@ int main()
         *begin(v) = 10;
         assert(v[0] == 10);
     }
+
+  return 0;
 }

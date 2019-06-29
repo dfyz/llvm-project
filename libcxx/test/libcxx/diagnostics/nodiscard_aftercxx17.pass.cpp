@@ -14,9 +14,13 @@
 #define _LIBCPP_DISABLE_NODISCARD_AFTER_CXX17
 #include <__config>
 
+#include "test_macros.h"
+
 _LIBCPP_NODISCARD_AFTER_CXX17 int foo() { return 6; }
 
-int main ()
+int main(int, char**)
 {
 	foo();	// no error here!
+
+  return 0;
 }

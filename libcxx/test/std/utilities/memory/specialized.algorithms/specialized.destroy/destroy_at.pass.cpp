@@ -17,6 +17,8 @@
 #include <cstdlib>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct Counted {
   static int count;
   static void reset() { count = 0; }
@@ -41,7 +43,7 @@ struct DCounted : VCounted {
     friend void operator&(DCounted) = delete;
 };
 
-int main()
+int main(int, char**)
 {
     {
     void* mem1 = std::malloc(sizeof(Counted));
@@ -74,4 +76,6 @@ int main()
     std::free(mem1);
     std::free(mem2);
     }
+
+  return 0;
 }

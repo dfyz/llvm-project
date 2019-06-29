@@ -12,13 +12,15 @@
 
 #include <limits>
 
+#include "test_macros.h"
+
 typedef char one;
 struct two {one _[2];};
 
 one test(std::float_round_style);
 two test(int);
 
-int main()
+int main(int, char**)
 {
     static_assert(std::round_indeterminate == -1,
                  "std::round_indeterminate == -1");
@@ -34,4 +36,6 @@ int main()
                  "sizeof(test(std::round_to_nearest)) == 1");
     static_assert(sizeof(test(1)) == 2,
                  "sizeof(test(1)) == 2");
+
+  return 0;
 }

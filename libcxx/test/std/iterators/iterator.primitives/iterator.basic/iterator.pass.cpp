@@ -22,6 +22,8 @@
 #include <iterator>
 #include <type_traits>
 
+#include "test_macros.h"
+
 struct A {};
 
 template <class T>
@@ -72,10 +74,12 @@ test5()
     static_assert((std::is_same<typename It::iterator_category, std::input_iterator_tag>::value), "");
 }
 
-int main()
+int main(int, char**)
 {
     test2<A>();
     test3<A>();
     test4<A>();
     test5<A>();
+
+  return 0;
 }

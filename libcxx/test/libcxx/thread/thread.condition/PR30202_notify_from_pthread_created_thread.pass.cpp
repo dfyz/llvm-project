@@ -29,6 +29,8 @@
 #include <cassert>
 #include <pthread.h>
 
+#include "test_macros.h"
+
 std::condition_variable cv;
 std::mutex mut;
 bool exited = false;
@@ -45,7 +47,7 @@ void* func(void*)
     return nullptr;
 }
 
-int main()
+int main(int, char**)
 {
     {
     std::unique_lock<std::mutex> lk(mut);
@@ -72,4 +74,6 @@ int main()
     assert(t1-t0 > ms(250));
     t.join();
     }
+
+  return 0;
 }

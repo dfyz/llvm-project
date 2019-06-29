@@ -19,6 +19,8 @@
 #include <shared_mutex>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct mutex
 {
     void lock_shared() {}
@@ -27,7 +29,7 @@ struct mutex
 
 mutex m;
 
-int main()
+int main(int, char**)
 {
     std::shared_lock<mutex> lk1(m);
     std::shared_lock<mutex> lk2;
@@ -37,4 +39,6 @@ int main()
     assert(lk2.mutex() == &m);
     assert(lk2.owns_lock() == true);
     static_assert(noexcept(swap(lk1, lk2)), "non-member swap must be noexcept");
+
+  return 0;
 }

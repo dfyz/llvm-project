@@ -22,7 +22,9 @@
 #include <codecvt>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::codecvt_utf8<wchar_t> C;
@@ -240,4 +242,6 @@ int main()
         r = c.length(m, n, n+1, 3);
         assert(r == 1);
     }
+
+  return 0;
 }

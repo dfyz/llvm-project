@@ -58,6 +58,8 @@
 #include <thread> // for thread_id
 #include <chrono> // for nanoseconds
 
+#include "test_macros.h"
+
 struct TriviallyCopyable {
     TriviallyCopyable ( int i ) : i_(i) {}
     int i_;
@@ -68,9 +70,11 @@ void test ( T t ) {
     std::atomic<T> t0(t);
     }
 
-int main()
+int main(int, char**)
 {
     test(TriviallyCopyable(42));
     test(std::this_thread::get_id());
     test(std::chrono::nanoseconds(2));
+
+  return 0;
 }

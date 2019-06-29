@@ -18,6 +18,7 @@
 #include <utility>
 #include <cassert>
 
+#include "test_macros.h"
 #include "unique_ptr_test_helper.h"
 
 template <class APtr, class BPtr>
@@ -114,7 +115,9 @@ void test_sfinae() {
   }
 }
 
-int main() {
+int main(int, char**) {
   test_sfinae();
   // FIXME: add tests
+
+  return 0;
 }

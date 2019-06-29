@@ -13,9 +13,10 @@
 #include <list>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     int a1[] = {1, 2, 3};
     {
@@ -80,4 +81,6 @@ int main()
         assert(i == l1.begin());
     }
 #endif
+
+  return 0;
 }

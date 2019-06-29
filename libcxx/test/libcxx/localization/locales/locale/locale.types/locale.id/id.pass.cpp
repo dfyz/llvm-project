@@ -21,11 +21,13 @@
 #include <locale>
 #include <cassert>
 
+#include "test_macros.h"
+
 std::locale::id id0;
 std::locale::id id2;
 std::locale::id id1;
 
-int main()
+int main(int, char**)
 {
     long id = id0.__get();
     assert(id0.__get() == id+0);
@@ -46,4 +48,6 @@ int main()
     assert(id2.__get() == id+2);
     assert(id2.__get() == id+2);
     assert(id2.__get() == id+2);
+
+  return 0;
 }

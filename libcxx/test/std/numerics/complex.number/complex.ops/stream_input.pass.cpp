@@ -16,7 +16,9 @@
 #include <sstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::istringstream is("5");
@@ -95,4 +97,6 @@ int main()
         assert(c == std::complex<double>(-5.5, -6.5));
         assert(!is.eof());
     }
+
+  return 0;
 }

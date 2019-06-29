@@ -21,7 +21,9 @@
 #include <codecvt>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::codecvt_utf16<wchar_t> C;
@@ -41,4 +43,6 @@ int main()
         bool r = c.always_noconv();
         assert(r == false);
     }
+
+  return 0;
 }

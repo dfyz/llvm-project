@@ -16,6 +16,7 @@
 #include <list>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 class A
@@ -33,7 +34,7 @@ public:
     double getd() const {return d_;}
 };
 
-int main()
+int main(int, char**)
 {
     {
     std::list<A> c;
@@ -84,4 +85,6 @@ int main()
     assert(c.back().geti() == 2);
     assert(c.back().getd() == 3.5);
     }
+
+  return 0;
 }

@@ -16,7 +16,9 @@
 #include <random>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::exponential_distribution<> D;
@@ -24,4 +26,6 @@ int main()
         D::result_type m = d.max();
         assert(m == std::numeric_limits<D::result_type>::infinity());
     }
+
+  return 0;
 }

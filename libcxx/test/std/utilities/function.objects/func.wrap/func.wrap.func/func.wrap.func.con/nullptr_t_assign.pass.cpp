@@ -17,6 +17,8 @@
 
 #include "count_new.hpp"
 
+#include "test_macros.h"
+
 class A
 {
     int data_[10];
@@ -46,7 +48,7 @@ int A::count = 0;
 
 int g(int) {return 0;}
 
-int main()
+int main(int, char**)
 {
     assert(globalMemCounter.checkOutstandingNewEq(0));
     {
@@ -68,4 +70,6 @@ int main()
     assert(globalMemCounter.checkOutstandingNewEq(0));
     assert(f.target<int(*)(int)>() == 0);
     }
+
+  return 0;
 }

@@ -28,6 +28,8 @@
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
+
 int f_async() {
     typedef std::chrono::milliseconds ms;
     std::this_thread::sleep_for(ms(200));
@@ -62,6 +64,8 @@ void test_each() {
     }
 }
 
-int main() {
+int main(int, char**) {
     for (int i=0; i < 25; ++i) test_each();
+
+  return 0;
 }

@@ -16,6 +16,8 @@
 #include <ostream>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class CharT>
 class testbuf
     : public std::basic_streambuf<CharT>
@@ -48,7 +50,7 @@ protected:
         }
 };
 
-int main()
+int main(int, char**)
 {
     {
         std::ostream os((std::streambuf*)0);
@@ -79,4 +81,6 @@ int main()
         os << n;
         assert(sb.str() == "fffffff6");
     }
+
+  return 0;
 }

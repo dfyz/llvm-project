@@ -15,6 +15,7 @@
 // template <class T> constexpr bool operator!=(const propagate_const<T>& x, const T& y);
 
 #include <experimental/propagate_const>
+#include "test_macros.h"
 #include "propagate_const_helpers.h"
 #include <cassert>
 
@@ -33,7 +34,7 @@ constexpr bool operator!=(const nullptr_t &, const X &) {
   return true;
 }
 
-int main() {
+int main(int, char**) {
   constexpr X x1_1(1);
   constexpr X x2_1(1);
   constexpr X x3_2(2);
@@ -58,4 +59,6 @@ int main() {
 
   static_assert(p1_1!=nullptr,"");
   static_assert(nullptr!=p1_1,"");
+
+  return 0;
 }

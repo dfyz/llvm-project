@@ -20,6 +20,8 @@
 #include <cstdlib>
 #include <cassert>
 
+#include "test_macros.h"
+
 std::timed_mutex m;
 
 typedef std::chrono::steady_clock Clock;
@@ -47,7 +49,7 @@ void f2()
     assert(d < ms(50));  // within 50ms
 }
 
-int main()
+int main(int, char**)
 {
     {
         m.lock();
@@ -63,4 +65,6 @@ int main()
         m.unlock();
         t.join();
     }
+
+  return 0;
 }

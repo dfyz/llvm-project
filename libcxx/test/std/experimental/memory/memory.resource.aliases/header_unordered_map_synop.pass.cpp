@@ -7,7 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: c++experimental
 // UNSUPPORTED: c++98, c++03
 
 // <experimental/unordered_map>
@@ -28,6 +27,8 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
+
 namespace pmr = std::experimental::pmr;
 
 template <class T>
@@ -36,7 +37,7 @@ struct MyHash : std::hash<T> {};
 template <class T>
 struct MyPred : std::equal_to<T> {};
 
-int main()
+int main(int, char**)
 {
     using K = int;
     using V = char;
@@ -83,4 +84,6 @@ int main()
         pmr::unordered_multimap<int, int> m;
         assert(m.get_allocator().resource() == pmr::get_default_resource());
     }
+
+  return 0;
 }

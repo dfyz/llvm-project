@@ -20,6 +20,8 @@
 #include <cstdlib>
 #include <cassert>
 
+#include "test_macros.h"
+
 std::shared_timed_mutex m;
 
 typedef std::chrono::system_clock Clock;
@@ -42,11 +44,13 @@ void f()
     assert(d < ms(200));  // within 200ms
 }
 
-int main()
+int main(int, char**)
 {
     m.lock();
     std::thread t(f);
     std::this_thread::sleep_for(ms(250));
     m.unlock();
     t.join();
+
+  return 0;
 }

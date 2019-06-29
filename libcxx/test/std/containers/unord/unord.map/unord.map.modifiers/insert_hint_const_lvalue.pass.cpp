@@ -21,6 +21,7 @@
 #include <unordered_map>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 template<class Container>
@@ -56,7 +57,7 @@ void do_insert_hint_const_lvalue_test()
     assert(r->second == 4);
 }
 
-int main()
+int main(int, char**)
 {
     do_insert_hint_const_lvalue_test<std::unordered_map<double, int> >();
 #if TEST_STD_VER >= 11
@@ -80,4 +81,6 @@ int main()
         assert(false);
     }
 #endif
+
+  return 0;
 }

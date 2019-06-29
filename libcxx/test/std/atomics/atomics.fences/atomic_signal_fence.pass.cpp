@@ -14,7 +14,11 @@
 
 #include <atomic>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::atomic_signal_fence(std::memory_order_seq_cst);
+
+  return 0;
 }

@@ -13,7 +13,9 @@
 #include <locale>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::locale l;
     assert(!std::isxdigit(' ', l));
@@ -27,4 +29,6 @@ int main()
     assert( std::isxdigit('f', l));
     assert( std::isxdigit('9', l));
     assert(!std::isxdigit('+', l));
+
+  return 0;
 }

@@ -16,6 +16,8 @@
 #include <streambuf>
 #include <cassert>
 
+#include "test_macros.h"
+
 int underflow_called = 0;
 
 struct test
@@ -25,8 +27,10 @@ struct test
 
 };
 
-int main()
+int main(int, char**)
 {
     test t;
     assert(t.sgetc() == -1);
+
+  return 0;
 }

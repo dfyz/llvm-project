@@ -20,6 +20,7 @@
 #include <vector>
 #include <cassert>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 #include "test_allocator.h"
 
@@ -57,7 +58,7 @@ struct some_alloc3
 };
 
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::vector<MoveOnly> C;
@@ -91,4 +92,6 @@ int main()
         static_assert(!std::is_nothrow_move_assignable<C>::value, "");
     }
 #endif
+
+  return 0;
 }

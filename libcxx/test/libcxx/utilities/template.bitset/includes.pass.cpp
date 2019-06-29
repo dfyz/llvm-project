@@ -10,6 +10,8 @@
 
 #include <bitset>
 
+#include "test_macros.h"
+
 #ifndef _LIBCPP_CSTDDEF
 #error <cstddef> has not been included
 #endif
@@ -26,6 +28,8 @@
 #error <iosfwd> has not been included
 #endif
 
-int main()
+int main(int, char**)
 {
+
+  return 0;
 }

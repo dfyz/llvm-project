@@ -18,6 +18,8 @@
 #include <cassert>
 #include <cstddef>
 
+#include "test_macros.h"
+
 struct S
 {
     S() : x_(0) { default_ctor_called = true; }
@@ -33,7 +35,7 @@ bool operator==(const S& lhs, const S& rhs)
     return lhs.x_ == rhs.x_;
 }
 
-int main()
+int main(int, char**)
 {
     {
         typedef int T;
@@ -80,4 +82,6 @@ int main()
             assert(v2[i] == a[i]);
         assert(!S::default_ctor_called);
     }
+
+  return 0;
 }

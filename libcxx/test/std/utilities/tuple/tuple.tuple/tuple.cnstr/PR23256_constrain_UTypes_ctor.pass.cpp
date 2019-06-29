@@ -24,6 +24,8 @@
 #include <memory>
 #include <type_traits>
 
+#include "test_macros.h"
+
 
 struct UnconstrainedCtor {
   int value_;
@@ -57,7 +59,7 @@ struct ExplicitUnconstrainedCtor {
 
 };
 
-int main() {
+int main(int, char**) {
     typedef UnconstrainedCtor A;
     typedef ExplicitUnconstrainedCtor ExplicitA;
     {
@@ -94,4 +96,6 @@ int main() {
         std::tuple<ExplicitA&&> t2(std::forward_as_tuple(ExplicitA{}));
         ((void)t2);
     }
+
+  return 0;
 }

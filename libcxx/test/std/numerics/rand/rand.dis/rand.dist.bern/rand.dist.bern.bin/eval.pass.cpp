@@ -20,6 +20,8 @@
 #include <vector>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class T>
 inline
 T
@@ -506,7 +508,7 @@ test11()
 //    assert(kurtosis == x_kurtosis);
 }
 
-int main()
+int main(int, char**)
 {
     test1();
     test2();
@@ -519,4 +521,6 @@ int main()
     test9();
     test10();
     test11();
+
+  return 0;
 }

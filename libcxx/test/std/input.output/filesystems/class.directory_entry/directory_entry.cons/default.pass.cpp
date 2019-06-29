@@ -18,7 +18,9 @@
 #include <type_traits>
 #include <cassert>
 
-int main() {
+#include "test_macros.h"
+
+int main(int, char**) {
   using namespace fs;
   // Default
   {
@@ -27,4 +29,6 @@ int main() {
     directory_entry e;
     assert(e.path() == path());
   }
+
+  return 0;
 }

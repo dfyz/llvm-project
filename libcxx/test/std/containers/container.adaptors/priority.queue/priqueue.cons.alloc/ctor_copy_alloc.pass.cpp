@@ -24,6 +24,7 @@ make(int n)
     return c;
 }
 
+#include "test_macros.h"
 #include "test_allocator.h"
 
 template <class T>
@@ -45,7 +46,7 @@ struct test
     using base::c;
 };
 
-int main()
+int main(int, char**)
 {
     test<int> qo(std::less<int>(),
                       make<std::vector<int, test_allocator<int> > >(5),
@@ -54,4 +55,6 @@ int main()
     assert(q.size() == 5);
     assert(q.c.get_allocator() == test_allocator<int>(6));
     assert(q.top() == int(4));
+
+  return 0;
 }

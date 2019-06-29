@@ -16,7 +16,11 @@
 #include <strstream>
 #include <type_traits>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     static_assert((std::is_base_of<std::ostream, std::ostrstream>::value), "");
+
+  return 0;
 }

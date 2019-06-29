@@ -17,9 +17,13 @@
 
 #include <memory>
 
+#include "test_macros.h"
+
 struct A;  // purposefully incomplete
 
-int main()
+int main(int, char**)
 {
     static_assert((std::is_same<std::weak_ptr<A>::element_type, A>::value), "");
+
+  return 0;
 }

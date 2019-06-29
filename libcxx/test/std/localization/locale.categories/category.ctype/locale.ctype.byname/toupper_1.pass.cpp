@@ -18,9 +18,10 @@
 #include <locale>
 #include <cassert>
 
+#include "test_macros.h"
 #include "platform_support.h" // locale name macros
 
-int main()
+int main(int, char**)
 {
     {
         std::locale l;
@@ -90,4 +91,6 @@ int main()
             assert(f.toupper(L'\xFA') == L'\xFA');
         }
     }
+
+  return 0;
 }

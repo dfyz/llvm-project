@@ -15,6 +15,7 @@
 // iterator insert(const_iterator hint, node_type&&);
 
 #include <map>
+#include "test_macros.h"
 #include "min_allocator.h"
 
 template <class Container>
@@ -54,10 +55,12 @@ void test(Container& c)
     }
 }
 
-int main()
+int main(int, char**)
 {
     std::map<int, int> m;
     test(m);
     std::map<int, int, std::less<int>, min_allocator<std::pair<const int, int>>> m2;
     test(m2);
+
+  return 0;
 }

@@ -26,6 +26,7 @@
 #include <limits>
 #include <cassert>
 
+#include "test_macros.h"
 #include "platform_support.h" // locale name macros
 
 class Fnf
@@ -60,7 +61,7 @@ public:
         : std::moneypunct_byname<wchar_t, true>(nm, refs) {}
 };
 
-int main()
+int main(int, char**)
 {
     {
         Fnf f("C", 1);
@@ -226,4 +227,6 @@ int main()
         assert(p.field[2] == std::money_base::none);
         assert(p.field[3] == std::money_base::value);
     }
+
+  return 0;
 }

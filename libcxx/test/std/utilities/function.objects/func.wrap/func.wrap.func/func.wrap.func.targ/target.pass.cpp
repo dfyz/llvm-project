@@ -24,6 +24,8 @@
 #include <cstdlib>
 #include <cassert>
 
+#include "test_macros.h"
+
 class A
 {
     int data_[10];
@@ -55,7 +57,7 @@ int A::count = 0;
 
 int g(int) {return 0;}
 
-int main()
+int main(int, char**)
 {
     {
     std::function<int(int)> f = A();
@@ -89,4 +91,6 @@ int main()
     assert(f.target<int>() == nullptr);
     }
     assert(A::count == 0);
+
+  return 0;
 }

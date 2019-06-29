@@ -23,9 +23,10 @@
 #include <map>
 #include <cassert>
 
+#include "test_macros.h"
 #include "is_transparent.h"
 
-int main()
+int main(int, char**)
 {
     {
     typedef std::multimap<int, double, transparent_less> M;
@@ -37,4 +38,6 @@ int main()
     M example;
     assert(example.lower_bound(C2Int{5}) == example.end());
     }
+
+  return 0;
 }

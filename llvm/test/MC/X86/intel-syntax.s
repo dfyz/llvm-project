@@ -64,6 +64,10 @@ main:
   jmp FWORD ptr [rax]
 // CHECK: ljmpq *(%rax)
   ljmp [rax]
+// CHECK: jmp _foo
+  jmp short _foo
+// CHECK: jp _foo
+  jpe short _foo
 
 // CHECK:	movl	$257, -4(%rsp)
 	mov	DWORD PTR [RSP - 4], 257
@@ -115,8 +119,8 @@ main:
 	and	rax, 257
 // CHECK:	andq	$-257,	%rax
 	and	rax, -257
-// CHECK:	fld	%st
-	fld	st
+// CHECK:	fld	%st(0)
+	fld	ST(0)
 // CHECK:	movl	%fs:(%rdi), %eax
     mov EAX, DWORD PTR FS:[RDI]
 // CHECK: leal (,%rdi,4), %r8d
@@ -556,38 +560,38 @@ fnstsw
 fnstsw AX
 fnstsw WORD PTR [EAX]
 
-// CHECK: faddp %st(1)
-// CHECK: fmulp %st(1)
-// CHECK: fsubrp %st(1)
-// CHECK: fsubp %st(1)
-// CHECK: fdivrp %st(1)
-// CHECK: fdivp %st(1)
-faddp ST(1), st
-fmulp ST(1), st
-fsubp ST(1), st
-fsubrp ST(1), st
-fdivp ST(1), st
-fdivrp ST(1), st
+// CHECK: faddp %st, %st(1)
+// CHECK: fmulp %st, %st(1)
+// CHECK: fsubrp %st, %st(1)
+// CHECK: fsubp %st, %st(1)
+// CHECK: fdivrp %st, %st(1)
+// CHECK: fdivp %st, %st(1)
+faddp ST(1), ST(0)
+fmulp ST(1), ST(0)
+fsubp ST(1), ST(0)
+fsubrp ST(1), ST(0)
+fdivp ST(1), ST(0)
+fdivrp ST(1), ST(0)
 
-// CHECK: faddp %st(1)
-// CHECK: fmulp %st(1)
-// CHECK: fsubrp %st(1)
-// CHECK: fsubp %st(1)
-// CHECK: fdivrp %st(1)
-// CHECK: fdivp %st(1)
-faddp st, ST(1)
-fmulp st, ST(1)
-fsubp st, ST(1)
-fsubrp st, ST(1)
-fdivp st, ST(1)
-fdivrp st, ST(1)
+// CHECK: faddp %st, %st(1)
+// CHECK: fmulp %st, %st(1)
+// CHECK: fsubrp %st, %st(1)
+// CHECK: fsubp %st, %st(1)
+// CHECK: fdivrp %st, %st(1)
+// CHECK: fdivp %st, %st(1)
+faddp ST(0), ST(1)
+fmulp ST(0), ST(1)
+fsubp ST(0), ST(1)
+fsubrp ST(0), ST(1)
+fdivp ST(0), ST(1)
+fdivrp ST(0), ST(1)
 
-// CHECK: faddp %st(1)
-// CHECK: fmulp %st(1)
-// CHECK: fsubrp %st(1)
-// CHECK: fsubp %st(1)
-// CHECK: fdivrp %st(1)
-// CHECK: fdivp %st(1)
+// CHECK: faddp %st, %st(1)
+// CHECK: fmulp %st, %st(1)
+// CHECK: fsubrp %st, %st(1)
+// CHECK: fsubp %st, %st(1)
+// CHECK: fdivrp %st, %st(1)
+// CHECK: fdivp %st, %st(1)
 faddp ST(1)
 fmulp ST(1)
 fsubp ST(1)
@@ -596,12 +600,12 @@ fdivp ST(1)
 fdivrp ST(1)
 
 
-// CHECK: faddp %st(1)
-// CHECK: fmulp %st(1)
-// CHECK: fsubrp %st(1)
-// CHECK: fsubp %st(1)
-// CHECK: fdivrp %st(1)
-// CHECK: fdivp %st(1)
+// CHECK: faddp %st, %st(1)
+// CHECK: fmulp %st, %st(1)
+// CHECK: fsubrp %st, %st(1)
+// CHECK: fsubp %st, %st(1)
+// CHECK: fdivrp %st, %st(1)
+// CHECK: fdivp %st, %st(1)
 fadd 
 fmul
 fsub
@@ -609,12 +613,12 @@ fsubr
 fdiv
 fdivr
 
-// CHECK: faddp %st(1)
-// CHECK: fmulp %st(1)
-// CHECK: fsubrp %st(1)
-// CHECK: fsubp %st(1)
-// CHECK: fdivrp %st(1)
-// CHECK: fdivp %st(1)
+// CHECK: faddp %st, %st(1)
+// CHECK: fmulp %st, %st(1)
+// CHECK: fsubrp %st, %st(1)
+// CHECK: fsubp %st, %st(1)
+// CHECK: fdivrp %st, %st(1)
+// CHECK: fdivp %st, %st(1)
 faddp
 fmulp
 fsubp
@@ -622,18 +626,18 @@ fsubrp
 fdivp
 fdivrp
 
-// CHECK: fadd %st(1)
-// CHECK: fmul %st(1)
-// CHECK: fsub %st(1)
-// CHECK: fsubr %st(1)
-// CHECK: fdiv %st(1)
-// CHECK: fdivr %st(1)
-fadd st, ST(1)
-fmul st, ST(1)
-fsub st, ST(1)
-fsubr st, ST(1)
-fdiv st, ST(1)
-fdivr st, ST(1)
+// CHECK: fadd %st(1), %st
+// CHECK: fmul %st(1), %st
+// CHECK: fsub %st(1), %st
+// CHECK: fsubr %st(1), %st
+// CHECK: fdiv %st(1), %st
+// CHECK: fdivr %st(1), %st
+fadd ST(0), ST(1)
+fmul ST(0), ST(1)
+fsub ST(0), ST(1)
+fsubr ST(0), ST(1)
+fdiv ST(0), ST(1)
+fdivr ST(0), ST(1)
 
 // CHECK: fadd %st, %st(1)
 // CHECK: fmul %st, %st(1)
@@ -641,19 +645,19 @@ fdivr st, ST(1)
 // CHECK: fsub %st, %st(1)
 // CHECK: fdivr %st, %st(1)
 // CHECK: fdiv %st, %st(1)
-fadd ST(1), st
-fmul ST(1), st
-fsub ST(1), st
-fsubr ST(1), st
-fdiv ST(1), st
-fdivr ST(1), st
+fadd ST(1), ST(0)
+fmul ST(1), ST(0)
+fsub ST(1), ST(0)
+fsubr ST(1), ST(0)
+fdiv ST(1), ST(0)
+fdivr ST(1), ST(0)
 
-// CHECK: fadd %st(1)
-// CHECK: fmul %st(1)
-// CHECK: fsub %st(1)
-// CHECK: fsubr %st(1)
-// CHECK: fdiv %st(1)
-// CHECK: fdivr %st(1)
+// CHECK: fadd %st(1), %st
+// CHECK: fmul %st(1), %st
+// CHECK: fsub %st(1), %st
+// CHECK: fsubr %st(1), %st
+// CHECK: fdiv %st(1), %st
+// CHECK: fdivr %st(1), %st
 fadd ST(1)
 fmul ST(1)
 fsub ST(1)

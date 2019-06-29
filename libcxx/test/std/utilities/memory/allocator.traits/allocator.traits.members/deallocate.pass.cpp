@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <cassert>
 
+#include "test_macros.h"
 #include "incomplete_type_helper.h"
 
 int called = 0;
@@ -36,7 +37,7 @@ struct A
     }
 };
 
-int main()
+int main(int, char**)
 {
   {
     A<int> a;
@@ -51,4 +52,6 @@ int main()
     std::allocator_traits<Alloc >::deallocate(a, reinterpret_cast<VT*>(static_cast<std::uintptr_t>(0xDEADBEEF)), 10);
     assert(called == 1);
   }
+
+  return 0;
 }

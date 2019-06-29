@@ -11,9 +11,8 @@
 // template <class... Types> class tuple;
 
 // template <size_t I, class... Types>
-// class tuple_element<I, tuple<Types...> >
+// struct tuple_element<I, tuple<Types...> >
 // {
-// public:
 //     typedef Ti type;
 // };
 //
@@ -22,6 +21,8 @@
 
 #include <array>
 #include <type_traits>
+
+#include "test_macros.h"
 
 template <class T, std::size_t N, class U, size_t idx>
 void test()
@@ -40,7 +41,7 @@ void test()
     static_assert((std::is_same<typename std::tuple_element<idx, const volatile T>::type, const volatile U>::value), "");
 }
 
-int main()
+int main(int, char**)
 {
     test<std::array<int, 5>, 5, int, 0>();
     test<std::array<int, 5>, 5, int, 1>();
@@ -48,4 +49,6 @@ int main()
     test<std::array<volatile int, 4>, 4, volatile int, 3>();
     test<std::array<char *, 3>, 3, char *, 1>();
     test<std::array<char *, 3>, 3, char *, 2>();
+
+  return 0;
 }

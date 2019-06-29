@@ -15,12 +15,15 @@
 
 #include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
 #include "MCTargetDesc/WebAssemblyTargetStreamer.h"
+#include "TargetInfo/WebAssemblyTargetInfo.h"
 #include "WebAssembly.h"
 #include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCParser/MCParsedAsmOperand.h"
 #include "llvm/MC/MCParser/MCTargetAsmParser.h"
+#include "llvm/MC/MCSectionWasm.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
@@ -169,6 +172,8 @@ class WebAssemblyAsmParser final : public MCTargetAsmParser {
     FunctionStart,
     FunctionLocals,
     Instructions,
+    EndFunction,
+    DataSection,
   } CurrentState = FileStart;
 
   // For ensuring blocks are properly nested.
@@ -186,6 +191,7 @@ class WebAssemblyAsmParser final : public MCTargetAsmParser {
   // We track this to see if a .functype following a label is the same,
   // as this is how we recognize the start of a function.
   MCSymbol *LastLabel = nullptr;
+  MCSymbol *LastFunctionLabel = nullptr;
 
 public:
   WebAssemblyAsmParser(const MCSubtargetInfo &STI, MCAsmParser &Parser,
@@ -249,13 +255,13 @@ public:
   }
 
   bool ensureEmptyNestingStack() {
-    auto err = !NestingStack.empty();
+    auto Err = !NestingStack.empty();
     while (!NestingStack.empty()) {
       error(Twine("Unmatched block construct(s) at function end: ") +
             nestingString(NestingStack.back()).first);
       NestingStack.pop_back();
     }
-    return err;
+    return Err;
   }
 
   bool isNext(AsmToken::TokenKind Kind) {
@@ -338,27 +344,31 @@ public:
     Parser.Lex();
   }
 
-  bool parseOperandStartingWithInteger(bool IsNegative, OperandVector &Operands,
-                                       StringRef InstName) {
-    parseSingleInteger(IsNegative, Operands);
+  bool checkForP2AlignIfLoadStore(OperandVector &Operands, StringRef InstName) {
     // FIXME: there is probably a cleaner way to do this.
-    auto IsLoadStore = InstName.startswith("load") ||
-                       InstName.startswith("store") ||
-                       InstName.startswith("atomic_load") ||
-                       InstName.startswith("atomic_store");
-    if (IsLoadStore) {
-      // Parse load/store operands of the form: offset align
-      auto &Offset = Lexer.getTok();
-      if (Offset.is(AsmToken::Integer)) {
+    auto IsLoadStore = InstName.find(".load") != StringRef::npos ||
+                       InstName.find(".store") != StringRef::npos;
+    auto IsAtomic = InstName.find("atomic.") != StringRef::npos;
+    if (IsLoadStore || IsAtomic) {
+      // Parse load/store operands of the form: offset:p2align=align
+      if (IsLoadStore && isNext(AsmToken::Colon)) {
+        auto Id = expectIdent();
+        if (Id != "p2align")
+          return error("Expected p2align, instead got: " + Id);
+        if (expect(AsmToken::Equal, "="))
+          return true;
+        if (!Lexer.is(AsmToken::Integer))
+          return error("Expected integer constant");
         parseSingleInteger(false, Operands);
       } else {
-        // Alignment not specified.
-        // FIXME: correctly derive a default from the instruction.
+        // Alignment not specified (or atomics, must use default alignment).
         // We can't just call WebAssembly::GetDefaultP2Align since we don't have
-        // an opcode until after the assembly matcher.
+        // an opcode until after the assembly matcher, so set a default to fix
+        // up later.
+        auto Tok = Lexer.getTok();
         Operands.push_back(make_unique<WebAssemblyOperand>(
-            WebAssemblyOperand::Integer, Offset.getLoc(), Offset.getEndLoc(),
-            WebAssemblyOperand::IntOp{0}));
+            WebAssemblyOperand::Integer, Tok.getLoc(), Tok.getEndLoc(),
+            WebAssemblyOperand::IntOp{-1}));
       }
     }
     return false;
@@ -401,51 +411,45 @@ public:
     Operands.push_back(make_unique<WebAssemblyOperand>(
         WebAssemblyOperand::Token, NameLoc, SMLoc::getFromPointer(Name.end()),
         WebAssemblyOperand::TokOp{Name}));
-    auto NamePair = Name.split('.');
-    // If no '.', there is no type prefix.
-    auto BaseName = NamePair.second.empty() ? NamePair.first : NamePair.second;
 
     // If this instruction is part of a control flow structure, ensure
     // proper nesting.
     bool ExpectBlockType = false;
-    if (BaseName == "block") {
+    if (Name == "block") {
       push(Block);
       ExpectBlockType = true;
-    } else if (BaseName == "loop") {
+    } else if (Name == "loop") {
       push(Loop);
       ExpectBlockType = true;
-    } else if (BaseName == "try") {
+    } else if (Name == "try") {
       push(Try);
       ExpectBlockType = true;
-    } else if (BaseName == "if") {
+    } else if (Name == "if") {
       push(If);
       ExpectBlockType = true;
-    } else if (BaseName == "else") {
-      if (pop(BaseName, If))
+    } else if (Name == "else") {
+      if (pop(Name, If))
         return true;
       push(Else);
-    } else if (BaseName == "catch") {
-      if (pop(BaseName, Try))
+    } else if (Name == "catch") {
+      if (pop(Name, Try))
         return true;
       push(Try);
-    } else if (BaseName == "catch_all") {
-      if (pop(BaseName, Try))
+    } else if (Name == "end_if") {
+      if (pop(Name, If, Else))
         return true;
-      push(Try);
-    } else if (BaseName == "end_if") {
-      if (pop(BaseName, If, Else))
+    } else if (Name == "end_try") {
+      if (pop(Name, Try))
         return true;
-    } else if (BaseName == "end_try") {
-      if (pop(BaseName, Try))
+    } else if (Name == "end_loop") {
+      if (pop(Name, Loop))
         return true;
-    } else if (BaseName == "end_loop") {
-      if (pop(BaseName, Loop))
+    } else if (Name == "end_block") {
+      if (pop(Name, Block))
         return true;
-    } else if (BaseName == "end_block") {
-      if (pop(BaseName, Block))
-        return true;
-    } else if (BaseName == "end_function") {
-      if (pop(BaseName, Function) || ensureEmptyNestingStack())
+    } else if (Name == "end_function") {
+      CurrentState = EndFunction;
+      if (pop(Name, Function) || ensureEmptyNestingStack())
         return true;
     }
 
@@ -465,11 +469,13 @@ public:
           // Assume this identifier is a label.
           const MCExpr *Val;
           SMLoc End;
-          if (Parser.parsePrimaryExpr(Val, End))
+          if (Parser.parseExpression(Val, End))
             return error("Cannot parse symbol: ", Lexer.getTok());
           Operands.push_back(make_unique<WebAssemblyOperand>(
               WebAssemblyOperand::Symbol, Id.getLoc(), Id.getEndLoc(),
               WebAssemblyOperand::SymOp{Val}));
+          if (checkForP2AlignIfLoadStore(Operands, Name))
+            return true;
         }
         break;
       }
@@ -477,11 +483,13 @@ public:
         Parser.Lex();
         if (Lexer.isNot(AsmToken::Integer))
           return error("Expected integer instead got: ", Lexer.getTok());
-        if (parseOperandStartingWithInteger(true, Operands, BaseName))
+        parseSingleInteger(true, Operands);
+        if (checkForP2AlignIfLoadStore(Operands, Name))
           return true;
         break;
       case AsmToken::Integer:
-        if (parseOperandStartingWithInteger(false, Operands, BaseName))
+        parseSingleInteger(false, Operands);
+        if (checkForP2AlignIfLoadStore(Operands, Name))
           return true;
         break;
       case AsmToken::Real: {
@@ -548,6 +556,17 @@ public:
     return false;
   }
 
+  bool CheckDataSection() {
+    if (CurrentState != DataSection) {
+      auto WS = cast<MCSectionWasm>(getStreamer().getCurrentSection().first);
+      if (WS && WS->getKind().isText())
+        return error("data directive must occur in a data segment: ",
+                     Lexer.getTok());
+    }
+    CurrentState = DataSection;
+    return false;
+  }
+
   // This function processes wasm-specific directives streamed to
   // WebAssemblyTargetStreamer, all others go to the generic parser
   // (see WasmAsmParser).
@@ -604,6 +623,7 @@ public:
         if (ensureEmptyNestingStack())
           return true;
         CurrentState = FunctionStart;
+        LastFunctionLabel = LastLabel;
         push(Function);
       }
       auto Signature = make_unique<wasm::WasmSignature>();
@@ -645,6 +665,30 @@ public:
       return expect(AsmToken::EndOfStatement, "EOL");
     }
 
+    if (DirectiveID.getString() == ".int8" ||
+        DirectiveID.getString() == ".int16" ||
+        DirectiveID.getString() == ".int32" ||
+        DirectiveID.getString() == ".int64") {
+      if (CheckDataSection()) return true;
+      const MCExpr *Val;
+      SMLoc End;
+      if (Parser.parseExpression(Val, End))
+        return error("Cannot parse .int expression: ", Lexer.getTok());
+      size_t NumBits = 0;
+      DirectiveID.getString().drop_front(4).getAsInteger(10, NumBits);
+      Out.EmitValue(Val, NumBits / 8, End);
+      return expect(AsmToken::EndOfStatement, "EOL");
+    }
+
+    if (DirectiveID.getString() == ".asciz") {
+      if (CheckDataSection()) return true;
+      std::string S;
+      if (Parser.parseEscapedString(S))
+        return error("Cannot parse string constant: ", Lexer.getTok());
+      Out.EmitBytes(StringRef(S.c_str(), S.length() + 1));
+      return expect(AsmToken::EndOfStatement, "EOL");
+    }
+
     return true; // We didn't process this directive.
   }
 
@@ -666,8 +710,19 @@ public:
             *Out.getTargetStreamer());
         TOut.emitLocal(SmallVector<wasm::ValType, 0>());
       }
-      CurrentState = Instructions;
+      // Fix unknown p2align operands.
+      auto Align = WebAssembly::GetDefaultP2AlignAny(Inst.getOpcode());
+      if (Align != -1U) {
+        auto &Op0 = Inst.getOperand(0);
+        if (Op0.getImm() == -1)
+          Op0.setImm(Align);
+      }
       Out.EmitInstruction(Inst, getSTI());
+      if (CurrentState == EndFunction) {
+        onEndOfFunction();
+      } else {
+        CurrentState = Instructions;
+      }
       return false;
     }
     case Match_MissingFeature:
@@ -691,6 +746,35 @@ public:
     }
     }
     llvm_unreachable("Implement any new match types added!");
+  }
+
+  void doBeforeLabelEmit(MCSymbol *Symbol) override {
+    // Start a new section for the next function automatically, since our
+    // object writer expects each function to have its own section. This way
+    // The user can't forget this "convention".
+    auto SymName = Symbol->getName();
+    if (SymName.startswith(".L"))
+      return; // Local Symbol.
+    // Only create a new text section if we're already in one.
+    auto CWS = cast<MCSectionWasm>(getStreamer().getCurrentSection().first);
+    if (!CWS || !CWS->getKind().isText())
+      return;
+    auto SecName = ".text." + SymName;
+    auto WS = getContext().getWasmSection(SecName, SectionKind::getText());
+    getStreamer().SwitchSection(WS);
+  }
+
+  void onEndOfFunction() {
+    // Automatically output a .size directive, so it becomes optional for the
+    // user.
+    if (!LastFunctionLabel) return;
+    auto TempSym = getContext().createLinkerPrivateTempSymbol();
+    getStreamer().EmitLabel(TempSym);
+    auto Start = MCSymbolRefExpr::create(LastFunctionLabel, getContext());
+    auto End = MCSymbolRefExpr::create(TempSym, getContext());
+    auto Expr =
+        MCBinaryExpr::create(MCBinaryExpr::Sub, End, Start, getContext());
+    getStreamer().emitELFSize(LastFunctionLabel, Expr);
   }
 
   void onEndOfFile() override { ensureEmptyNestingStack(); }

@@ -15,9 +15,10 @@
 #include <any>
 #include <cassert>
 
+#include "test_macros.h"
 #include "any_helpers.h"
 
-int main()
+int main(int, char**)
 {
     using std::any;
     // noexcept test
@@ -60,4 +61,6 @@ int main()
         a = l;
         assert(a.has_value());
     }
+
+  return 0;
 }

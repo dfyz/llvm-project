@@ -15,7 +15,9 @@
 #include <locale>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::locale l;
@@ -30,4 +32,6 @@ int main()
             assert(l(s3, s2));
         }
     }
+
+  return 0;
 }

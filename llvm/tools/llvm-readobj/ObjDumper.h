@@ -22,8 +22,9 @@ class COFFImportFile;
 class ObjectFile;
 }
 namespace codeview {
+class GlobalTypeTableBuilder;
 class MergingTypeTableBuilder;
-}
+} // namespace codeview
 
 class ScopedPrinter;
 
@@ -88,7 +89,10 @@ public:
   virtual void printCodeViewDebugInfo() { }
   virtual void
   mergeCodeViewTypes(llvm::codeview::MergingTypeTableBuilder &CVIDs,
-                     llvm::codeview::MergingTypeTableBuilder &CVTypes) {}
+                     llvm::codeview::MergingTypeTableBuilder &CVTypes,
+                     llvm::codeview::GlobalTypeTableBuilder &GlobalCVIDs,
+                     llvm::codeview::GlobalTypeTableBuilder &GlobalCVTypes,
+                     bool GHash) {}
 
   // Only implemented for MachO.
   virtual void printMachODataInCode() { }
@@ -100,8 +104,10 @@ public:
 
   virtual void printStackMap() const = 0;
 
-  void printSectionAsString(const object::ObjectFile *Obj, StringRef SecName);
-  void printSectionAsHex(const object::ObjectFile *Obj, StringRef SecName);
+  void printSectionsAsString(const object::ObjectFile *Obj,
+                             ArrayRef<std::string> Sections);
+  void printSectionsAsHex(const object::ObjectFile *Obj,
+                          ArrayRef<std::string> Sections);
 
 protected:
   ScopedPrinter &W;
@@ -129,12 +135,16 @@ std::error_code createWasmDumper(const object::ObjectFile *Obj,
                                  ScopedPrinter &Writer,
                                  std::unique_ptr<ObjDumper> &Result);
 
+std::error_code createXCOFFDumper(const object::ObjectFile *Obj,
+                                  ScopedPrinter &Writer,
+                                  std::unique_ptr<ObjDumper> &Result);
+
 void dumpCOFFImportFile(const object::COFFImportFile *File,
                         ScopedPrinter &Writer);
 
-void dumpCodeViewMergedTypes(
-    ScopedPrinter &Writer, llvm::codeview::MergingTypeTableBuilder &IDTable,
-    llvm::codeview::MergingTypeTableBuilder &TypeTable);
+void dumpCodeViewMergedTypes(ScopedPrinter &Writer,
+                             ArrayRef<ArrayRef<uint8_t>> IpiRecords,
+                             ArrayRef<ArrayRef<uint8_t>> TpiRecords);
 
 } // namespace llvm
 

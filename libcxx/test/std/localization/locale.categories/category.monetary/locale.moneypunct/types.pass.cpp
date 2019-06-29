@@ -26,10 +26,12 @@
 #include <locale>
 #include <type_traits>
 
+#include "test_macros.h"
+
 template <class T>
 void test(const T &) {}
 
-int main()
+int main(int, char**)
 {
     static_assert((std::is_base_of<std::locale::facet, std::moneypunct<char> >::value), "");
     static_assert((std::is_base_of<std::locale::facet, std::moneypunct<wchar_t> >::value), "");
@@ -44,4 +46,6 @@ int main()
     test(std::moneypunct<char, true>::intl);
     test(std::moneypunct<wchar_t, false>::intl);
     test(std::moneypunct<wchar_t, true>::intl);
+
+  return 0;
 }

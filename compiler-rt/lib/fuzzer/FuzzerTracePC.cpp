@@ -174,7 +174,7 @@ inline ALWAYS_INLINE uintptr_t GetPreviousInstructionPc(uintptr_t PC) {
 
 /// \return the address of the next instruction.
 /// Note: the logic is copied from `sanitizer_common/sanitizer_stacktrace.cc`
-inline ALWAYS_INLINE uintptr_t GetNextInstructionPc(uintptr_t PC) {
+ALWAYS_INLINE uintptr_t TracePC::GetNextInstructionPc(uintptr_t PC) {
 #if defined(__mips__)
   return PC + 8;
 #elif defined(__powerpc__) || defined(__sparc__) || defined(__arm__) || \
@@ -187,18 +187,19 @@ inline ALWAYS_INLINE uintptr_t GetNextInstructionPc(uintptr_t PC) {
 
 void TracePC::UpdateObservedPCs() {
   Vector<uintptr_t> CoveredFuncs;
-  auto ObservePC = [&](uintptr_t PC) {
-    if (ObservedPCs.insert(PC).second && DoPrintNewPCs) {
-      PrintPC("\tNEW_PC: %p %F %L", "\tNEW_PC: %p", GetNextInstructionPc(PC));
+  auto ObservePC = [&](const PCTableEntry *TE) {
+    if (ObservedPCs.insert(TE).second && DoPrintNewPCs) {
+      PrintPC("\tNEW_PC: %p %F %L", "\tNEW_PC: %p",
+              GetNextInstructionPc(TE->PC));
       Printf("\n");
     }
   };
 
-  auto Observe = [&](const PCTableEntry &TE) {
-    if (TE.PCFlags & 1)
-      if (++ObservedFuncs[TE.PC] == 1 && NumPrintNewFuncs)
-        CoveredFuncs.push_back(TE.PC);
-    ObservePC(TE.PC);
+  auto Observe = [&](const PCTableEntry *TE) {
+    if (PcIsFuncEntry(TE))
+      if (++ObservedFuncs[TE->PC] == 1 && NumPrintNewFuncs)
+        CoveredFuncs.push_back(TE->PC);
+    ObservePC(TE);
   };
 
   if (NumPCsInPCTables) {
@@ -212,7 +213,7 @@ void TracePC::UpdateObservedPCs() {
           if (!R.Enabled) continue;
           for (uint8_t *P = R.Start; P < R.Stop; P++)
             if (*P)
-              Observe(ModulePCTable[i].Start[M.Idx(P)]);
+              Observe(&ModulePCTable[i].Start[M.Idx(P)]);
         }
       }
     }
@@ -226,6 +227,27 @@ void TracePC::UpdateObservedPCs() {
   }
 }
 
+uintptr_t TracePC::PCTableEntryIdx(const PCTableEntry *TE) {
+  size_t TotalTEs = 0;
+  for (size_t i = 0; i < NumPCTables; i++) {
+    auto &M = ModulePCTable[i];
+    if (TE >= M.Start && TE < M.Stop)
+      return TotalTEs + TE - M.Start;
+    TotalTEs += M.Stop - M.Start;
+  }
+  assert(0);
+  return 0;
+}
+
+const TracePC::PCTableEntry *TracePC::PCTableEntryByIdx(uintptr_t Idx) {
+  for (size_t i = 0; i < NumPCTables; i++) {
+    auto &M = ModulePCTable[i];
+    size_t Size = M.Stop - M.Start;
+    if (Idx < Size) return &M.Start[Idx];
+    Idx -= Size;
+  }
+  return nullptr;
+}
 
 static std::string GetModuleName(uintptr_t PC) {
   char ModulePathRaw[4096] = "";  // What's PATH_MAX in portable C++?
@@ -245,10 +267,10 @@ void TracePC::IterateCoveredFunctions(CallBack CB) {
     auto ModuleName = GetModuleName(M.Start->PC);
     for (auto NextFE = M.Start; NextFE < M.Stop; ) {
       auto FE = NextFE;
-      assert((FE->PCFlags & 1) && "Not a function entry point");
+      assert(PcIsFuncEntry(FE) && "Not a function entry point");
       do {
         NextFE++;
-      } while (NextFE < M.Stop && !(NextFE->PCFlags & 1));
+      } while (NextFE < M.Stop && !(PcIsFuncEntry(NextFE)));
       CB(FE, NextFE, ObservedFuncs[FE->PC]);
     }
   }
@@ -263,7 +285,7 @@ void TracePC::SetFocusFunction(const std::string &FuncName) {
     auto &PCTE = ModulePCTable[M];
     size_t N = PCTE.Stop - PCTE.Start;
     for (size_t I = 0; I < N; I++) {
-      if (!(PCTE.Start[I].PCFlags & 1)) continue;  // not a function entry.
+      if (!(PcIsFuncEntry(&PCTE.Start[I]))) continue;  // not a function entry.
       auto Name = DescribePC("%F", GetNextInstructionPc(PCTE.Start[I].PC));
       if (Name[0] == 'i' && Name[1] == 'n' && Name[2] == ' ')
         Name = Name.substr(3, std::string::npos);
@@ -300,15 +322,15 @@ void TracePC::PrintCoverage() {
     if (FunctionStr.find("in ") == 0)
       FunctionStr = FunctionStr.substr(3);
     std::string LineStr = DescribePC("%l", VisualizePC);
-    size_t Line = std::stoul(LineStr);
     size_t NumEdges = Last - First;
     Vector<uintptr_t> UncoveredPCs;
     for (auto TE = First; TE < Last; TE++)
-      if (!ObservedPCs.count(TE->PC))
+      if (!ObservedPCs.count(TE))
         UncoveredPCs.push_back(TE->PC);
     Printf("%sCOVERED_FUNC: hits: %zd", Counter ? "" : "UN", Counter);
     Printf(" edges: %zd/%zd", NumEdges - UncoveredPCs.size(), NumEdges);
-    Printf(" %s %s:%zd\n", FunctionStr.c_str(), FileStr.c_str(), Line);
+    Printf(" %s %s:%s\n", FunctionStr.c_str(), FileStr.c_str(),
+           LineStr.c_str());
     if (Counter)
       for (auto PC : UncoveredPCs)
         Printf("  UNCOVERED_PC: %s\n",
@@ -347,11 +369,16 @@ void TracePC::AddValueForMemcmp(void *caller_pc, const void *s1, const void *s2,
     Hash ^= (T << 8) | B2[i];
   }
   size_t I = 0;
-  for (; I < Len; I++)
-    if (B1[I] != B2[I] || (StopAtZero && B1[I] == 0))
+  uint8_t HammingDistance = 0;
+  for (; I < Len; I++) {
+    if (B1[I] != B2[I] || (StopAtZero && B1[I] == 0)) {
+      HammingDistance = Popcountll(B1[I] ^ B2[I]);
       break;
+    }
+  }
   size_t PC = reinterpret_cast<size_t>(caller_pc);
   size_t Idx = (PC & 4095) | (I << 12);
+  Idx += HammingDistance;
   ValueProfileMap.AddValue(Idx);
   TORCW.Insert(Idx ^ Hash, Word(B1, Len), Word(B2, Len));
 }

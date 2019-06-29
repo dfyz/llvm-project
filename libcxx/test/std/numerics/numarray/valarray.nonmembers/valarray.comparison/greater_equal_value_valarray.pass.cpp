@@ -18,7 +18,9 @@
 #include <cassert>
 #include <cstddef>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef int T;
@@ -31,4 +33,6 @@ int main()
         for (std::size_t i = 0; i < v3.size(); ++i)
             assert(v3[i] == a3[i]);
     }
+
+  return 0;
 }

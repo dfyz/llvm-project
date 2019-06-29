@@ -25,6 +25,7 @@
 #include "OutputSections.h"
 #include "SymbolTable.h"
 #include "Symbols.h"
+#include "SyntheticSections.h"
 #include "Target.h"
 #include "lld/Common/Memory.h"
 #include "lld/Common/Strings.h"
@@ -41,66 +42,79 @@ using namespace llvm::support::endian;
 using namespace lld;
 using namespace lld::elf;
 
+namespace {
+template <class ELFT> class MarkLive {
+public:
+  MarkLive(unsigned Partition) : Partition(Partition) {}
+
+  void run();
+  void moveToMain();
+
+private:
+  void enqueue(InputSectionBase *Sec, uint64_t Offset);
+  void markSymbol(Symbol *Sym);
+  void mark();
+
+  template <class RelTy>
+  void resolveReloc(InputSectionBase &Sec, RelTy &Rel, bool IsLSDA);
+
+  template <class RelTy>
+  void scanEhFrameSection(EhInputSection &EH, ArrayRef<RelTy> Rels);
+
+  // The index of the partition that we are currently processing.
+  unsigned Partition;
+
+  // A list of sections to visit.
+  SmallVector<InputSection *, 256> Queue;
+
+  // There are normally few input sections whose names are valid C
+  // identifiers, so we just store a std::vector instead of a multimap.
+  DenseMap<StringRef, std::vector<InputSectionBase *>> CNamedSections;
+};
+} // namespace
+
 template <class ELFT>
-static typename ELFT::uint getAddend(InputSectionBase &Sec,
-                                     const typename ELFT::Rel &Rel) {
+static uint64_t getAddend(InputSectionBase &Sec,
+                          const typename ELFT::Rel &Rel) {
   return Target->getImplicitAddend(Sec.data().begin() + Rel.r_offset,
                                    Rel.getType(Config->IsMips64EL));
 }
 
 template <class ELFT>
-static typename ELFT::uint getAddend(InputSectionBase &Sec,
-                                     const typename ELFT::Rela &Rel) {
+static uint64_t getAddend(InputSectionBase &Sec,
+                          const typename ELFT::Rela &Rel) {
   return Rel.r_addend;
 }
 
-// There are normally few input sections whose names are valid C
-// identifiers, so we just store a std::vector instead of a multimap.
-static DenseMap<StringRef, std::vector<InputSectionBase *>> CNamedSections;
-
-template <class ELFT, class RelT>
-static void
-resolveReloc(InputSectionBase &Sec, RelT &Rel,
-             llvm::function_ref<void(InputSectionBase *, uint64_t)> Fn) {
-  Symbol &B = Sec.getFile<ELFT>()->getRelocTargetSym(Rel);
+template <class ELFT>
+template <class RelTy>
+void MarkLive<ELFT>::resolveReloc(InputSectionBase &Sec, RelTy &Rel,
+                                  bool IsLSDA) {
+  Symbol &Sym = Sec.getFile<ELFT>()->getRelocTargetSym(Rel);
 
   // If a symbol is referenced in a live section, it is used.
-  B.Used = true;
-  if (auto *SS = dyn_cast<SharedSymbol>(&B))
-    if (!SS->isWeak())
-      SS->getFile<ELFT>().IsNeeded = true;
+  Sym.Used = true;
 
-  if (auto *D = dyn_cast<Defined>(&B)) {
+  if (auto *D = dyn_cast<Defined>(&Sym)) {
     auto *RelSec = dyn_cast_or_null<InputSectionBase>(D->Section);
     if (!RelSec)
       return;
+
     uint64_t Offset = D->Value;
     if (D->isSection())
       Offset += getAddend<ELFT>(Sec, Rel);
-    Fn(RelSec, Offset);
+
+    if (!IsLSDA || !(RelSec->Flags & SHF_EXECINSTR))
+      enqueue(RelSec, Offset);
     return;
   }
 
-  if (!B.isDefined())
-    for (InputSectionBase *Sec : CNamedSections.lookup(B.getName()))
-      Fn(Sec, 0);
-}
+  if (auto *SS = dyn_cast<SharedSymbol>(&Sym))
+    if (!SS->isWeak())
+      SS->getFile().IsNeeded = true;
 
-// Calls Fn for each section that Sec refers to via relocations.
-template <class ELFT>
-static void
-forEachSuccessor(InputSection &Sec,
-                 llvm::function_ref<void(InputSectionBase *, uint64_t)> Fn) {
-  if (Sec.AreRelocsRela) {
-    for (const typename ELFT::Rela &Rel : Sec.template relas<ELFT>())
-      resolveReloc<ELFT>(Sec, Rel, Fn);
-  } else {
-    for (const typename ELFT::Rel &Rel : Sec.template rels<ELFT>())
-      resolveReloc<ELFT>(Sec, Rel, Fn);
-  }
-
-  for (InputSectionBase *IS : Sec.DependentSections)
-    Fn(IS, 0);
+  for (InputSectionBase *Sec : CNamedSections.lookup(Sym.getName()))
+    enqueue(Sec, 0);
 }
 
 // The .eh_frame section is an unfortunate special case.
@@ -117,58 +131,37 @@ forEachSuccessor(InputSection &Sec,
 // A possible improvement would be to fully process .eh_frame in the middle of
 // the gc pass. With that we would be able to also gc some sections holding
 // LSDAs and personality functions if we found that they were unused.
-template <class ELFT, class RelTy>
-static void
-scanEhFrameSection(EhInputSection &EH, ArrayRef<RelTy> Rels,
-                   llvm::function_ref<void(InputSectionBase *, uint64_t)> Fn) {
-  const endianness E = ELFT::TargetEndianness;
-
-  for (unsigned I = 0, N = EH.Pieces.size(); I < N; ++I) {
+template <class ELFT>
+template <class RelTy>
+void MarkLive<ELFT>::scanEhFrameSection(EhInputSection &EH,
+                                        ArrayRef<RelTy> Rels) {
+  for (size_t I = 0, End = EH.Pieces.size(); I < End; ++I) {
     EhSectionPiece &Piece = EH.Pieces[I];
-    unsigned FirstRelI = Piece.FirstRelocation;
+    size_t FirstRelI = Piece.FirstRelocation;
     if (FirstRelI == (unsigned)-1)
       continue;
-    if (read32<E>(Piece.data().data() + 4) == 0) {
+
+    if (read32<ELFT::TargetEndianness>(Piece.data().data() + 4) == 0) {
       // This is a CIE, we only need to worry about the first relocation. It is
       // known to point to the personality function.
-      resolveReloc<ELFT>(EH, Rels[FirstRelI], Fn);
+      resolveReloc(EH, Rels[FirstRelI], false);
       continue;
     }
+
     // This is a FDE. The relocations point to the described function or to
     // a LSDA. We only need to keep the LSDA alive, so ignore anything that
     // points to executable sections.
-    typename ELFT::uint PieceEnd = Piece.InputOff + Piece.Size;
-    for (unsigned I2 = FirstRelI, N2 = Rels.size(); I2 < N2; ++I2) {
-      const RelTy &Rel = Rels[I2];
-      if (Rel.r_offset >= PieceEnd)
-        break;
-      resolveReloc<ELFT>(EH, Rels[I2],
-                         [&](InputSectionBase *Sec, uint64_t Offset) {
-                           if (Sec && Sec != &InputSection::Discarded &&
-                               !(Sec->Flags & SHF_EXECINSTR))
-                             Fn(Sec, 0);
-                         });
-    }
+    uint64_t PieceEnd = Piece.InputOff + Piece.Size;
+    for (size_t J = FirstRelI, End2 = Rels.size(); J < End2; ++J)
+      if (Rels[J].r_offset < PieceEnd)
+        resolveReloc(EH, Rels[J], true);
   }
-}
-
-template <class ELFT>
-static void
-scanEhFrameSection(EhInputSection &EH,
-                   llvm::function_ref<void(InputSectionBase *, uint64_t)> Fn) {
-  if (!EH.NumRelocations)
-    return;
-
-  if (EH.AreRelocsRela)
-    scanEhFrameSection<ELFT>(EH, EH.template relas<ELFT>(), Fn);
-  else
-    scanEhFrameSection<ELFT>(EH, EH.template rels<ELFT>(), Fn);
 }
 
 // Some sections are used directly by the loader, so they should never be
 // garbage-collected. This function returns true if a given section is such
 // section.
-template <class ELFT> static bool isReserved(InputSectionBase *Sec) {
+static bool isReserved(InputSectionBase *Sec) {
   switch (Sec->Type) {
   case SHT_FINI_ARRAY:
   case SHT_INIT_ARRAY:
@@ -183,57 +176,65 @@ template <class ELFT> static bool isReserved(InputSectionBase *Sec) {
   }
 }
 
+template <class ELFT>
+void MarkLive<ELFT>::enqueue(InputSectionBase *Sec, uint64_t Offset) {
+  // Skip over discarded sections. This in theory shouldn't happen, because
+  // the ELF spec doesn't allow a relocation to point to a deduplicated
+  // COMDAT section directly. Unfortunately this happens in practice (e.g.
+  // .eh_frame) so we need to add a check.
+  if (Sec == &InputSection::Discarded)
+    return;
+
+  // Usually, a whole section is marked as live or dead, but in mergeable
+  // (splittable) sections, each piece of data has independent liveness bit.
+  // So we explicitly tell it which offset is in use.
+  if (auto *MS = dyn_cast<MergeInputSection>(Sec))
+    MS->getSectionPiece(Offset)->Live = true;
+
+  // Set Sec->Partition to the meet (i.e. the "minimum") of Partition and
+  // Sec->Partition in the following lattice: 1 < other < 0. If Sec->Partition
+  // doesn't change, we don't need to do anything.
+  if (Sec->Partition == 1 || Sec->Partition == Partition)
+    return;
+  Sec->Partition = Sec->Partition ? 1 : Partition;
+
+  // Add input section to the queue.
+  if (InputSection *S = dyn_cast<InputSection>(Sec))
+    Queue.push_back(S);
+}
+
+template <class ELFT> void MarkLive<ELFT>::markSymbol(Symbol *Sym) {
+  if (auto *D = dyn_cast_or_null<Defined>(Sym))
+    if (auto *IS = dyn_cast_or_null<InputSectionBase>(D->Section))
+      enqueue(IS, D->Value);
+}
+
 // This is the main function of the garbage collector.
 // Starting from GC-root sections, this function visits all reachable
 // sections to set their "Live" bits.
-template <class ELFT> static void doGcSections() {
-  SmallVector<InputSection *, 256> Q;
-  CNamedSections.clear();
-
-  auto Enqueue = [&](InputSectionBase *Sec, uint64_t Offset) {
-    // Skip over discarded sections. This in theory shouldn't happen, because
-    // the ELF spec doesn't allow a relocation to point to a deduplicated
-    // COMDAT section directly. Unfortunately this happens in practice (e.g.
-    // .eh_frame) so we need to add a check.
-    if (Sec == &InputSection::Discarded)
-      return;
-
-
-    // Usually, a whole section is marked as live or dead, but in mergeable
-    // (splittable) sections, each piece of data has independent liveness bit.
-    // So we explicitly tell it which offset is in use.
-    if (auto *MS = dyn_cast<MergeInputSection>(Sec))
-      MS->getSectionPiece(Offset)->Live = true;
-
-    if (Sec->Live)
-      return;
-    Sec->Live = true;
-
-    // Add input section to the queue.
-    if (InputSection *S = dyn_cast<InputSection>(Sec))
-      Q.push_back(S);
-  };
-
-  auto MarkSymbol = [&](Symbol *Sym) {
-    if (auto *D = dyn_cast_or_null<Defined>(Sym))
-      if (auto *IS = dyn_cast_or_null<InputSectionBase>(D->Section))
-        Enqueue(IS, D->Value);
-  };
-
+template <class ELFT> void MarkLive<ELFT>::run() {
   // Add GC root symbols.
-  MarkSymbol(Symtab->find(Config->Entry));
-  MarkSymbol(Symtab->find(Config->Init));
-  MarkSymbol(Symtab->find(Config->Fini));
-  for (StringRef S : Config->Undefined)
-    MarkSymbol(Symtab->find(S));
-  for (StringRef S : Script->ReferencedSymbols)
-    MarkSymbol(Symtab->find(S));
 
   // Preserve externally-visible symbols if the symbols defined by this
   // file can interrupt other ELF file's symbols at runtime.
-  for (Symbol *S : Symtab->getSymbols())
-    if (S->includeInDynsym())
-      MarkSymbol(S);
+  Symtab->forEachSymbol([&](Symbol *Sym) {
+    if (Sym->includeInDynsym() && Sym->Partition == Partition)
+      markSymbol(Sym);
+  });
+
+  // If this isn't the main partition, that's all that we need to preserve.
+  if (Partition != 1) {
+    mark();
+    return;
+  }
+
+  markSymbol(Symtab->find(Config->Entry));
+  markSymbol(Symtab->find(Config->Init));
+  markSymbol(Symtab->find(Config->Fini));
+  for (StringRef S : Config->Undefined)
+    markSymbol(Symtab->find(S));
+  for (StringRef S : Script->ReferencedSymbols)
+    markSymbol(Symtab->find(S));
 
   // Preserve special sections and those which are specified in linker
   // script KEEP command.
@@ -243,49 +244,90 @@ template <class ELFT> static void doGcSections() {
     // all of them. We also want to preserve personality routines and LSDA
     // referenced by .eh_frame sections, so we scan them for that here.
     if (auto *EH = dyn_cast<EhInputSection>(Sec)) {
-      EH->Live = true;
-      scanEhFrameSection<ELFT>(*EH, Enqueue);
+      EH->markLive();
+      if (!EH->NumRelocations)
+        continue;
+
+      if (EH->AreRelocsRela)
+        scanEhFrameSection(*EH, EH->template relas<ELFT>());
+      else
+        scanEhFrameSection(*EH, EH->template rels<ELFT>());
     }
 
     if (Sec->Flags & SHF_LINK_ORDER)
       continue;
 
-    if (isReserved<ELFT>(Sec) || Script->shouldKeep(Sec)) {
-      Enqueue(Sec, 0);
+    if (isReserved(Sec) || Script->shouldKeep(Sec)) {
+      enqueue(Sec, 0);
     } else if (isValidCIdentifier(Sec->Name)) {
       CNamedSections[Saver.save("__start_" + Sec->Name)].push_back(Sec);
       CNamedSections[Saver.save("__stop_" + Sec->Name)].push_back(Sec);
     }
   }
 
+  mark();
+}
+
+template <class ELFT> void MarkLive<ELFT>::mark() {
   // Mark all reachable sections.
-  while (!Q.empty())
-    forEachSuccessor<ELFT>(*Q.pop_back_val(), Enqueue);
+  while (!Queue.empty()) {
+    InputSectionBase &Sec = *Queue.pop_back_val();
+
+    if (Sec.AreRelocsRela) {
+      for (const typename ELFT::Rela &Rel : Sec.template relas<ELFT>())
+        resolveReloc(Sec, Rel, false);
+    } else {
+      for (const typename ELFT::Rel &Rel : Sec.template rels<ELFT>())
+        resolveReloc(Sec, Rel, false);
+    }
+
+    for (InputSectionBase *IS : Sec.DependentSections)
+      enqueue(IS, 0);
+  }
+}
+
+// Move the sections for some symbols to the main partition, specifically ifuncs
+// (because they can result in an IRELATIVE being added to the main partition's
+// GOT, which means that the ifunc must be available when the main partition is
+// loaded) and TLS symbols (because we only know how to correctly process TLS
+// relocations for the main partition).
+template <class ELFT> void MarkLive<ELFT>::moveToMain() {
+  for (InputFile *File : ObjectFiles)
+    for (Symbol *S : File->getSymbols())
+      if (auto *D = dyn_cast<Defined>(S))
+        if ((D->Type == STT_GNU_IFUNC || D->Type == STT_TLS) && D->Section &&
+            D->Section->isLive())
+          markSymbol(S);
+
+  mark();
 }
 
 // Before calling this function, Live bits are off for all
 // input sections. This function make some or all of them on
 // so that they are emitted to the output file.
 template <class ELFT> void elf::markLive() {
+  // If -gc-sections is not given, no sections are removed.
   if (!Config->GcSections) {
-    // If -gc-sections is missing, no sections are removed.
     for (InputSectionBase *Sec : InputSections)
-      Sec->Live = true;
+      Sec->markLive();
 
     // If a DSO defines a symbol referenced in a regular object, it is needed.
-    for (Symbol *Sym : Symtab->getSymbols())
+    Symtab->forEachSymbol([](Symbol *Sym) {
       if (auto *S = dyn_cast<SharedSymbol>(Sym))
         if (S->IsUsedInRegularObj && !S->isWeak())
-          S->getFile<ELFT>().IsNeeded = true;
+          S->getFile().IsNeeded = true;
+    });
     return;
   }
 
+  // Otheriwse, do mark-sweep GC.
+  //
   // The -gc-sections option works only for SHF_ALLOC sections
   // (sections that are memory-mapped at runtime). So we can
   // unconditionally make non-SHF_ALLOC sections alive except
   // SHF_LINK_ORDER and SHT_REL/SHT_RELA sections.
   //
-  // Usually, SHF_ALLOC sections are not removed even if they are
+  // Usually, non-SHF_ALLOC sections are not removed even if they are
   // unreachable through relocations because reachability is not
   // a good signal whether they are garbage or not (e.g. there is
   // usually no section referring to a .comment section, but we
@@ -303,17 +345,25 @@ template <class ELFT> void elf::markLive() {
     bool IsAlloc = (Sec->Flags & SHF_ALLOC);
     bool IsLinkOrder = (Sec->Flags & SHF_LINK_ORDER);
     bool IsRel = (Sec->Type == SHT_REL || Sec->Type == SHT_RELA);
+
     if (!IsAlloc && !IsLinkOrder && !IsRel)
-      Sec->Live = true;
+      Sec->markLive();
   }
 
   // Follow the graph to mark all live sections.
-  doGcSections<ELFT>();
+  for (unsigned CurPart = 1; CurPart <= Partitions.size(); ++CurPart)
+    MarkLive<ELFT>(CurPart).run();
+
+  // If we have multiple partitions, some sections need to live in the main
+  // partition even if they were allocated to a loadable partition. Move them
+  // there now.
+  if (Partitions.size() != 1)
+    MarkLive<ELFT>(1).moveToMain();
 
   // Report garbage-collected sections.
   if (Config->PrintGcSections)
     for (InputSectionBase *Sec : InputSections)
-      if (!Sec->Live)
+      if (!Sec->isLive())
         message("removing unused section " + toString(Sec));
 }
 

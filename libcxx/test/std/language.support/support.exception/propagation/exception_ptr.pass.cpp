@@ -15,7 +15,9 @@
 #include <exception>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::exception_ptr p;
     assert(p == nullptr);
@@ -30,4 +32,6 @@ int main()
     assert(p3 == nullptr);
     p3 = nullptr;
     assert(p3 == nullptr);
+
+  return 0;
 }

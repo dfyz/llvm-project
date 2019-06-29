@@ -13,6 +13,8 @@
 #include <array>
 #include <type_traits>
 
+#include "test_macros.h"
+
 template <class T>
 void test()
 {
@@ -46,8 +48,10 @@ void test()
     }
 }
 
-int main()
+int main(int, char**)
 {
     test<double>();
     test<int>();
+
+  return 0;
 }

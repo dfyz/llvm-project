@@ -18,9 +18,10 @@
 #include <string>
 #include <cassert>
 
+#include "test_macros.h"
 #include "platform_support.h" // locale name macros
 
-int main()
+int main(int, char**)
 {
     {
         std::locale l;
@@ -94,4 +95,6 @@ int main()
             assert(in[6] == L'1');
         }
     }
+
+  return 0;
 }

@@ -19,7 +19,7 @@
 #include <cstdlib>
 #include <cassert>
 
-#include <iostream>
+#include "test_macros.h"
 
 std::recursive_mutex m;
 
@@ -41,11 +41,13 @@ void f()
     assert(d < ms(200));  // within 200ms
 }
 
-int main()
+int main(int, char**)
 {
     m.lock();
     std::thread t(f);
     std::this_thread::sleep_for(ms(250));
     m.unlock();
     t.join();
+
+  return 0;
 }

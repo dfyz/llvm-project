@@ -25,6 +25,8 @@
 #include <chrono>
 #include <cassert>
 
+#include "test_macros.h"
+
 std::condition_variable cv;
 std::mutex mut;
 
@@ -59,7 +61,7 @@ void f()
     ++runs;
 }
 
-int main()
+int main(int, char**)
 {
     {
         std::unique_lock<std::mutex>lk(mut);
@@ -85,4 +87,6 @@ int main()
         lk.unlock();
         t.join();
     }
+
+  return 0;
 }

@@ -14,6 +14,7 @@
 #include <vector>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 void test_ctor_under_alloc() {
@@ -51,6 +52,8 @@ void test_ctor_under_alloc() {
   }
 }
 
-int main() {
+int main(int, char**) {
   test_ctor_under_alloc();
+
+  return 0;
 }

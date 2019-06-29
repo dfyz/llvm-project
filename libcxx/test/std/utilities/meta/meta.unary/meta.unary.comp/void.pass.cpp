@@ -12,6 +12,8 @@
 
 #include <type_traits>
 
+#include "test_macros.h"
+
 template <class T>
 void test_void_imp()
 {
@@ -33,7 +35,9 @@ void test_void()
     test_void_imp<const volatile T>();
 }
 
-int main()
+int main(int, char**)
 {
     test_void<void>();
+
+  return 0;
 }

@@ -24,6 +24,8 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
+
 
 #define CHECK_OP(Op) \
   static_assert(std::is_same<decltype(ce. operator Op (ce)), bool>::value, ""); \
@@ -74,7 +76,9 @@ void test_comparisons_simple() {
   }
 }
 
-int main() {
+int main(int, char**) {
   test_comparison_signatures();
   test_comparisons_simple();
+
+  return 0;
 }

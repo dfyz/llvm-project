@@ -25,6 +25,7 @@
 #include <iterator>
 #include <vector>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 
 struct add_one {
@@ -139,7 +140,7 @@ void basic_tests()
     }
 }
 
-int main()
+int main(int, char**)
 {
     basic_tests();
 
@@ -150,4 +151,6 @@ int main()
     test<random_access_iterator<const int*> >();
     test<const int*>();
     test<      int*>();
+
+  return 0;
 }

@@ -25,6 +25,8 @@
 #include <tuple>
 
 #include "archetypes.hpp"
+
+#include "test_macros.h"
 using namespace ImplicitTypes; // Get implicitly archetypes
 
 namespace ConstructorTest {
@@ -120,7 +122,9 @@ void test_assignment_operator_exists() {
   }
 }
 
-int main() {
+int main(int, char**) {
   test_constructors_exist();
   test_assignment_operator_exists();
+
+  return 0;
 }

@@ -15,7 +15,11 @@
 #include <memory>
 #include <cassert>
 
-int main() {
+#include "test_macros.h"
+
+int main(int, char**) {
   std::unique_ptr<int> p(new int(3));
   assert(*p == 3);
+
+  return 0;
 }

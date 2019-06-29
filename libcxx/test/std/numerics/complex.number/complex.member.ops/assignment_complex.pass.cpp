@@ -14,6 +14,8 @@
 #include <complex>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class T, class X>
 void
 test()
@@ -31,7 +33,7 @@ test()
     assert(c.imag() == -4.5);
 }
 
-int main()
+int main(int, char**)
 {
     test<float, float>();
     test<float, double>();
@@ -44,4 +46,6 @@ int main()
     test<long double, float>();
     test<long double, double>();
     test<long double, long double>();
+
+  return 0;
 }

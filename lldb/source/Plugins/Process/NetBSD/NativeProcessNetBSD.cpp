@@ -54,9 +54,7 @@ static Status EnsureFDFlags(int fd, int flags) {
   return error;
 }
 
-// -----------------------------------------------------------------------------
 // Public Static Methods
-// -----------------------------------------------------------------------------
 
 llvm::Expected<std::unique_ptr<NativeProcessProtocol>>
 NativeProcessNetBSD::Factory::Launch(ProcessLaunchInfo &launch_info,
@@ -136,15 +134,13 @@ NativeProcessNetBSD::Factory::Attach(
   return std::move(process_up);
 }
 
-// -----------------------------------------------------------------------------
 // Public Instance Methods
-// -----------------------------------------------------------------------------
 
 NativeProcessNetBSD::NativeProcessNetBSD(::pid_t pid, int terminal_fd,
                                          NativeDelegate &delegate,
                                          const ArchSpec &arch,
                                          MainLoop &mainloop)
-    : NativeProcessProtocol(pid, terminal_fd, delegate), m_arch(arch) {
+    : NativeProcessELF(pid, terminal_fd, delegate), m_arch(arch) {
   if (m_terminal_fd != -1) {
     Status status = EnsureFDFlags(m_terminal_fd, O_NONBLOCK);
     assert(status.Success());
@@ -665,7 +661,8 @@ Status NativeProcessNetBSD::Attach() {
   int wstatus;
   // Need to use WALLSIG otherwise we receive an error with errno=ECHLD At this
   // point we should have a thread stopped if waitpid succeeds.
-  if ((wstatus = waitpid(m_pid, NULL, WALLSIG)) < 0)
+  if ((wstatus = llvm::sys::RetryAfterSignal(-1, waitpid,
+          m_pid, nullptr, WALLSIG)) < 0)
     return Status(errno, eErrorTypePOSIX);
 
   /* Initialize threads */
@@ -698,10 +695,10 @@ Status NativeProcessNetBSD::ReadMemory(lldb::addr_t addr, void *buf,
     io.piod_addr = dst + bytes_read;
 
     Status error = NativeProcessNetBSD::PtraceWrapper(PT_IO, GetID(), &io);
-    if (error.Fail())
+    if (error.Fail() || io.piod_len == 0)
       return error;
 
-    bytes_read = io.piod_len;
+    bytes_read += io.piod_len;
     io.piod_len = size - bytes_read;
   } while (bytes_read < size);
 
@@ -726,10 +723,10 @@ Status NativeProcessNetBSD::WriteMemory(lldb::addr_t addr, const void *buf,
     io.piod_offs = (void *)(addr + bytes_written);
 
     Status error = NativeProcessNetBSD::PtraceWrapper(PT_IO, GetID(), &io);
-    if (error.Fail())
+    if (error.Fail() || io.piod_len == 0)
       return error;
 
-    bytes_written = io.piod_len;
+    bytes_written += io.piod_len;
     io.piod_len = size - bytes_written;
   } while (bytes_written < size);
 

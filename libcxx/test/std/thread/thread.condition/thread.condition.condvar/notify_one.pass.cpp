@@ -20,6 +20,8 @@
 #include <thread>
 #include <cassert>
 
+#include "test_macros.h"
+
 
 std::condition_variable cv;
 std::mutex mut;
@@ -47,7 +49,7 @@ void f2()
     test2 = 2;
 }
 
-int main()
+int main(int, char**)
 {
     std::thread t1(f1);
     std::thread t2(f2);
@@ -95,4 +97,6 @@ int main()
     }
     else
         assert(false);
+
+  return 0;
 }

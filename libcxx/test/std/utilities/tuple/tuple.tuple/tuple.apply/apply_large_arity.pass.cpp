@@ -19,6 +19,8 @@
 #include <utility>
 #include <cassert>
 
+#include "test_macros.h"
+
 ////////////////////////////////////////////////////////////////////////////////
 template <class T, std::size_t Dummy = 0>
 struct always_imp
@@ -129,7 +131,7 @@ void test_one()
     }
 }
 
-int main()
+int main(int, char**)
 {
     // Instantiate with 1-5 arguments.
     test_all<1>();
@@ -140,4 +142,6 @@ int main()
 
     // Stress test with 256
     test_one<256>();
+
+  return 0;
 }

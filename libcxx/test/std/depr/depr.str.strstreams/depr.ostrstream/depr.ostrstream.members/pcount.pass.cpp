@@ -15,7 +15,9 @@
 #include <strstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::ostrstream out;
@@ -23,4 +25,6 @@ int main()
         out << 123 << ' ' << 4.5 << ' ' << "dog";
         assert(out.pcount() == 11);
     }
+
+  return 0;
 }

@@ -37,11 +37,11 @@ SPARCV9::SPARCV9() {
   NoneRel = R_SPARC_NONE;
   PltRel = R_SPARC_JMP_SLOT;
   RelativeRel = R_SPARC_RELATIVE;
-  GotEntrySize = 8;
+  SymbolicRel = R_SPARC_64;
   PltEntrySize = 32;
   PltHeaderSize = 4 * PltEntrySize;
 
-  PageSize = 8192;
+  DefaultCommonPageSize = 8192;
   DefaultMaxPageSize = 0x100000;
   DefaultImageBase = 0x100000;
 }
@@ -68,7 +68,9 @@ RelExpr SPARCV9::getRelExpr(RelType Type, const Symbol &S,
   case R_SPARC_NONE:
     return R_NONE;
   default:
-    return R_INVALID;
+    error(getErrorLocation(Loc) + "unknown relocation (" + Twine(Type) +
+          ") against symbol " + toString(S));
+    return R_NONE;
   }
 }
 
@@ -113,12 +115,11 @@ void SPARCV9::relocateOne(uint8_t *Loc, RelType Type, uint64_t Val) const {
     break;
   case R_SPARC_64:
   case R_SPARC_UA64:
-  case R_SPARC_GLOB_DAT:
     // V-xword64
     write64be(Loc, Val);
     break;
   default:
-    error(getErrorLocation(Loc) + "unrecognized reloc " + Twine(Type));
+    llvm_unreachable("unknown relocation");
   }
 }
 
@@ -137,7 +138,7 @@ void SPARCV9::writePlt(uint8_t *Buf, uint64_t GotEntryAddr,
   };
   memcpy(Buf, PltData, sizeof(PltData));
 
-  uint64_t Off = getPltEntryOffset(Index);
+  uint64_t Off = PltHeaderSize + PltEntrySize * Index;
   relocateOne(Buf, R_SPARC_22, Off);
   relocateOne(Buf + 4, R_SPARC_WDISP19, -(Off + 4 - PltEntrySize));
 }

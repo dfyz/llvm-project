@@ -16,7 +16,9 @@
 #include <string>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::locale l = std::locale::classic();
     {
@@ -32,4 +34,6 @@ int main()
         assert(in[4] == L'A');
         assert(in[5] == L'1');
     }
+
+  return 0;
 }

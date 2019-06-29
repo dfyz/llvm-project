@@ -11,6 +11,8 @@
 
 #include <experimental/coroutine>
 
+#include "test_macros.h"
+
 namespace coro = std::experimental;
 
 struct A {
@@ -41,10 +43,12 @@ void check_type() {
   static_assert(std::is_same<P, Expect>::value, "");
 };
 
-int main()
+int main(int, char**)
 {
   check_type<A*, A>();
   check_type<int*, A, int>();
   check_type<B*, B>();
   check_type<void, C>();
+
+  return 0;
 }

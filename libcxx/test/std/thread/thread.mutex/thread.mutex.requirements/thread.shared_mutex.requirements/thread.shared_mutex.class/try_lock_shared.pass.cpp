@@ -23,6 +23,8 @@
 #include <cstdlib>
 #include <cassert>
 
+#include "test_macros.h"
+
 std::shared_mutex m;
 
 typedef std::chrono::system_clock Clock;
@@ -46,7 +48,7 @@ void f()
 }
 
 
-int main()
+int main(int, char**)
 {
     m.lock();
     std::vector<std::thread> v;
@@ -56,4 +58,6 @@ int main()
     m.unlock();
     for (auto& t : v)
         t.join();
+
+  return 0;
 }

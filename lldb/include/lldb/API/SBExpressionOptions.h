@@ -1,4 +1,4 @@
-//===-- SBEvent.h -----------------------------------------------*- C++ -*-===//
+//===-- SBExpressionOptions.h -----------------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -89,17 +89,14 @@ public:
   bool GetTopLevel();
 
   void SetTopLevel(bool b = true);
-  
+
   // Gets whether we will JIT an expression if it cannot be interpreted
   bool GetAllowJIT();
-  
+
   // Sets whether we will JIT an expression if it cannot be interpreted
   void SetAllowJIT(bool allow);
 
 protected:
-  SBExpressionOptions(
-      lldb_private::EvaluateExpressionOptions &expression_options);
-
   lldb_private::EvaluateExpressionOptions *get() const;
 
   lldb_private::EvaluateExpressionOptions &ref() const;
@@ -110,7 +107,7 @@ protected:
 
 private:
   // This auto_pointer is made in the constructor and is always valid.
-  mutable std::unique_ptr<lldb_private::EvaluateExpressionOptions> m_opaque_ap;
+  mutable std::unique_ptr<lldb_private::EvaluateExpressionOptions> m_opaque_up;
 };
 
 } // namespace lldb

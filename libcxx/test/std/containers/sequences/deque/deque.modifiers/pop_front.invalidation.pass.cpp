@@ -16,6 +16,8 @@
 #include <deque>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <typename C>
 void test(C c)
 {
@@ -34,7 +36,7 @@ void test(C c)
     assert(&*it2 == &*it4);
 }
 
-int main()
+int main(int, char**)
 {
     std::deque<int> queue;
     for (int i = 0; i < 20; ++i)
@@ -45,4 +47,6 @@ int main()
         test(queue);
         queue.pop_back();
     }
+
+  return 0;
 }

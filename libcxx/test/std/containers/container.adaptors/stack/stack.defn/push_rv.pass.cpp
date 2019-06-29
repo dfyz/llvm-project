@@ -15,9 +15,10 @@
 #include <stack>
 #include <cassert>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 
-int main()
+int main(int, char**)
 {
     std::stack<MoveOnly> q;
     q.push(MoveOnly(1));
@@ -29,4 +30,6 @@ int main()
     q.push(MoveOnly(3));
     assert(q.size() == 3);
     assert(q.top() == MoveOnly(3));
+
+  return 0;
 }

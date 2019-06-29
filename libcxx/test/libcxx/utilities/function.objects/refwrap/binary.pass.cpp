@@ -15,6 +15,8 @@
 #include <functional>
 #include <type_traits>
 
+#include "test_macros.h"
+
 class functor1
     : public std::unary_function<int, char>
 {
@@ -46,7 +48,7 @@ struct C
     typedef int result_type;
 };
 
-int main()
+int main(int, char**)
 {
     static_assert((!std::is_base_of<std::binary_function<int, char, int>,
                                     std::reference_wrapper<functor1> >::value), "");
@@ -76,4 +78,6 @@ int main()
                                    std::reference_wrapper<float(C::*)(int)> >::value), "");
     static_assert((std::is_base_of<std::binary_function<const volatile C*, int, float>,
                                    std::reference_wrapper<float(C::*)(int) const volatile> >::value), "");
+
+  return 0;
 }

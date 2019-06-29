@@ -16,7 +16,9 @@
 #include <random>
 #include <type_traits>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::uniform_real_distribution<float> D;
@@ -24,4 +26,6 @@ int main()
         typedef param_type::distribution_type distribution_type;
         static_assert((std::is_same<D, distribution_type>::value), "");
     }
+
+  return 0;
 }

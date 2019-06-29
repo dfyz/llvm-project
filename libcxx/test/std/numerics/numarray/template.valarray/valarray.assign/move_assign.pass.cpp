@@ -18,7 +18,9 @@
 #include <cassert>
 #include <cstddef>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef int T;
@@ -60,4 +62,6 @@ int main()
                 assert(v2[i][j] == a[i][j]);
         }
     }
+
+  return 0;
 }

@@ -15,13 +15,13 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/ConstantFolding.h"
+#include "llvm/Analysis/DomTreeUpdater.h"
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/DomTreeUpdater.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instructions.h"
@@ -739,12 +739,12 @@ Loop *llvm::cloneLoopWithPreheader(BasicBlock *Before, BasicBlock *LoopDomBB,
                                    const Twine &NameSuffix, LoopInfo *LI,
                                    DominatorTree *DT,
                                    SmallVectorImpl<BasicBlock *> &Blocks) {
-  assert(OrigLoop->getSubLoops().empty() &&
-         "Loop to be cloned cannot have inner loop");
   Function *F = OrigLoop->getHeader()->getParent();
   Loop *ParentLoop = OrigLoop->getParentLoop();
+  DenseMap<Loop *, Loop *> LMap;
 
   Loop *NewLoop = LI->AllocateLoop();
+  LMap[OrigLoop] = NewLoop;
   if (ParentLoop)
     ParentLoop->addChildLoop(NewLoop);
   else
@@ -764,17 +764,38 @@ Loop *llvm::cloneLoopWithPreheader(BasicBlock *Before, BasicBlock *LoopDomBB,
   // Update DominatorTree.
   DT->addNewBlock(NewPH, LoopDomBB);
 
-  for (BasicBlock *BB : OrigLoop->getBlocks()) {
-    BasicBlock *NewBB = CloneBasicBlock(BB, VMap, NameSuffix, F);
-    VMap[BB] = NewBB;
+  for (Loop *CurLoop : OrigLoop->getLoopsInPreorder()) {
+    for (BasicBlock *BB : CurLoop->getBlocks()) {
+      if (CurLoop != LI->getLoopFor(BB))
+        continue;
 
-    // Update LoopInfo.
-    NewLoop->addBasicBlockToLoop(NewBB, *LI);
+      Loop *&NewLoop = LMap[CurLoop];
+      if (!NewLoop) {
+        NewLoop = LI->AllocateLoop();
 
-    // Add DominatorTree node. After seeing all blocks, update to correct IDom.
-    DT->addNewBlock(NewBB, NewPH);
+        // Establish the parent/child relationship.
+        Loop *OrigParent = CurLoop->getParentLoop();
+        assert(OrigParent && "Could not find the original parent loop");
+        Loop *NewParentLoop = LMap[OrigParent];
+        assert(NewParentLoop && "Could not find the new parent loop");
 
-    Blocks.push_back(NewBB);
+        NewParentLoop->addChildLoop(NewLoop);
+      }
+
+      BasicBlock *NewBB = CloneBasicBlock(BB, VMap, NameSuffix, F);
+      VMap[BB] = NewBB;
+
+      // Update LoopInfo.
+      NewLoop->addBasicBlockToLoop(NewBB, *LI);
+      if (BB == CurLoop->getHeader())
+        NewLoop->moveToHeader(NewBB);
+
+      // Add DominatorTree node. After seeing all blocks, update to correct
+      // IDom.
+      DT->addNewBlock(NewBB, NewPH);
+
+      Blocks.push_back(NewBB);
+    }
   }
 
   for (BasicBlock *BB : OrigLoop->getBlocks()) {

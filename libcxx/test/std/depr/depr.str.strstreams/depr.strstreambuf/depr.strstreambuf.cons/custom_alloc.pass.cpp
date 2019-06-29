@@ -15,6 +15,8 @@
 #include <strstream>
 #include <cassert>
 
+#include "test_macros.h"
+
 int called = 0;
 
 void* my_alloc(std::size_t)
@@ -38,7 +40,7 @@ struct test
         {return std::strstreambuf::overflow(c);}
 };
 
-int main()
+int main(int, char**)
 {
     {
         test s(my_alloc, my_free);
@@ -47,4 +49,6 @@ int main()
         assert(called == 1);
     }
     assert(called == 2);
+
+  return 0;
 }

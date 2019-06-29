@@ -16,6 +16,7 @@
 #include <ios>
 #include <cassert>
 #include <streambuf>
+#include "test_macros.h"
 #include "test_iterators.h"
 
 typedef std::num_put<char, output_iterator<char*> > F;
@@ -39,7 +40,7 @@ protected:
     virtual std::string do_grouping() const {return std::string("\1\2\3");}
 };
 
-int main()
+int main(int, char**)
 {
     const my_facet f(1);
     {
@@ -343,4 +344,6 @@ int main()
                                                  : "18_446_744_073_709_550_61_6"));
         assert(ios.width() == 0);
     }
+
+  return 0;
 }

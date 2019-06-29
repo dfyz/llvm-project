@@ -15,6 +15,7 @@
 // node_type extract(key_type const&);
 
 #include <unordered_set>
+#include "test_macros.h"
 #include "min_allocator.h"
 #include "Counter.h"
 
@@ -43,7 +44,7 @@ void test(Container& c, KeyTypeIter first, KeyTypeIter last)
     }
 }
 
-int main()
+int main(int, char**)
 {
     {
         std::unordered_set<int> m = {1, 2, 3, 4, 5, 6};
@@ -67,4 +68,6 @@ int main()
         int keys[] = {1, 2, 3, 4, 5, 6};
         test(m, std::begin(keys), std::end(keys));
     }
+
+  return 0;
 }

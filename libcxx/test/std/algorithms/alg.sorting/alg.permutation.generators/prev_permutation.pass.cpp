@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 
 #include <cstdio>
@@ -57,9 +58,11 @@ test()
     }
 }
 
-int main()
+int main(int, char**)
 {
     test<bidirectional_iterator<int*> >();
     test<random_access_iterator<int*> >();
     test<int*>();
+
+  return 0;
 }

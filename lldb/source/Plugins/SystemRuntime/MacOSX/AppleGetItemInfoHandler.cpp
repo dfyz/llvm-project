@@ -142,8 +142,8 @@ lldb::addr_t AppleGetItemInfoHandler::SetupGetItemInfoFunction(
     // First stage is to make the UtilityFunction to hold our injected
     // function:
 
-    if (!m_get_item_info_impl_code.get()) {
-      if (g_get_item_info_function_code != NULL) {
+    if (!m_get_item_info_impl_code) {
+      if (g_get_item_info_function_code != nullptr) {
         Status error;
         m_get_item_info_impl_code.reset(
             exe_ctx.GetTargetRef().GetUtilityFunctionForLanguage(
@@ -333,7 +333,7 @@ AppleGetItemInfoHandler::GetItemInfo(Thread &thread, uint64_t item,
   options.SetUnwindOnError(true);
   options.SetIgnoreBreakpoints(true);
   options.SetStopOthers(true);
-  options.SetTimeout(std::chrono::milliseconds(500));
+  options.SetTimeout(process_sp->GetUtilityExpressionTimeout());
   options.SetTryAllThreads(false);
   options.SetIsForUtilityExpr(true);
   thread.CalculateExecutionContext(exe_ctx);

@@ -130,6 +130,9 @@ def ReadOnly : EnumAttr<"readonly">;
 /// Return value is always equal to this argument.
 def Returned : EnumAttr<"returned">;
 
+/// Parameter is required to be a trivial constant.
+def ImmArg : EnumAttr<"immarg">;
+
 /// Function can return twice.
 def ReturnsTwice : EnumAttr<"returns_twice">;
 
@@ -192,6 +195,9 @@ def SwiftSelf : EnumAttr<"swiftself">;
 
 /// Function must be in a unwind table.
 def UWTable : EnumAttr<"uwtable">;
+
+/// Function always comes back to callsite.
+def WillReturn : EnumAttr<"willreturn">;
 
 /// Function only writes to memory.
 def WriteOnly : EnumAttr<"writeonly">;

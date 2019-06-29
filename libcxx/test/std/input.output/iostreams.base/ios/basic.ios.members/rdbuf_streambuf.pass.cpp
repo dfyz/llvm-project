@@ -16,7 +16,9 @@
 #include <streambuf>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::ios ios(0);
     assert(ios.rdbuf() == 0);
@@ -30,4 +32,6 @@ int main()
     assert(sb2 == (std::streambuf*)1);
     assert(ios.rdbuf() == 0);
     assert(ios.bad());
+
+  return 0;
 }

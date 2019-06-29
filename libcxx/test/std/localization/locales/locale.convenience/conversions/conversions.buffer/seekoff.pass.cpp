@@ -22,6 +22,8 @@
 #include <fstream>
 #include <cassert>
 
+#include "test_macros.h"
+
 class test_codecvt
     : public std::codecvt<wchar_t, char, std::mbstate_t>
 {
@@ -31,7 +33,7 @@ public:
     ~test_codecvt() {}
 };
 
-int main()
+int main(int, char**)
 {
     {
         wchar_t buf[10];
@@ -54,4 +56,6 @@ int main()
         assert(f.sgetc() == L'l');
     }
     std::remove("seekoff.dat");
+
+  return 0;
 }

@@ -15,7 +15,9 @@
 #include <locale>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     typedef std::ctype<char> F;
     assert(F::classic_table() != 0);
@@ -55,4 +57,6 @@ int main()
         assert(((p[i] & ~set) & defined) == 0);   // no extra ones
     }
 
+
+  return 0;
 }

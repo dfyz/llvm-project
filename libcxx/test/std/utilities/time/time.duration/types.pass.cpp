@@ -18,9 +18,13 @@
 #include <chrono>
 #include <type_traits>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     typedef std::chrono::duration<long, std::ratio<3, 2> > D;
     static_assert((std::is_same<D::rep, long>::value), "");
     static_assert((std::is_same<D::period, std::ratio<3, 2> >::value), "");
+
+  return 0;
 }

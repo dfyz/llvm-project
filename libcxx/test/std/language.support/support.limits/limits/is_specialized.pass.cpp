@@ -26,6 +26,8 @@
 #include <limits>
 #include <complex>
 
+#include "test_macros.h"
+
 template <class T>
 void test()
 {
@@ -39,7 +41,7 @@ void test()
                  "std::numeric_limits<const volatile T>::is_specialized");
 }
 
-int main()
+int main(int, char**)
 {
     test<bool>();
     test<char>();
@@ -67,4 +69,6 @@ int main()
     test<long double>();
     static_assert(!std::numeric_limits<std::complex<double> >::is_specialized,
                  "!std::numeric_limits<std::complex<double> >::is_specialized");
+
+  return 0;
 }

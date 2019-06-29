@@ -20,6 +20,8 @@
 #include <cstdlib>
 #include <cassert>
 
+#include "test_macros.h"
+
 std::recursive_timed_mutex m;
 
 typedef std::chrono::steady_clock Clock;
@@ -49,7 +51,7 @@ void f2()
     assert(d < ns(50000000));  // within 50ms
 }
 
-int main()
+int main(int, char**)
 {
     {
         m.lock();
@@ -65,4 +67,6 @@ int main()
         m.unlock();
         t.join();
     }
+
+  return 0;
 }

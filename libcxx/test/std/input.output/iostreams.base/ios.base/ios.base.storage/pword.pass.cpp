@@ -20,6 +20,8 @@
 #include <cassert>
 #include <cstdint>
 
+#include "test_macros.h"
+
 class test
     : public std::ios
 {
@@ -30,7 +32,7 @@ public:
     }
 };
 
-int main()
+int main(int, char**)
 {
     test t;
     std::ios_base& b = t;
@@ -42,4 +44,6 @@ int main()
         for (std::intptr_t j = 0; j <= i; ++j)
             assert(b.pword(j) == (void*)j);
     }
+
+  return 0;
 }

@@ -14,14 +14,18 @@
 #include <cstdlib>
 #include <cassert>
 
+#include "test_macros.h"
+
 void f1()
 {
     std::exit(0);
 }
 
-int main()
+int main(int, char**)
 {
     std::set_unexpected(f1);
     std::unexpected();
     assert(false);
+
+  return 0;
 }

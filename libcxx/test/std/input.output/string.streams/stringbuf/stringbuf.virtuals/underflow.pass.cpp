@@ -16,6 +16,8 @@
 #include <sstream>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class CharT>
 struct testbuf
     : public std::basic_stringbuf<CharT>
@@ -28,7 +30,7 @@ struct testbuf
     void pbump(int n) {base::pbump(n);}
 };
 
-int main()
+int main(int, char**)
 {
     {
         testbuf<char> sb("123");
@@ -66,4 +68,6 @@ int main()
         assert(sb.underflow() == L'4');
         assert(sb.underflow() == L'4');
     }
+
+  return 0;
 }

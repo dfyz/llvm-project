@@ -18,7 +18,9 @@
 #include <typeindex>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::type_index t1 = typeid(int);
     std::type_index t2 = typeid(int);
@@ -41,4 +43,6 @@ int main()
         assert( (t1 >  t3));
         assert( (t1 >= t3));
     }
+
+  return 0;
 }

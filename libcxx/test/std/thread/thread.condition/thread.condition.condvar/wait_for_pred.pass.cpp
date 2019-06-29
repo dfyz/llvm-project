@@ -24,6 +24,8 @@
 #include <chrono>
 #include <cassert>
 
+#include "test_macros.h"
+
 class Pred
 {
     int& i_;
@@ -66,7 +68,7 @@ void f()
     ++runs;
 }
 
-int main()
+int main(int, char**)
 {
     {
         std::unique_lock<std::mutex>lk(mut);
@@ -92,4 +94,6 @@ int main()
         lk.unlock();
         t.join();
     }
+
+  return 0;
 }

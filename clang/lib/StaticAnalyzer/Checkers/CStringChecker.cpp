@@ -17,6 +17,7 @@
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramStateTrait.h"
 #include "llvm/ADT/STLExtras.h"
@@ -57,7 +58,7 @@ public:
 
   static void *getTag() { static int tag; return &tag; }
 
-  bool evalCall(const CallExpr *CE, CheckerContext &C) const;
+  bool evalCall(const CallEvent &Call, CheckerContext &C) const;
   void checkPreStmt(const DeclStmt *DS, CheckerContext &C) const;
   void checkLiveSymbols(ProgramStateRef state, SymbolReaper &SR) const;
   void checkDeadSymbols(SymbolReaper &SR, CheckerContext &C) const;
@@ -1528,6 +1529,10 @@ void CStringChecker::evalStrlcat(CheckerContext &C, const CallExpr *CE) const {
   if (CE->getNumArgs() < 3)
     return;
 
+  // FIXME: strlcat() uses a different rule for bound checking, i.e. 'n' means
+  // a different thing as compared to strncat(). This currently causes
+  // false positives in the alpha string bound checker.
+
   //char *strlcat(char *s1, const char *s2, size_t n);
   evalStrcpyCommon(C, CE,
                    /* returnEnd = */ false,
@@ -2330,8 +2335,8 @@ static CStringChecker::FnCheck identifyCall(const CallExpr *CE,
   return nullptr;
 }
 
-bool CStringChecker::evalCall(const CallExpr *CE, CheckerContext &C) const {
-
+bool CStringChecker::evalCall(const CallEvent &Call, CheckerContext &C) const {
+  const auto *CE = dyn_cast_or_null<CallExpr>(Call.getOriginExpr());
   FnCheck evalFunction = identifyCall(CE, C);
 
   // If the callee isn't a string function, let another checker handle it.

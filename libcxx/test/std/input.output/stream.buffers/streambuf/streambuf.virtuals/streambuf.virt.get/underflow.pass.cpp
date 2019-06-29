@@ -16,14 +16,18 @@
 #include <streambuf>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct test
     : public std::basic_streambuf<char>
 {
     test() {}
 };
 
-int main()
+int main(int, char**)
 {
     test t;
     assert(t.sgetc() == -1);
+
+  return 0;
 }

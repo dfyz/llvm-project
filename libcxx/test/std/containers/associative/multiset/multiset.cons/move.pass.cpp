@@ -17,11 +17,12 @@
 #include <set>
 #include <cassert>
 
+#include "test_macros.h"
 #include "../../../test_compare.h"
 #include "test_allocator.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef int V;
@@ -113,4 +114,6 @@ int main()
         assert(mo.size() == 0);
         assert(distance(mo.begin(), mo.end()) == 0);
     }
+
+  return 0;
 }

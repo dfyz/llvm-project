@@ -13,7 +13,9 @@
 #include <iostream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
 #if 0
     std::wcerr << L"Hello World!\n";
@@ -25,4 +27,6 @@ int main()
 #endif
     assert(std::wcerr.flags() & std::ios_base::unitbuf);
 #endif  // 0
+
+  return 0;
 }

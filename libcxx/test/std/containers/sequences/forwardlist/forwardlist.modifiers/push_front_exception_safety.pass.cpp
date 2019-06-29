@@ -14,6 +14,8 @@
 #include <forward_list>
 #include <cassert>
 
+#include "test_macros.h"
+
 // Flag that makes the copy constructor for CMyClass throw an exception
 static bool gCopyConstructorShouldThow = false;
 
@@ -57,7 +59,7 @@ CMyClass::~CMyClass() {
     assert(fMagicValue == kFinishedConstructionMagicValue);
 }
 
-int main()
+int main(int, char**)
 {
     CMyClass instance;
     std::forward_list<CMyClass> vec;
@@ -70,4 +72,6 @@ int main()
     }
     catch (...) {
     }
+
+  return 0;
 }

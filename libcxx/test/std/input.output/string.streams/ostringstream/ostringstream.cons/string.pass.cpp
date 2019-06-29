@@ -17,7 +17,9 @@
 #include <sstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::ostringstream ss(" 123 456");
@@ -55,4 +57,6 @@ int main()
         ss << i << ' ' << 567;
         assert(ss.str() == L"234 5676");
     }
+
+  return 0;
 }

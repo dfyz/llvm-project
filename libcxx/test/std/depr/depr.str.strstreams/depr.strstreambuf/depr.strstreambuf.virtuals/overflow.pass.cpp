@@ -15,7 +15,9 @@
 #include <strstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         char buf[12] = "abc";
@@ -43,4 +45,6 @@ int main()
         assert(sb.sputc('1') == '1');
         assert(sb.str() == std::string("12345678901"));
     }
+
+  return 0;
 }

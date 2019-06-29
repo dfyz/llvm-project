@@ -23,6 +23,7 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
 #include "atomic_helpers.h"
 
 template <class T>
@@ -41,7 +42,9 @@ struct TestFn {
 };
 
 
-int main()
+int main(int, char**)
 {
     TestEachAtomicType<TestFn>()();
+
+  return 0;
 }

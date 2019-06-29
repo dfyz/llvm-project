@@ -13,7 +13,9 @@
 #include <iostream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
 #if 0
     std::cerr << "Hello World!\n";
@@ -25,4 +27,6 @@ int main()
 #endif
     assert(std::cerr.flags() & std::ios_base::unitbuf);
 #endif  // 0
+
+  return 0;
 }

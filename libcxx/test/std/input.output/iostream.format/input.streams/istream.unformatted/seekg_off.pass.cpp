@@ -17,6 +17,8 @@
 #include <istream>
 #include <cassert>
 
+#include "test_macros.h"
+
 int seekoff_called = 0;
 
 template <class CharT>
@@ -52,7 +54,7 @@ protected:
     }
 };
 
-int main()
+int main(int, char**)
 {
     {
         testbuf<char> sb(" 123456789");
@@ -83,4 +85,6 @@ int main()
         assert(is.good());
         assert(!is.eof());
     }
+
+  return 0;
 }

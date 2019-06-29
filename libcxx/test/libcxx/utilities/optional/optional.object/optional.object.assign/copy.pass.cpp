@@ -15,6 +15,8 @@
 #include <string>
 #include <type_traits>
 
+#include "test_macros.h"
+
 using std::optional;
 
 struct X {};
@@ -53,7 +55,7 @@ test()
     return true;
 }
 
-int main()
+int main(int, char**)
 {
     {
         using T = int;
@@ -70,4 +72,6 @@ int main()
 
     static_assert(!(std::is_copy_assignable<optional<Z1>>::value), "");
     static_assert(!(std::is_copy_assignable<optional<Z2>>::value), "");
+
+  return 0;
 }

@@ -38,13 +38,17 @@ declare void @llvm.hwasan.check.memaccess(i8*, i8*, i32)
 ; CHECK-NEXT: __hwasan_check_x0_456:
 ; CHECK-NEXT: ubfx x16, x0, #4, #52
 ; CHECK-NEXT: ldrb w16, [x9, x16]
-; CHECK-NEXT: lsr x17, x0, #56
-; CHECK-NEXT: cmp w16, w17
+; CHECK-NEXT: cmp x16, x0, lsr #56
 ; CHECK-NEXT: b.ne .Ltmp0
 ; CHECK-NEXT: ret
 ; CHECK-NEXT: .Ltmp0:
+; CHECK-NEXT: stp x0, x1, [sp, #-256]!
+; CHECK-NEXT: stp x29, x30, [sp, #232]
 ; CHECK-NEXT: mov x1, #456
-; CHECK-NEXT: b __hwasan_tag_mismatch
+; CHECK-NEXT: adrp  x16, :got:__hwasan_tag_mismatch
+; CHECK-NEXT: ldr x16, [x16, :got_lo12:__hwasan_tag_mismatch]
+; CHECK-NEXT: br  x16
+
 
 ; CHECK:      .section .text.hot,"axG",@progbits,__hwasan_check_x1_123,comdat
 ; CHECK-NEXT: .type __hwasan_check_x1_123,@function
@@ -53,11 +57,14 @@ declare void @llvm.hwasan.check.memaccess(i8*, i8*, i32)
 ; CHECK-NEXT: __hwasan_check_x1_123:
 ; CHECK-NEXT: ubfx x16, x1, #4, #52
 ; CHECK-NEXT: ldrb w16, [x9, x16]
-; CHECK-NEXT: lsr x17, x1, #56
-; CHECK-NEXT: cmp w16, w17
+; CHECK-NEXT: cmp x16, x1, lsr #56
 ; CHECK-NEXT: b.ne .Ltmp1
 ; CHECK-NEXT: ret
 ; CHECK-NEXT: .Ltmp1:
+; CHECK-NEXT: stp x0, x1, [sp, #-256]!
+; CHECK-NEXT: stp x29, x30, [sp, #232]
 ; CHECK-NEXT: mov x0, x1
 ; CHECK-NEXT: mov x1, #123
-; CHECK-NEXT: b __hwasan_tag_mismatch
+; CHECK-NEXT: adrp  x16, :got:__hwasan_tag_mismatch
+; CHECK-NEXT: ldr x16, [x16, :got_lo12:__hwasan_tag_mismatch]
+; CHECK-NEXT: br  x16

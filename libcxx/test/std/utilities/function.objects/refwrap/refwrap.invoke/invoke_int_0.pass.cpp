@@ -18,6 +18,8 @@
 #include <functional>
 #include <cassert>
 
+#include "test_macros.h"
+
 // 0 args, return int
 
 int count = 0;
@@ -69,7 +71,9 @@ struct A_void_1
     }
 };
 
-int main()
+int main(int, char**)
 {
     test_int_0();
+
+  return 0;
 }

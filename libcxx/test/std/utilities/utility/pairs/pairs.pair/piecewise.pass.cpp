@@ -20,8 +20,10 @@
 #include <tuple>
 #include <utility>
 
+#include "test_macros.h"
 
-int main()
+
+int main(int, char**)
 {
     {
         typedef std::pair<int, int*> P1;
@@ -32,4 +34,6 @@ int main()
         assert(p3.first == P1(3, nullptr));
         assert(p3.second == P2(nullptr, 4));
     }
+
+  return 0;
 }

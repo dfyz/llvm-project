@@ -16,10 +16,12 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct True  { static constexpr bool value = true; };
 struct False { static constexpr bool value = false; };
 
-int main()
+int main(int, char**)
 {
     static_assert ( std::conjunction<>::value, "" );
     static_assert ( std::conjunction<std::true_type >::value, "" );
@@ -62,4 +64,6 @@ int main()
 
     static_assert ( std::conjunction_v<True >, "" );
     static_assert (!std::conjunction_v<False>, "" );
+
+  return 0;
 }

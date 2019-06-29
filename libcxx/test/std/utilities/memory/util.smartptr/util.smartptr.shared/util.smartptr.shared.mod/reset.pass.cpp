@@ -15,6 +15,8 @@
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct B
 {
     static int count;
@@ -38,7 +40,7 @@ struct A
 
 int A::count = 0;
 
-int main()
+int main(int, char**)
 {
     {
         std::shared_ptr<B> p(new B);
@@ -58,4 +60,6 @@ int main()
         assert(p.get() == 0);
     }
     assert(A::count == 0);
+
+  return 0;
 }

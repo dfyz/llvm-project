@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+// UNSUPPORTED: c++98, c++03
+
 // This is for bugs 18853 and 19118
-
-#include "test_macros.h"
-
-#if TEST_STD_VER >= 11
 
 #include <tuple>
 #include <functional>
+
+#include "test_macros.h"
 
 struct X
 {
@@ -25,11 +25,10 @@ struct X
     void operator()() {}
 };
 
-int main()
+int main(int, char**)
 {
     X x;
     std::function<void()> f(x);
+
+  return 0;
 }
-#else
-int main () {}
-#endif

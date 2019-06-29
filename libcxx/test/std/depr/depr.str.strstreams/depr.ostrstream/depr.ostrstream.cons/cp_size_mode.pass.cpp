@@ -16,7 +16,9 @@
 #include <cassert>
 #include <string>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         char buf[] = "123 4.5 dog";
@@ -38,4 +40,6 @@ int main()
         out << i << ' ' << d << ' ' << s << std::ends;
         assert(out.str() == std::string("123 4.5 dog321 5.5 cat"));
     }
+
+  return 0;
 }

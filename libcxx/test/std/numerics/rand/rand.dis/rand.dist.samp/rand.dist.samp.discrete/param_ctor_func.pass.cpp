@@ -18,12 +18,14 @@
 #include <random>
 #include <cassert>
 
+#include "test_macros.h"
+
 double fw(double x)
 {
     return x+1;
 }
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::discrete_distribution<> D;
@@ -60,4 +62,6 @@ int main()
         assert(p[1] == .21875);
         assert(p[2] == .28125);
     }
+
+  return 0;
 }

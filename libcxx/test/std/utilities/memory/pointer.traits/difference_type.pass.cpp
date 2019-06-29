@@ -18,7 +18,11 @@
 #include <memory>
 #include <type_traits>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     static_assert((std::is_same<std::pointer_traits<double*>::difference_type, std::ptrdiff_t>::value), "");
+
+  return 0;
 }

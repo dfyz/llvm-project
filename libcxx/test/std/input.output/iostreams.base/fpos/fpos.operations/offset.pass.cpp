@@ -15,10 +15,14 @@
 #include <ios>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     typedef std::fpos<std::mbstate_t> P;
     P p(std::streamoff(7));
     std::streamoff offset(p);
     assert(offset == 7);
+
+  return 0;
 }

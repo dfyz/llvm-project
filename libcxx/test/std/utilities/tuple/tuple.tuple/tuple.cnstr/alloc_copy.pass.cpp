@@ -18,11 +18,12 @@
 #include <tuple>
 #include <cassert>
 
+#include "test_macros.h"
 #include "allocators.h"
 #include "../alloc_first.h"
 #include "../alloc_last.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::tuple<> T;
@@ -77,4 +78,6 @@ int main()
         assert(std::get<2>(t) == 3);
     }
 #endif
+
+  return 0;
 }

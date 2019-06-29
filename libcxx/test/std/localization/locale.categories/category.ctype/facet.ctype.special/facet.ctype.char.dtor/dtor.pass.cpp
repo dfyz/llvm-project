@@ -17,7 +17,9 @@
 
 #include "count_new.hpp"
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::locale l(std::locale::classic(), new std::ctype<char>);
@@ -36,4 +38,6 @@ int main()
         assert(globalMemCounter.checkDeleteArrayCalledEq(0));
     }
     assert(globalMemCounter.checkDeleteArrayCalledEq(1));
+
+  return 0;
 }

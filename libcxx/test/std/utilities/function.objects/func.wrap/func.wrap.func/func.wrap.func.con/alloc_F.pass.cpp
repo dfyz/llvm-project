@@ -64,7 +64,9 @@ void test_FreeFunction(AllocType& alloc)
     FuncType* target = &FreeFunction;
     assert(globalMemCounter.checkOutstandingNewEq(0));
     std::function<FuncType> f2(std::allocator_arg, alloc, target);
-    assert(globalMemCounter.checkOutstandingNewEq(0));
+    // The allocator may not fit in the small object buffer, if we allocated
+    // check it was done via the allocator.
+    assert(globalMemCounter.checkOutstandingNewEq(test_alloc_base::alloc_count));
     assert(f2.template target<FuncType*>());
     assert(*f2.template target<FuncType*>() == target);
     assert(f2.template target<FuncType>() == 0);
@@ -81,7 +83,7 @@ void test_MemFunClass(AllocType& alloc)
     TargetType target = &MemFunClass::foo;
     assert(globalMemCounter.checkOutstandingNewEq(0));
     std::function<FuncType> f2(std::allocator_arg, alloc, target);
-    assert(globalMemCounter.checkOutstandingNewEq(0));
+    assert(globalMemCounter.checkOutstandingNewEq(test_alloc_base::alloc_count));
     assert(f2.template target<TargetType>());
     assert(*f2.template target<TargetType>() == target);
     assert(f2.template target<FuncType*>() == 0);
@@ -106,7 +108,7 @@ void test_for_alloc(Alloc& alloc) {
     test_MemFunClass<int(MemFunClass::*)(int, int) const, int(MemFunClass&, int, int)>(alloc);
 }
 
-int main()
+int main(int, char**)
 {
     {
         bare_allocator<DummyClass> bare_alloc;
@@ -126,4 +128,6 @@ int main()
     }
 #endif
 
+
+  return 0;
 }

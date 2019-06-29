@@ -10,10 +10,14 @@
 
 #include <experimental/utility>
 
+#include "test_macros.h"
+
 #ifndef _LIBCPP_UTILITY
 #   error "<experimental/utility> must include <utility>"
 #endif
 
-int main()
+int main(int, char**)
 {
+
+  return 0;
 }

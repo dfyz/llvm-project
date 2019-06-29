@@ -24,11 +24,12 @@
 #include <list>
 #include <type_traits>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 struct A { std::list<A> v; }; // incomplete type support
 
-int main()
+int main(int, char**)
 {
     {
     typedef std::list<int> C;
@@ -65,4 +66,6 @@ int main()
         typename std::iterator_traits<typename C::const_iterator>::difference_type>::value), "");
     }
 #endif
+
+  return 0;
 }

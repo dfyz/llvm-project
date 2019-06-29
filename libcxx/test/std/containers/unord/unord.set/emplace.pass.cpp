@@ -20,10 +20,11 @@
 #include <unordered_set>
 #include <cassert>
 
+#include "test_macros.h"
 #include "../../Emplaceable.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::unordered_set<Emplaceable> C;
@@ -64,4 +65,6 @@ int main()
         assert(*r.first == Emplaceable(5, 6));
         assert(!r.second);
     }
+
+  return 0;
 }

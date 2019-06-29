@@ -20,6 +20,8 @@
 #include <vector>
 #include <numeric>
 
+#include "test_macros.h"
+
 template <class T>
 inline
 T
@@ -248,11 +250,13 @@ test5()
     assert(std::abs((kurtosis - x_kurtosis) / x_kurtosis) < 0.7);
 }
 
-int main()
+int main(int, char**)
 {
     test1();
     test2();
     test3();
     test4();
     test5();
+
+  return 0;
 }

@@ -16,6 +16,8 @@
 #include <sstream>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <typename Char, typename Traits = std::char_traits<Char> >
 struct my_streambuf : public std::basic_streambuf<Char,Traits> {
     typedef typename std::basic_streambuf<Char,Traits>::int_type  int_type;
@@ -25,7 +27,7 @@ struct my_streambuf : public std::basic_streambuf<Char,Traits> {
     int_type sputc(char_type) { return Traits::eof(); }
     };
 
-int main()
+int main(int, char**)
 {
     {
         my_streambuf<char> buf;
@@ -39,4 +41,6 @@ int main()
         i = L'a';
         assert(i.failed());
     }
+
+  return 0;
 }

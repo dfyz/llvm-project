@@ -15,8 +15,12 @@
 #include <string>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     assert(!std::char_traits<wchar_t>::lt(L'a', L'a'));
     assert( std::char_traits<wchar_t>::lt(L'A', L'a'));
+
+  return 0;
 }

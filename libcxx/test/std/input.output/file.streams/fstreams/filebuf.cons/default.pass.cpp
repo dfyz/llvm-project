@@ -16,7 +16,9 @@
 #include <fstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::filebuf f;
@@ -26,4 +28,6 @@ int main()
         std::wfilebuf f;
         assert(!f.is_open());
     }
+
+  return 0;
 }

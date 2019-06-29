@@ -14,6 +14,7 @@
 #include <iterator>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 struct S {
@@ -27,7 +28,7 @@ struct S {
     };
 
 
-int main()
+int main(int, char**)
 {
     {
         typedef int T;
@@ -151,4 +152,6 @@ int main()
         assert(c1 == c2);
     }
 #endif
+
+  return 0;
 }

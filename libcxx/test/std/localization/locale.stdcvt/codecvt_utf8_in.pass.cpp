@@ -24,7 +24,9 @@
 #include <codecvt>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::codecvt_utf8<char32_t> C;
@@ -356,4 +358,6 @@ int main()
         assert(np == n+1);
         assert(w == 0x56);
     }
+
+  return 0;
 }

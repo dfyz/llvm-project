@@ -16,10 +16,14 @@
 
 #include <mutex>
 
-int main() {
+#include "test_macros.h"
+
+int main(int, char**) {
   std::mutex m;
   m.lock();
   {
     std::unique_lock<std::mutex> g(m, std::adopt_lock);
   }
+
+  return 0;
 }

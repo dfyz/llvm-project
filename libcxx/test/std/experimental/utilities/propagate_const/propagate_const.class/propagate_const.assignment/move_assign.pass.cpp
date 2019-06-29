@@ -13,12 +13,13 @@
 // template <class U> propagate_const& propagate_const::operator=(propagate_const<U>&&);
 
 #include <experimental/propagate_const>
+#include "test_macros.h"
 #include "propagate_const_helpers.h"
 #include <cassert>
 
 using std::experimental::propagate_const;
 
-int main() {
+int main(int, char**) {
 
   typedef propagate_const<X> P;
 
@@ -28,4 +29,6 @@ int main() {
   p2=std::move(p1);
 
   assert(*p2==1);
+
+  return 0;
 }

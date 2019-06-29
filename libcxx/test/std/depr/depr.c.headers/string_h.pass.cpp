@@ -11,11 +11,13 @@
 #include <string.h>
 #include <type_traits>
 
+#include "test_macros.h"
+
 #ifndef NULL
 #error NULL not defined
 #endif
 
-int main()
+int main(int, char**)
 {
     size_t s = 0;
     void* vp = 0;
@@ -57,4 +59,6 @@ int main()
     static_assert((std::is_same<decltype(strstr(cpc, cpc)), const char*>::value), "");
     static_assert((std::is_same<decltype(memchr(vpc, 0, s)), const void*>::value), "");
 #endif
+
+  return 0;
 }

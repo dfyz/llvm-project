@@ -18,9 +18,10 @@
 #include <tuple>
 #include <cassert>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::tuple<> T;
@@ -58,4 +59,6 @@ int main()
         assert(std::get<1>(t1) == 1);
         assert(std::get<2>(t1) == 2);
     }
+
+  return 0;
 }

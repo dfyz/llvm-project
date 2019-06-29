@@ -11,6 +11,8 @@
 
 #include <cerrno>
 
+#include "test_macros.h"
+
 #ifndef E2BIG
 #error E2BIG not defined
 #endif
@@ -339,6 +341,8 @@
 #error errno not defined
 #endif
 
-int main()
+int main(int, char**)
 {
+
+  return 0;
 }

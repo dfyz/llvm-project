@@ -12,6 +12,8 @@
 
 #include <array>
 
+#include "test_macros.h"
+
 template <class T, std::size_t N>
 void test()
 {
@@ -33,9 +35,11 @@ void test()
     }
 }
 
-int main()
+int main(int, char**)
 {
     test<double, 0>();
     test<double, 3>();
     test<double, 5>();
+
+  return 0;
 }

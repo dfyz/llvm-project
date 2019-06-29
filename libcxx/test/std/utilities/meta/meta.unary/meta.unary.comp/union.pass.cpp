@@ -12,6 +12,8 @@
 
 #include <type_traits>
 
+#include "test_macros.h"
+
 template <class T>
 void test_union_imp()
 {
@@ -39,7 +41,9 @@ union Union
     double __;
 };
 
-int main()
+int main(int, char**)
 {
     test_union<Union>();
+
+  return 0;
 }

@@ -15,6 +15,7 @@
 // iterator insert(const_iterator hint, node_type&&);
 
 #include <set>
+#include "test_macros.h"
 #include "min_allocator.h"
 
 template <class Container>
@@ -51,10 +52,12 @@ void test(Container& c)
     }
 }
 
-int main()
+int main(int, char**)
 {
     std::set<int> m;
     test(m);
     std::set<int, std::less<int>, min_allocator<int>> m2;
     test(m2);
+
+  return 0;
 }

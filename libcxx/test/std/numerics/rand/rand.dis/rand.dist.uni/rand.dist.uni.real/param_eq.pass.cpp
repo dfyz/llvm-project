@@ -17,7 +17,9 @@
 #include <limits>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::uniform_real_distribution<float> D;
@@ -33,4 +35,6 @@ int main()
         param_type p2(6, 10);
         assert(p1 != p2);
     }
+
+  return 0;
 }

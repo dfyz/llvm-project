@@ -14,11 +14,12 @@
 #include <vector>
 #include <iterator>
 #include <cassert>
+#include "test_macros.h"
 #include "test_allocator.h"
 #include "min_allocator.h"
 #include "asan_testing.h"
 
-int main()
+int main(int, char**)
 {
     {
         int a1[] = {1, 3, 7, 9, 10};
@@ -178,4 +179,6 @@ int main()
         assert(is_contiguous_container_asan_correct(c2));
     }
 #endif
+
+  return 0;
 }

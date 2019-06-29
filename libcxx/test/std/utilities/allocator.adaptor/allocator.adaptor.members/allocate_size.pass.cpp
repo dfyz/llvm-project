@@ -18,9 +18,10 @@
 #include <scoped_allocator>
 #include <cassert>
 
+#include "test_macros.h"
 #include "allocators.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::scoped_allocator_adaptor<A1<int>> A;
@@ -44,4 +45,6 @@ int main()
         assert(A1<int>::allocate_called == true);
     }
 
+
+  return 0;
 }

@@ -47,7 +47,7 @@ class BogusSubtarget : public TargetSubtargetInfo {
 public:
   BogusSubtarget(TargetMachine &TM)
       : TargetSubtargetInfo(Triple(""), "", "", {}, {}, nullptr, nullptr,
-                            nullptr, nullptr, nullptr, nullptr, nullptr),
+                            nullptr, nullptr, nullptr, nullptr),
         FL(), TL(TM) {}
   ~BogusSubtarget() override {}
 
@@ -265,7 +265,8 @@ TEST(MachineInstrPrintingTest, DebugLocPrinting) {
 
   std::string str;
   raw_string_ostream OS(str);
-  MI->print(OS);
+  MI->print(OS, /*IsStandalone*/true, /*SkipOpers*/false, /*SkipDebugLoc*/false,
+            /*AddNewLine*/false);
   ASSERT_TRUE(
       StringRef(OS.str()).startswith("$noreg = UNKNOWN debug-location "));
   ASSERT_TRUE(

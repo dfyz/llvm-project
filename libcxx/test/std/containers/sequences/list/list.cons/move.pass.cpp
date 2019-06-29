@@ -14,11 +14,12 @@
 
 #include <list>
 #include <cassert>
+#include "test_macros.h"
 #include "MoveOnly.h"
 #include "test_allocator.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         std::list<MoveOnly, test_allocator<MoveOnly> > l(test_allocator<MoveOnly>(5));
@@ -59,4 +60,6 @@ int main()
         assert(l.empty());
         assert(l2.get_allocator() == lo.get_allocator());
     }
+
+  return 0;
 }

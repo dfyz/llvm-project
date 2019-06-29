@@ -21,6 +21,7 @@
 #include <utility>
 #include <cassert>
 
+#include "test_macros.h"
 #include "deleter_types.h"
 #include "unique_ptr_test_helper.h"
 
@@ -107,7 +108,7 @@ void test_sfinae() {
 }
 
 
-int main() {
+int main(int, char**) {
   {
     test_basic</*IsArray*/ false>();
     test_sfinae<false>();
@@ -116,4 +117,6 @@ int main() {
     test_basic</*IsArray*/ true>();
     test_sfinae<true>();
   }
+
+  return 0;
 }

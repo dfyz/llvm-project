@@ -15,6 +15,8 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
+
 using std::optional;
 
 struct Y
@@ -35,7 +37,7 @@ struct X
         {return x.i_ == y.i_;}
 };
 
-int main()
+int main(int, char**)
 {
     {
         constexpr optional<X> opt(2);
@@ -73,4 +75,6 @@ int main()
         const optional<X> opt;
         assert(opt.value_or(Y(3)) == 4);
     }
+
+  return 0;
 }

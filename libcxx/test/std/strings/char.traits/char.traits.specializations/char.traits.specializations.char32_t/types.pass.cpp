@@ -20,7 +20,9 @@
 #include <type_traits>
 #include <cstdint>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
 #ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
     static_assert((std::is_same<std::char_traits<char32_t>::char_type, char32_t>::value), "");
@@ -29,4 +31,6 @@ int main()
     static_assert((std::is_same<std::char_traits<char32_t>::pos_type, std::u32streampos>::value), "");
     static_assert((std::is_same<std::char_traits<char32_t>::state_type, std::mbstate_t>::value), "");
 #endif  // _LIBCPP_HAS_NO_UNICODE_CHARS
+
+  return 0;
 }

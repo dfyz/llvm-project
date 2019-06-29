@@ -12,7 +12,9 @@
 #include <type_traits>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     static_assert((std::is_base_of<std::exception, std::bad_typeid>::value),
                  "std::is_base_of<std::exception, std::bad_typeid>::value");
@@ -23,4 +25,6 @@ int main()
     b2 = b;
     const char* w = b2.what();
     assert(w);
+
+  return 0;
 }

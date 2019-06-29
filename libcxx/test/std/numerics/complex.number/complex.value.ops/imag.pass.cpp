@@ -15,6 +15,8 @@
 #include <complex>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class T>
 void
 test()
@@ -23,9 +25,11 @@ test()
     assert(imag(z) == 2.5);
 }
 
-int main()
+int main(int, char**)
 {
     test<float>();
     test<double>();
     test<long double>();
+
+  return 0;
 }

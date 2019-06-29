@@ -15,6 +15,8 @@
 #include <climits>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <std::size_t N>
 void test_to_ulong()
 {
@@ -46,7 +48,7 @@ void test_to_ulong()
     }
 }
 
-int main()
+int main(int, char**)
 {
     test_to_ulong<0>();
     test_to_ulong<1>();
@@ -57,4 +59,6 @@ int main()
     test_to_ulong<64>();
     test_to_ulong<65>();
     test_to_ulong<1000>();
+
+  return 0;
 }

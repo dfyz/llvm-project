@@ -10,8 +10,12 @@
 
 #include <experimental/utility>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
   std::experimental::erased_type e;
   ((void)e);
+
+  return 0;
 }

@@ -16,9 +16,10 @@
 #include <cassert>
 #include <iterator>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef int T;
@@ -64,4 +65,6 @@ int main()
             assert(*i == 10+n);
         assert(n == 4);
     }
+
+  return 0;
 }

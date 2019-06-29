@@ -2,7 +2,7 @@
 Base class for gdb-remote test cases.
 """
 
-from __future__ import print_function
+from __future__ import division, print_function
 
 
 import errno
@@ -20,6 +20,7 @@ import tempfile
 import time
 from lldbsuite.test import configuration
 from lldbsuite.test.lldbtest import *
+from lldbsuite.support import seven
 from lldbgdbserverutils import *
 import logging
 
@@ -377,6 +378,11 @@ class GdbRemoteTestCaseBase(TestBase):
             commandline_args += ["--named-pipe", self.named_pipe_path]
         return commandline_args
 
+    def get_target_byte_order(self):
+        inferior_exe_path = self.getBuildArtifact("a.out")
+        target = self.dbg.CreateTarget(inferior_exe_path)
+        return target.GetByteOrder()
+
     def launch_debug_monitor(self, attach_pid=None, logfile=None):
         # Create the command line.
         commandline_args = self.get_debug_monitor_command_line_args(
@@ -507,7 +513,8 @@ class GdbRemoteTestCaseBase(TestBase):
             self,
             inferior_args=None,
             inferior_sleep_seconds=3,
-            inferior_exe_path=None):
+            inferior_exe_path=None,
+            inferior_env=None):
         """Prep the debug monitor, the inferior, and the expected packet stream.
 
         Handle the separate cases of using the debug monitor in attach-to-inferior mode
@@ -570,6 +577,9 @@ class GdbRemoteTestCaseBase(TestBase):
 
         # Build the expected protocol stream
         self.add_no_ack_remote_stream()
+        if inferior_env:
+            for name, value in inferior_env.items():
+                self.add_set_environment_packets(name, value)
         if self._inferior_startup == self._STARTUP_LAUNCH:
             self.add_verified_launch_packets(launch_args)
 
@@ -589,7 +599,7 @@ class GdbRemoteTestCaseBase(TestBase):
             if can_read and sock in can_read:
                 recv_bytes = sock.recv(4096)
                 if recv_bytes:
-                    response += recv_bytes.decode("utf-8")
+                    response += seven.bitcast_to_string(recv_bytes)
 
         self.assertTrue(expected_content_regex.match(response))
 
@@ -649,6 +659,12 @@ class GdbRemoteTestCaseBase(TestBase):
             ["read packet: $qProcessInfo#dc",
              {"direction": "send", "regex": r"^\$(.+)#[0-9a-fA-F]{2}$", "capture": {1: "process_info_raw"}}],
             True)
+
+    def add_set_environment_packets(self, name, value):
+        self.test_sequence.add_log_lines(
+            ["read packet: $QEnvironment:" + name + "=" + value + "#00",
+             "send packet: $OK#00",
+             ], True)
 
     _KNOWN_PROCESS_INFO_KEYS = [
         "pid",
@@ -810,6 +826,7 @@ class GdbRemoteTestCaseBase(TestBase):
                     "error"])
             self.assertIsNotNone(val)
 
+        mem_region_dict["name"] = seven.unhexlify(mem_region_dict.get("name", ""))
         # Return the dictionary of key-value pairs for the memory region.
         return mem_region_dict
 
@@ -993,6 +1010,22 @@ class GdbRemoteTestCaseBase(TestBase):
         self.assertIsNotNone(context.get("stop_result"))
 
         return context
+
+    def continue_process_and_wait_for_stop(self):
+        self.test_sequence.add_log_lines(
+            [
+                "read packet: $vCont;c#a8",
+                {
+                    "direction": "send",
+                    "regex": r"^\$T([0-9a-fA-F]{2})(.*)#[0-9a-fA-F]{2}$",
+                    "capture": {1: "stop_signo", 2: "stop_key_val_text"},
+                },
+            ],
+            True,
+        )
+        context = self.expect_gdbremote_sequence()
+        self.assertIsNotNone(context)
+        return self.parse_interrupt_packets(context)
 
     def select_modifiable_register(self, reg_infos):
         """Find a register that can be read/written freely."""
@@ -1235,7 +1268,7 @@ class GdbRemoteTestCaseBase(TestBase):
             reg_index = reg_info["lldb_register_index"]
             self.assertIsNotNone(reg_index)
 
-            reg_byte_size = int(reg_info["bitsize"]) / 8
+            reg_byte_size = int(reg_info["bitsize"]) // 8
             self.assertTrue(reg_byte_size > 0)
 
             # Handle thread suffix.
@@ -1261,7 +1294,7 @@ class GdbRemoteTestCaseBase(TestBase):
                 endian, p_response)
 
             # Flip the value by xoring with all 1s
-            all_one_bits_raw = "ff" * (int(reg_info["bitsize"]) / 8)
+            all_one_bits_raw = "ff" * (int(reg_info["bitsize"]) // 8)
             flipped_bits_int = initial_reg_value ^ int(all_one_bits_raw, 16)
             # print("reg (index={}, name={}): val={}, flipped bits (int={}, hex={:x})".format(reg_index, reg_info["name"], initial_reg_value, flipped_bits_int, flipped_bits_int))
 
@@ -1476,8 +1509,8 @@ class GdbRemoteTestCaseBase(TestBase):
         self.assertIsNotNone(context.get("g_c1_contents"))
         self.assertIsNotNone(context.get("g_c2_contents"))
 
-        return (context.get("g_c1_contents").decode("hex") == expected_g_c1) and (
-            context.get("g_c2_contents").decode("hex") == expected_g_c2)
+        return (seven.unhexlify(context.get("g_c1_contents")) == expected_g_c1) and (
+            seven.unhexlify(context.get("g_c2_contents")) == expected_g_c2)
 
     def single_step_only_steps_one_instruction(
             self, use_Hc_packet=True, step_instruction="s"):

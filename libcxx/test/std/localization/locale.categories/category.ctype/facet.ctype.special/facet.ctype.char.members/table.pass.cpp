@@ -15,7 +15,9 @@
 #include <locale>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     typedef std::ctype<char> F;
     {
@@ -29,4 +31,6 @@ int main()
         const F& f = std::use_facet<F>(l);
         assert(f.table() == table);
     }
+
+  return 0;
 }

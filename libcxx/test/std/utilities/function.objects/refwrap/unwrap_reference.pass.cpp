@@ -19,6 +19,8 @@
 #include <functional>
 #include <type_traits>
 
+#include "test_macros.h"
+
 
 template <typename T, typename Expected>
 void check_equal() {
@@ -39,7 +41,7 @@ void check() {
 
 struct T { };
 
-int main() {
+int main(int, char**) {
   check<T>();
   check<int>();
   check<float>();
@@ -47,4 +49,6 @@ int main() {
   check<T*>();
   check<int*>();
   check<float*>();
+
+  return 0;
 }

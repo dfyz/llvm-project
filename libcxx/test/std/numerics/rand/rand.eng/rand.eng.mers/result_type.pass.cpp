@@ -20,6 +20,8 @@
 #include <random>
 #include <type_traits>
 
+#include "test_macros.h"
+
 void
 test1()
 {
@@ -36,8 +38,10 @@ test2()
         std::uint_fast64_t>::value), "");
 }
 
-int main()
+int main(int, char**)
 {
     test1();
     test2();
+
+  return 0;
 }

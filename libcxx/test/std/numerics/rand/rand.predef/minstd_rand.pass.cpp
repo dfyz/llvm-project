@@ -14,9 +14,13 @@
 #include <random>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::minstd_rand e;
     e.discard(9999);
     assert(e() == 399268537u);
+
+  return 0;
 }

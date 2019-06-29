@@ -1,9 +1,8 @@
 //===- MachOReader.h --------------------------------------------*- C++ -*-===//
 //
-//                      The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
 
@@ -31,7 +30,7 @@ class MachOReader : public Reader {
   void readHeader(Object &O) const;
   void readLoadCommands(Object &O) const;
   void readSymbolTable(Object &O) const;
-  void readStringTable(Object &O) const;
+  void setSymbolInRelocationInfo(Object &O) const;
   void readRebaseInfo(Object &O) const;
   void readBindInfo(Object &O) const;
   void readWeakBindInfo(Object &O) const;

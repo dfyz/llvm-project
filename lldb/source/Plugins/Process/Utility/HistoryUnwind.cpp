@@ -16,14 +16,15 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
 
+#include <memory>
+
 using namespace lldb;
 using namespace lldb_private;
 
 // Constructor
 
-HistoryUnwind::HistoryUnwind(Thread &thread, std::vector<lldb::addr_t> pcs,
-                             bool stop_id_is_valid)
-    : Unwind(thread), m_pcs(pcs), m_stop_id_is_valid(stop_id_is_valid) {}
+HistoryUnwind::HistoryUnwind(Thread &thread, std::vector<lldb::addr_t> pcs)
+    : Unwind(thread), m_pcs(pcs) {}
 
 // Destructor
 
@@ -32,7 +33,6 @@ HistoryUnwind::~HistoryUnwind() {}
 void HistoryUnwind::DoClear() {
   std::lock_guard<std::recursive_mutex> guard(m_unwind_mutex);
   m_pcs.clear();
-  m_stop_id_is_valid = false;
 }
 
 lldb::RegisterContextSP
@@ -42,9 +42,9 @@ HistoryUnwind::DoCreateRegisterContextForFrame(StackFrame *frame) {
     addr_t pc = frame->GetFrameCodeAddress().GetLoadAddress(
         &frame->GetThread()->GetProcess()->GetTarget());
     if (pc != LLDB_INVALID_ADDRESS) {
-      rctx.reset(new RegisterContextHistory(
+      rctx = std::make_shared<RegisterContextHistory>(
           *frame->GetThread().get(), frame->GetConcreteFrameIndex(),
-          frame->GetThread()->GetProcess()->GetAddressByteSize(), pc));
+          frame->GetThread()->GetProcess()->GetAddressByteSize(), pc);
     }
   }
   return rctx;

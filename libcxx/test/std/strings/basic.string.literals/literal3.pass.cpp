@@ -12,9 +12,13 @@
 #include <string>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     using namespace std;
 
     string foo  =   ""s;
+
+  return 0;
 }

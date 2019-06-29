@@ -13,7 +13,9 @@
 #include <stack>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::stack<int> q;
     q.push(1);
@@ -25,4 +27,6 @@ int main()
     q.push(3);
     assert(q.size() == 3);
     assert(q.top() == 3);
+
+  return 0;
 }

@@ -18,7 +18,9 @@
 #include <random>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::piecewise_constant_distribution<> D;
@@ -96,4 +98,6 @@ int main()
         assert(dn[1] == .3125);
         assert(dn[2] == .125);
     }
+
+  return 0;
 }

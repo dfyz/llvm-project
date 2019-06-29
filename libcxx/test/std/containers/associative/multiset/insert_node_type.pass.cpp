@@ -16,6 +16,7 @@
 
 #include <set>
 #include <type_traits>
+#include "test_macros.h"
 #include "min_allocator.h"
 
 template <class Container>
@@ -67,10 +68,12 @@ void test(Container& c)
     }
 }
 
-int main()
+int main(int, char**)
 {
     std::multiset<int> m;
     test(m);
     std::multiset<int, std::less<int>, min_allocator<int>> m2;
     test(m2);
+
+  return 0;
 }

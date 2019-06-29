@@ -17,6 +17,8 @@
 #include <experimental/simd>
 #include <cstdint>
 
+#include "test_macros.h"
+
 namespace ex = std::experimental::parallelism_v2;
 
 static_assert(
@@ -37,4 +39,6 @@ static_assert(
         ex::simd<float, ex::simd_abi::scalar>>::value,
     "");
 
-int main() {}
+int main(int, char**) {
+  return 0;
+}

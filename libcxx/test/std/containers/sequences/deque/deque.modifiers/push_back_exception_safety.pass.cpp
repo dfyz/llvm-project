@@ -12,6 +12,7 @@
 // void push_back(const value_type& x);
 
 #include <deque>
+#include "test_macros.h"
 #include "test_allocator.h"
 #include <cassert>
 
@@ -64,7 +65,7 @@ CMyClass::~CMyClass() {
 
 bool operator==(const CMyClass &lhs, const CMyClass &rhs) { return lhs.equal(rhs); }
 
-int main()
+int main(int, char**)
 {
     CMyClass instance(42);
     {
@@ -98,4 +99,6 @@ int main()
         assert(vec==vec2);
     }
     }
+
+  return 0;
 }

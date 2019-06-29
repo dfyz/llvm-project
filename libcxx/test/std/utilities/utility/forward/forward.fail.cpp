@@ -19,18 +19,12 @@ struct A
 A source() {return A();}
 const A csource() {return A();}
 
-int main()
+int main(int, char**)
 {
-#if TEST_STD_VER >= 11
     {
         std::forward<A&>(source());  // expected-note {{requested here}}
         // expected-error-re@type_traits:* 1 {{static_assert failed{{.*}} "can not forward an rvalue as an lvalue"}}
     }
-#else
-    {
-        std::forward<A&>(source()); // expected-error {{no matching function for call to 'forward'}}
-    }
-#endif
     {
         const A ca = A();
         std::forward<A&>(ca); // expected-error {{no matching function for call to 'forward'}}
@@ -49,4 +43,6 @@ int main()
         A a;
         std::forward(a); // expected-error {{no matching function for call to 'forward'}}
     }
+
+  return 0;
 }

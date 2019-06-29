@@ -18,6 +18,7 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
 #include "../cases.h"
 
 template <class T>
@@ -54,7 +55,7 @@ test()
     test<T>(10);
 }
 
-int main()
+int main(int, char**)
 {
     test<float>();
     test<double>();
@@ -62,4 +63,6 @@ int main()
     test<int>();
     test<unsigned>();
     test<long long>();
+
+  return 0;
 }

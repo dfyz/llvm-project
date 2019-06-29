@@ -14,13 +14,8 @@
 // LLDB Python header must be included first
 #include "lldb-python.h"
 
-#include "lldb/Utility/Flags.h"
-
 #include "lldb/Host/File.h"
-#include "lldb/Interpreter/OptionValue.h"
-#include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/StructuredData.h"
-#include "lldb/lldb-defines.h"
 
 #include "llvm/ADT/ArrayRef.h"
 
@@ -57,6 +52,7 @@ private:
 enum class PyObjectType {
   Unknown,
   None,
+  Boolean,
   Integer,
   Dictionary,
   List,
@@ -202,7 +198,6 @@ public:
   explicit PythonBytes(llvm::ArrayRef<uint8_t> bytes);
   PythonBytes(const uint8_t *bytes, size_t length);
   PythonBytes(PyRefType type, PyObject *o);
-  PythonBytes(const PythonBytes &object);
 
   ~PythonBytes() override;
 
@@ -254,7 +249,6 @@ public:
   explicit PythonString(llvm::StringRef string);
   explicit PythonString(const char *string);
   PythonString(PyRefType type, PyObject *o);
-  PythonString(const PythonString &object);
 
   ~PythonString() override;
 
@@ -279,7 +273,6 @@ public:
   PythonInteger();
   explicit PythonInteger(int64_t value);
   PythonInteger(PyRefType type, PyObject *o);
-  PythonInteger(const PythonInteger &object);
 
   ~PythonInteger() override;
 
@@ -297,13 +290,34 @@ public:
   StructuredData::IntegerSP CreateStructuredInteger() const;
 };
 
+class PythonBoolean : public PythonObject {
+public:
+  PythonBoolean() = default;
+  explicit PythonBoolean(bool value);
+  PythonBoolean(PyRefType type, PyObject *o);
+
+  ~PythonBoolean() override = default;
+
+  static bool Check(PyObject *py_obj);
+
+  // Bring in the no-argument base class version
+  using PythonObject::Reset;
+
+  void Reset(PyRefType type, PyObject *py_obj) override;
+
+  bool GetValue() const;
+
+  void SetValue(bool value);
+
+  StructuredData::BooleanSP CreateStructuredBoolean() const;
+};
+
 class PythonList : public PythonObject {
 public:
   PythonList() {}
   explicit PythonList(PyInitialValue value);
   explicit PythonList(int list_size);
   PythonList(PyRefType type, PyObject *o);
-  PythonList(const PythonList &list);
 
   ~PythonList() override;
 
@@ -331,7 +345,6 @@ public:
   explicit PythonTuple(PyInitialValue value);
   explicit PythonTuple(int tuple_size);
   PythonTuple(PyRefType type, PyObject *o);
-  PythonTuple(const PythonTuple &tuple);
   PythonTuple(std::initializer_list<PythonObject> objects);
   PythonTuple(std::initializer_list<PyObject *> objects);
 
@@ -358,7 +371,6 @@ public:
   PythonDictionary() {}
   explicit PythonDictionary(PyInitialValue value);
   PythonDictionary(PyRefType type, PyObject *o);
-  PythonDictionary(const PythonDictionary &dict);
 
   ~PythonDictionary() override;
 
@@ -383,7 +395,6 @@ class PythonModule : public PythonObject {
 public:
   PythonModule();
   PythonModule(PyRefType type, PyObject *o);
-  PythonModule(const PythonModule &dict);
 
   ~PythonModule() override;
 
@@ -416,7 +427,6 @@ public:
 
   PythonCallable();
   PythonCallable(PyRefType type, PyObject *o);
-  PythonCallable(const PythonCallable &dict);
 
   ~PythonCallable() override;
 

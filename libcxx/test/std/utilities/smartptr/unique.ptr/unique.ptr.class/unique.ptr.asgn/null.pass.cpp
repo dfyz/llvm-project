@@ -15,6 +15,7 @@
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
 #include "unique_ptr_test_helper.h"
 
 // test assignment from null
@@ -32,7 +33,9 @@ void test_basic() {
   assert(A::count == 0);
 }
 
-int main() {
+int main(int, char**) {
   test_basic</*IsArray*/ false>();
   test_basic<true>();
+
+  return 0;
 }

@@ -20,7 +20,9 @@
 #include <cstdlib>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     int a[] = {1, 2, 3};
     std::list<int> c(a, a+3);
@@ -32,4 +34,6 @@ int main()
     assert(c.empty());
     c.pop_back(); // operation under test
     assert(false);
+
+  return 0;
 }

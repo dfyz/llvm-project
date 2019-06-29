@@ -21,9 +21,10 @@
 #include <list>
 #include <cstdlib>
 #include <cassert>
+#include "test_macros.h"
 #include "test_iterators.h"
 
-int main()
+int main(int, char**)
 {
     {
         std::list<int> v(100);
@@ -35,4 +36,6 @@ int main()
                                        input_iterator<const int*>(a+N));
         assert(false);
     }
+
+  return 0;
 }

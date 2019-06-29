@@ -16,7 +16,9 @@
 #include <cassert>
 #include <string>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         char buf[] = "123 4.5 dog";
@@ -40,4 +42,6 @@ int main()
         assert(buf[5] == '5');
         assert(buf[6] == '5');
     }
+
+  return 0;
 }

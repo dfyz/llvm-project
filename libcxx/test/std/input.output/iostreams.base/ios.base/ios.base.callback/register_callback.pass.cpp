@@ -19,6 +19,7 @@
 #include <locale>
 #include <cassert>
 
+#include "test_macros.h"
 #include "platform_support.h" // locale name macros
 
 class test
@@ -43,7 +44,7 @@ void f1(std::ios_base::event ev, std::ios_base& stream, int index)
     }
 }
 
-int main()
+int main(int, char**)
 {
     test t;
     std::ios_base& b = t;
@@ -52,4 +53,6 @@ int main()
     b.register_callback(f1, 4);
     std::locale l = b.imbue(std::locale(LOCALE_en_US_UTF_8));
     assert(f1_called == 3);
+
+  return 0;
 }

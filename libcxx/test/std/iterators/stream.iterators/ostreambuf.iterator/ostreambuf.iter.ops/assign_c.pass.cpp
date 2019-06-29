@@ -17,7 +17,9 @@
 #include <sstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::ostringstream outf;
@@ -35,4 +37,6 @@ int main()
         i = L'b';
         assert(outf.str() == L"ab");
     }
+
+  return 0;
 }

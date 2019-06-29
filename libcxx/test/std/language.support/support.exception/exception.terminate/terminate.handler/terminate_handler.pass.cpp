@@ -12,11 +12,15 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
+
 void f() {}
 
-int main()
+int main(int, char**)
 {
     static_assert((std::is_same<std::terminate_handler, void(*)()>::value), "");
     std::terminate_handler p = f;
     assert(p == &f);
+
+  return 0;
 }

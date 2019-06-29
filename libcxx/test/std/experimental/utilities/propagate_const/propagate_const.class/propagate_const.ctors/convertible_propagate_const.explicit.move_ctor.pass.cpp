@@ -13,6 +13,7 @@
 // template <class U> constexpr propagate_const(propagate_const<_Up>&& pu);
 
 #include <experimental/propagate_const>
+#include "test_macros.h"
 #include "propagate_const_helpers.h"
 #include <type_traits>
 
@@ -21,7 +22,9 @@ using std::experimental::propagate_const;
 typedef propagate_const<X> PX;
 typedef propagate_const<ExplicitMoveConstructibleFromX> PY;
 
-int main() {
+int main(int, char**) {
   static_assert(!std::is_convertible<PY, PX &&>::value, "");
   static_assert(std::is_constructible<PY, PX &&>::value, "");
+
+  return 0;
 }

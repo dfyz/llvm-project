@@ -12,9 +12,11 @@
 
 #include <utility>
 
+#include "test_macros.h"
+
 struct S {};
 
-int main() {
+int main(int, char**) {
   using I = std::in_place_index_t<0>;
   static_assert( std::__is_inplace_index<I>::value, "");
   static_assert( std::__is_inplace_index<const I>::value, "");
@@ -30,4 +32,6 @@ int main() {
   static_assert(!std::__is_inplace_index<void>::value, "");
   static_assert(!std::__is_inplace_index<int>::value, "");
   static_assert(!std::__is_inplace_index<S>::value, "");
+
+  return 0;
 }

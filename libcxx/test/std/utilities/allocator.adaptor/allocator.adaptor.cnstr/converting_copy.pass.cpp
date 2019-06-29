@@ -20,9 +20,10 @@
 #include <scoped_allocator>
 #include <cassert>
 
+#include "test_macros.h"
 #include "allocators.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::scoped_allocator_adaptor<A1<double>> B;
@@ -64,4 +65,6 @@ int main()
         assert(a2 == a1);
     }
 
+
+  return 0;
 }

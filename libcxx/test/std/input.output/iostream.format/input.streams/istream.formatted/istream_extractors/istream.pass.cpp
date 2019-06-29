@@ -17,6 +17,8 @@
 #include <istream>
 #include <cassert>
 
+#include "test_macros.h"
+
 int f_called = 0;
 
 template <class CharT>
@@ -27,11 +29,13 @@ f(std::basic_istream<CharT>& is)
     return is;
 }
 
-int main()
+int main(int, char**)
 {
     {
         std::istream is((std::streambuf*)0);
         is >> f;
         assert(f_called == 1);
     }
+
+  return 0;
 }

@@ -14,6 +14,8 @@
 #include <ostream>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class CharT>
 struct testbuf
     : public std::basic_streambuf<CharT>
@@ -21,7 +23,7 @@ struct testbuf
     testbuf() {}
 };
 
-int main()
+int main(int, char**)
 {
     {
         testbuf<char> sb;
@@ -35,4 +37,6 @@ int main()
         os << std::setfill(L'*');
         assert(os.fill() == L'*');
     }
+
+  return 0;
 }

@@ -12,6 +12,8 @@
 
 #include <type_traits>
 
+#include "test_macros.h"
+
 template <class T>
 void test_lvalue_ref()
 {
@@ -24,8 +26,10 @@ void test_lvalue_ref()
     static_assert(!std::is_member_pointer<T>::value, "");
 }
 
-int main()
+int main(int, char**)
 {
     test_lvalue_ref<int&>();
     test_lvalue_ref<const int&>();
+
+  return 0;
 }

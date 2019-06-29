@@ -16,7 +16,9 @@
 #include <cassert>
 #include <cstring>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         signed char buf[] = "abcd";
@@ -93,4 +95,6 @@ int main()
         assert(sb.snextc() == 'j');
         assert(sb.snextc() == EOF);
     }
+
+  return 0;
 }

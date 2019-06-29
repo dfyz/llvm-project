@@ -16,6 +16,8 @@
 #include <streambuf>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class CharT>
 struct test
     : public std::basic_streambuf<CharT>
@@ -23,10 +25,12 @@ struct test
     test() {}
 };
 
-int main()
+int main(int, char**)
 {
     {
         test<char> t;
         assert(t.pubsync() == 0);
     }
+
+  return 0;
 }

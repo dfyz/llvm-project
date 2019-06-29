@@ -30,9 +30,10 @@
 
 #include <stdio.h>
 
+#include "test_macros.h"
 #include "platform_support.h" // locale name macros
 
-int main()
+int main(int, char**)
 {
     {
         std::locale l(LOCALE_en_US_UTF_8);
@@ -68,4 +69,6 @@ int main()
                              s3.data(), s3.data() + s3.size()) == 1);
         }
     }
+
+  return 0;
 }

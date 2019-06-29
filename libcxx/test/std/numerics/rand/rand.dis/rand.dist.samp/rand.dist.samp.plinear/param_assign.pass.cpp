@@ -17,7 +17,9 @@
 #include <limits>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::piecewise_linear_distribution<> D;
@@ -30,4 +32,6 @@ int main()
         p1 = p0;
         assert(p1 == p0);
     }
+
+  return 0;
 }

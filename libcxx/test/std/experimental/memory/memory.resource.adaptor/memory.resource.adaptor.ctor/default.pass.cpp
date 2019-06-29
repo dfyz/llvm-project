@@ -21,9 +21,11 @@
 
 #include "test_memory_resource.hpp"
 
+#include "test_macros.h"
+
 namespace ex = std::experimental::pmr;
 
-int main()
+int main(int, char**)
 {
     {
         typedef CountingAllocator<char> AllocT; // Not default constructible
@@ -36,4 +38,6 @@ int main()
         static_assert(std::is_default_constructible<R>::value, "");
         R r; ((void)r);
     }
+
+  return 0;
 }

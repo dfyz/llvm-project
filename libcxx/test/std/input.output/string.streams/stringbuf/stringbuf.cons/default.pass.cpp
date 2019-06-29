@@ -16,6 +16,8 @@
 #include <sstream>
 #include <cassert>
 
+#include "test_macros.h"
+
 template<typename CharT>
 struct testbuf
     : std::basic_stringbuf<CharT>
@@ -31,7 +33,7 @@ struct testbuf
     }
 };
 
-int main()
+int main(int, char**)
 {
     {
         std::stringbuf buf;
@@ -49,4 +51,6 @@ int main()
         testbuf<wchar_t> buf;
         buf.check();
     }
+
+  return 0;
 }

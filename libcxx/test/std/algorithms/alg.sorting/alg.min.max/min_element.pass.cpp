@@ -17,6 +17,7 @@
 #include <random>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 
 std::mt19937 randomness;
@@ -71,7 +72,7 @@ void constexpr_test()
 #endif
 }
 
-int main()
+int main(int, char**)
 {
     test<forward_iterator<const int*> >();
     test<bidirectional_iterator<const int*> >();
@@ -79,4 +80,6 @@ int main()
     test<const int*>();
 
     constexpr_test();
+
+  return 0;
 }

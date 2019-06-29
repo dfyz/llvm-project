@@ -15,8 +15,12 @@
 #include <random>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::seed_seq s;
     assert(s.size() == 0);
+
+  return 0;
 }

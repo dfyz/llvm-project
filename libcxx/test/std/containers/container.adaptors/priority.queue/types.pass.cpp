@@ -32,6 +32,8 @@
 #include <type_traits>
 #include <vector>
 
+#include "test_macros.h"
+
 struct test
     : private std::priority_queue<int>
 {
@@ -50,7 +52,7 @@ struct C
     typedef int size_type;
 };
 
-int main()
+int main(int, char**)
 {
     static_assert(( std::is_same<std::priority_queue<int>::container_type, std::vector<int> >::value), "");
     static_assert(( std::is_same<std::priority_queue<int, std::deque<int> >::container_type, std::deque<int> >::value), "");
@@ -64,4 +66,6 @@ int main()
     static_assert(( std::uses_allocator<std::priority_queue<int>, std::allocator<int> >::value), "");
     static_assert((!std::uses_allocator<std::priority_queue<int, C>, std::allocator<int> >::value), "");
     test t;
+
+  return 0;
 }

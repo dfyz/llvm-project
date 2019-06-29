@@ -13,7 +13,9 @@
 #include <locale>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::locale l;
     assert(std::tolower(' ', l) == ' ');
@@ -27,4 +29,6 @@ int main()
     assert(std::tolower('f', l) == 'f');
     assert(std::tolower('9', l) == '9');
     assert(std::tolower('+', l) == '+');
+
+  return 0;
 }

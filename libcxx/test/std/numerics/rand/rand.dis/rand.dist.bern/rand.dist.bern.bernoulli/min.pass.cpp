@@ -15,11 +15,15 @@
 #include <random>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::bernoulli_distribution D;
         D d(.5);
         assert(d.min() == false);
     }
+
+  return 0;
 }

@@ -17,6 +17,7 @@
 #include <ios>
 #include <cassert>
 #include <streambuf>
+#include "test_macros.h"
 #include "test_iterators.h"
 
 typedef std::num_get<char, input_iterator<const char*> > F;
@@ -29,7 +30,7 @@ public:
         : F(refs) {}
 };
 
-int main()
+int main(int, char**)
 {
     const my_facet f(1);
     std::ios ios(0);
@@ -57,4 +58,6 @@ int main()
         assert(err == ios.goodbit);
         assert(p == (void*)0x73);
     }
+
+  return 0;
 }

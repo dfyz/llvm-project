@@ -25,6 +25,8 @@
 #include <cassert>
 #include <tuple>
 
+#include "test_macros.h"
+
 
 class Moveable
 {
@@ -61,7 +63,7 @@ namespace std {
     };
 }
 
-int main()
+int main(int, char**)
 {
 
     { // pair<iterator, bool> insert_or_assign(const key_type& k, M&& obj);
@@ -188,4 +190,6 @@ int main()
         assert(r->second.get() == 5);  // value
     }
 
+
+  return 0;
 }

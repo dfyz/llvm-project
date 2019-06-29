@@ -20,11 +20,15 @@
 #include <cassert>
 #include <cstdlib>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     int a1[] = {1, 2, 3};
     std::list<int> l1(a1, a1+3);
     std::list<int>::const_iterator i = l1.end();
     l1.erase(i);
     assert(false);
+
+  return 0;
 }

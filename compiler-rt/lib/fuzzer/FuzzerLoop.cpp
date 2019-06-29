@@ -131,7 +131,7 @@ void Fuzzer::HandleMalloc(size_t Size) {
   DumpCurrentUnit("oom-");
   Printf("SUMMARY: libFuzzer: out-of-memory\n");
   PrintFinalStats();
-  _Exit(Options.ErrorExitCode); // Stop right now.
+  _Exit(Options.OOMExitCode); // Stop right now.
 }
 
 Fuzzer::Fuzzer(UserCallback CB, InputCorpus &Corpus, MutationDispatcher &MD,
@@ -153,12 +153,10 @@ Fuzzer::Fuzzer(UserCallback CB, InputCorpus &Corpus, MutationDispatcher &MD,
   if (!Options.OutputCorpus.empty() && Options.ReloadIntervalSec)
     EpochOfLastReadOfOutputCorpus = GetEpoch(Options.OutputCorpus);
   MaxInputLen = MaxMutationLen = Options.MaxLen;
-  TmpMaxMutationLen = Max(size_t(4), Corpus.MaxInputSize());
+  TmpMaxMutationLen = 0;  // Will be set once we load the corpus.
   AllocateCurrentUnitData();
   CurrentUnitSize = 0;
   memset(BaseSha1, 0, sizeof(BaseSha1));
-  TPC.SetFocusFunction(Options.FocusFunction);
-  DFT.Init(Options.DataFlowTrace, Options.FocusFunction);
 }
 
 Fuzzer::~Fuzzer() {}
@@ -256,16 +254,20 @@ void Fuzzer::ExitCallback() {
 }
 
 void Fuzzer::MaybeExitGracefully() {
-  if (!GracefulExitRequested) return;
+  if (!F->GracefulExitRequested) return;
   Printf("==%lu== INFO: libFuzzer: exiting as requested\n", GetPid());
-  PrintFinalStats();
+  RmDirRecursive(TempPath(".dir"));
+  F->PrintFinalStats();
   _Exit(0);
 }
 
 void Fuzzer::InterruptCallback() {
   Printf("==%lu== libFuzzer: run interrupted; exiting\n", GetPid());
   PrintFinalStats();
-  _Exit(0); // Stop right now, don't perform any at-exit actions.
+  ScopedDisableMsanInterceptorChecks S; // RmDirRecursive may call opendir().
+  RmDirRecursive(TempPath(".dir"));
+  // Stop right now, don't perform any at-exit actions.
+  _Exit(Options.InterruptExitCode);
 }
 
 NO_SANITIZE_MEMORY
@@ -314,7 +316,7 @@ void Fuzzer::RssLimitCallback() {
   DumpCurrentUnit("oom-");
   Printf("SUMMARY: libFuzzer: out-of-memory\n");
   PrintFinalStats();
-  _Exit(Options.ErrorExitCode); // Stop right now.
+  _Exit(Options.OOMExitCode); // Stop right now.
 }
 
 void Fuzzer::PrintStats(const char *Where, const char *End, size_t Units) {
@@ -383,10 +385,10 @@ void Fuzzer::SetMaxMutationLen(size_t MaxMutationLen) {
 void Fuzzer::CheckExitOnSrcPosOrItem() {
   if (!Options.ExitOnSrcPos.empty()) {
     static auto *PCsSet = new Set<uintptr_t>;
-    auto HandlePC = [&](uintptr_t PC) {
-      if (!PCsSet->insert(PC).second)
+    auto HandlePC = [&](const TracePC::PCTableEntry *TE) {
+      if (!PCsSet->insert(TE->PC).second)
         return;
-      std::string Descr = DescribePC("%F %L", PC + 1);
+      std::string Descr = DescribePC("%F %L", TE->PC + 1);
       if (Descr.find(Options.ExitOnSrcPos) != std::string::npos) {
         Printf("INFO: found line matching '%s', exiting.\n",
                Options.ExitOnSrcPos.c_str());
@@ -442,6 +444,23 @@ void Fuzzer::PrintPulseAndReportSlowInput(const uint8_t *Data, size_t Size) {
   }
 }
 
+static void WriteFeatureSetToFile(const std::string &FeaturesDir,
+                                  const std::string &FileName,
+                                  const Vector<uint32_t> &FeatureSet) {
+  if (FeaturesDir.empty() || FeatureSet.empty()) return;
+  WriteToFile(reinterpret_cast<const uint8_t *>(FeatureSet.data()),
+              FeatureSet.size() * sizeof(FeatureSet[0]),
+              DirPlusFile(FeaturesDir, FileName));
+}
+
+static void RenameFeatureSetFile(const std::string &FeaturesDir,
+                                 const std::string &OldFile,
+                                 const std::string &NewFile) {
+  if (FeaturesDir.empty()) return;
+  RenameFile(DirPlusFile(FeaturesDir, OldFile),
+             DirPlusFile(FeaturesDir, NewFile));
+}
+
 bool Fuzzer::RunOne(const uint8_t *Data, size_t Size, bool MayDeleteFile,
                     InputInfo *II, bool *FoundUniqFeatures) {
   if (!Size)
@@ -466,15 +485,21 @@ bool Fuzzer::RunOne(const uint8_t *Data, size_t Size, bool MayDeleteFile,
   size_t NumNewFeatures = Corpus.NumFeatureUpdates() - NumUpdatesBefore;
   if (NumNewFeatures) {
     TPC.UpdateObservedPCs();
-    Corpus.AddToCorpus({Data, Data + Size}, NumNewFeatures, MayDeleteFile,
-                       TPC.ObservedFocusFunction(), UniqFeatureSetTmp, DFT, II);
+    auto NewII = Corpus.AddToCorpus({Data, Data + Size}, NumNewFeatures,
+                                    MayDeleteFile, TPC.ObservedFocusFunction(),
+                                    UniqFeatureSetTmp, DFT, II);
+    WriteFeatureSetToFile(Options.FeaturesDir, Sha1ToString(NewII->Sha1),
+                          NewII->UniqFeatureSet);
     return true;
   }
   if (II && FoundUniqFeaturesOfII &&
       II->DataFlowTraceForFocusFunction.empty() &&
       FoundUniqFeaturesOfII == II->UniqFeatureSet.size() &&
       II->U.size() > Size) {
+    auto OldFeaturesFile = Sha1ToString(II->Sha1);
     Corpus.Replace(II, {Data, Data + Size});
+    RenameFeatureSetFile(Options.FeaturesDir, OldFeaturesFile,
+                         Sha1ToString(II->Sha1));
     return true;
   }
   return false;
@@ -514,6 +539,8 @@ void Fuzzer::ExecuteCallback(const uint8_t *Data, size_t Size) {
   memcpy(DataCopy, Data, Size);
   if (EF->__msan_unpoison)
     EF->__msan_unpoison(DataCopy, Size);
+  if (EF->__msan_unpoison_param)
+    EF->__msan_unpoison_param(2);
   if (CurrentUnitData && CurrentUnitData != Data)
     memcpy(CurrentUnitData, Data, Size);
   CurrentUnitSize = Size;
@@ -536,15 +563,16 @@ void Fuzzer::ExecuteCallback(const uint8_t *Data, size_t Size) {
   delete[] DataCopy;
 }
 
-void Fuzzer::WriteToOutputCorpus(const Unit &U) {
+std::string Fuzzer::WriteToOutputCorpus(const Unit &U) {
   if (Options.OnlyASCII)
     assert(IsASCII(U));
   if (Options.OutputCorpus.empty())
-    return;
+    return "";
   std::string Path = DirPlusFile(Options.OutputCorpus, Hash(U));
   WriteToFile(U, Path);
   if (Options.Verbosity >= 2)
     Printf("Written %zd bytes to %s\n", U.size(), Path.c_str());
+  return Path;
 }
 
 void Fuzzer::WriteUnitToFileWithPrefix(const Unit &U, const char *Prefix) {
@@ -630,6 +658,8 @@ void Fuzzer::MutateAndTestOne() {
   MD.StartMutationSequence();
 
   auto &II = Corpus.ChooseUnitToMutate(MD.GetRand());
+  if (Options.DoCrossOver)
+    MD.SetCrossOverWith(&Corpus.ChooseUnitToMutate(MD.GetRand()).U);
   const auto &U = II.U;
   memcpy(BaseSha1, II.Sha1, sizeof(BaseSha1));
   assert(CurrentUnitData);
@@ -652,7 +682,9 @@ void Fuzzer::MutateAndTestOne() {
         Size <= CurrentMaxMutationLen)
       NewSize = MD.MutateWithMask(CurrentUnitData, Size, Size,
                                   II.DataFlowTraceForFocusFunction);
-    else
+
+    // If MutateWithMask either failed or wasn't called, call default Mutate.
+    if (!NewSize)
       NewSize = MD.Mutate(CurrentUnitData, Size, CurrentMaxMutationLen);
     assert(NewSize > 0 && "Mutator returned empty unit");
     assert(NewSize <= CurrentMaxMutationLen && "Mutator return oversized unit");
@@ -669,7 +701,7 @@ void Fuzzer::MutateAndTestOne() {
       break;  // We will mutate this input more in the next rounds.
     }
     if (Options.ReduceDepth && !FoundUniqFeatures)
-        break;
+      break;
   }
 }
 
@@ -688,21 +720,13 @@ void Fuzzer::PurgeAllocator() {
   LastAllocatorPurgeAttemptTime = system_clock::now();
 }
 
-void Fuzzer::ReadAndExecuteSeedCorpora(const Vector<std::string> &CorpusDirs) {
+void Fuzzer::ReadAndExecuteSeedCorpora(Vector<SizedFile> &CorporaFiles) {
   const size_t kMaxSaneLen = 1 << 20;
   const size_t kMinDefaultLen = 4096;
-  Vector<SizedFile> SizedFiles;
   size_t MaxSize = 0;
   size_t MinSize = -1;
   size_t TotalSize = 0;
-  size_t LastNumFiles = 0;
-  for (auto &Dir : CorpusDirs) {
-    GetSizedFilesFromDir(Dir, &SizedFiles);
-    Printf("INFO: % 8zd files found in %s\n", SizedFiles.size() - LastNumFiles,
-           Dir.c_str());
-    LastNumFiles = SizedFiles.size();
-  }
-  for (auto &File : SizedFiles) {
+  for (auto &File : CorporaFiles) {
     MaxSize = Max(File.Size, MaxSize);
     MinSize = Min(File.Size, MinSize);
     TotalSize += File.Size;
@@ -719,24 +743,24 @@ void Fuzzer::ReadAndExecuteSeedCorpora(const Vector<std::string> &CorpusDirs) {
   if (Options.LazyCounters)
     TPC.ProtectLazyCounters();
 
-  if (SizedFiles.empty()) {
+  if (CorporaFiles.empty()) {
     Printf("INFO: A corpus is not provided, starting from an empty corpus\n");
     Unit U({'\n'}); // Valid ASCII input.
     RunOne(U.data(), U.size());
   } else {
     Printf("INFO: seed corpus: files: %zd min: %zdb max: %zdb total: %zdb"
            " rss: %zdMb\n",
-           SizedFiles.size(), MinSize, MaxSize, TotalSize, GetPeakRSSMb());
+           CorporaFiles.size(), MinSize, MaxSize, TotalSize, GetPeakRSSMb());
     if (Options.ShuffleAtStartUp)
-      std::shuffle(SizedFiles.begin(), SizedFiles.end(), MD.GetRand());
+      std::shuffle(CorporaFiles.begin(), CorporaFiles.end(), MD.GetRand());
 
     if (Options.PreferSmall) {
-      std::stable_sort(SizedFiles.begin(), SizedFiles.end());
-      assert(SizedFiles.front().Size <= SizedFiles.back().Size);
+      std::stable_sort(CorporaFiles.begin(), CorporaFiles.end());
+      assert(CorporaFiles.front().Size <= CorporaFiles.back().Size);
     }
 
     // Load and execute inputs one by one.
-    for (auto &SF : SizedFiles) {
+    for (auto &SF : CorporaFiles) {
       auto U = FileToVector(SF.File, MaxInputLen, /*ExitOnError=*/false);
       assert(U.size() <= MaxInputLen);
       RunOne(U.data(), U.size());
@@ -761,16 +785,25 @@ void Fuzzer::ReadAndExecuteSeedCorpora(const Vector<std::string> &CorpusDirs) {
   }
 }
 
-void Fuzzer::Loop(const Vector<std::string> &CorpusDirs) {
-  ReadAndExecuteSeedCorpora(CorpusDirs);
+void Fuzzer::Loop(Vector<SizedFile> &CorporaFiles) {
+  auto FocusFunctionOrAuto = Options.FocusFunction;
+  DFT.Init(Options.DataFlowTrace, &FocusFunctionOrAuto, CorporaFiles,
+           MD.GetRand());
+  TPC.SetFocusFunction(FocusFunctionOrAuto);
+  ReadAndExecuteSeedCorpora(CorporaFiles);
   DFT.Clear();  // No need for DFT any more.
   TPC.SetPrintNewPCs(Options.PrintNewCovPcs);
   TPC.SetPrintNewFuncs(Options.PrintNewCovFuncs);
   system_clock::time_point LastCorpusReload = system_clock::now();
-  if (Options.DoCrossOver)
-    MD.SetCorpus(&Corpus);
+
+  TmpMaxMutationLen =
+      Min(MaxMutationLen, Max(size_t(4), Corpus.MaxInputSize()));
+
   while (true) {
     auto Now = system_clock::now();
+    if (!Options.StopFile.empty() &&
+        !FileToVector(Options.StopFile, 1, false).empty())
+      break;
     if (duration_cast<seconds>(Now - LastCorpusReload).count() >=
         Options.ReloadIntervalSec) {
       RereadOutputCorpus(MaxInputLen);

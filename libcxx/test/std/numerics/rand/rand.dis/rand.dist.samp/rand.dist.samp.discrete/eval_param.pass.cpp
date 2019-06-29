@@ -19,7 +19,9 @@
 #include <vector>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::discrete_distribution<> D;
@@ -41,4 +43,6 @@ int main()
         for (int i = 0; i <= 2; ++i)
             assert(std::abs((double)u[i]/N - prob[i]) / prob[i] < 0.001);
     }
+
+  return 0;
 }

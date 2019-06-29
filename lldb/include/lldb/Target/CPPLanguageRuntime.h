@@ -1,5 +1,4 @@
 //===-- CPPLanguageRuntime.h
-//---------------------------------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -40,8 +39,23 @@ public:
 
   ~CPPLanguageRuntime() override;
 
+  static char ID;
+
+  bool isA(const void *ClassID) const override {
+    return ClassID == &ID || LanguageRuntime::isA(ClassID);
+  }
+
+  static bool classof(const LanguageRuntime *runtime) {
+    return runtime->isA(&ID);
+  }
+
   lldb::LanguageType GetLanguageType() const override {
     return lldb::eLanguageTypeC_plus_plus;
+  }
+
+  static CPPLanguageRuntime *Get(Process &process) {
+    return llvm::cast_or_null<CPPLanguageRuntime>(
+        process.GetLanguageRuntime(lldb::eLanguageTypeC_plus_plus));
   }
 
   virtual bool IsVTableName(const char *name) = 0;
@@ -53,21 +67,20 @@ public:
 
   /// Obtain a ThreadPlan to get us into C++ constructs such as std::function.
   ///
-  /// @param[in] thread
+  /// \param[in] thread
   ///     Curent thrad of execution.
   ///
-  /// @param[in] stop_others
+  /// \param[in] stop_others
   ///     True if other threads should pause during execution.
   ///
-  /// @return
+  /// \return
   ///      A ThreadPlan Shared pointer
   lldb::ThreadPlanSP GetStepThroughTrampolinePlan(Thread &thread,
-                                                  bool stop_others);
+                                                  bool stop_others) override;
 
+  bool IsRuntimeSupportValue(ValueObject &valobj) override;
 protected:
-  //------------------------------------------------------------------
   // Classes that inherit from CPPLanguageRuntime can see and modify these
-  //------------------------------------------------------------------
   CPPLanguageRuntime(Process *process);
 
 private:

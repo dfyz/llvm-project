@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: c++experimental
 // UNSUPPORTED: c++98, c++03
 
 // <experimental/memory_resource>
@@ -24,6 +23,8 @@
 #include <cstdlib>
 #include "uses_alloc_types.hpp"
 
+#include "test_macros.h"
+
 namespace ex = std::experimental::pmr;
 
 int constructed = 0;
@@ -34,7 +35,7 @@ struct default_constructible
     int x{0};
 };
 
-int main()
+int main(int, char**)
 {
     // pair<default_constructible, default_constructible> as T()
     {
@@ -49,4 +50,6 @@ int main()
         assert(ptr->second.x == 42);
         std::free(ptr);
     }
+
+  return 0;
 }

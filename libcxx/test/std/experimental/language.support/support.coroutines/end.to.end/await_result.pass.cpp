@@ -12,6 +12,8 @@
 #include <experimental/coroutine>
 #include <cassert>
 
+#include "test_macros.h"
+
 using namespace std::experimental;
 
 struct coro_t {
@@ -59,10 +61,12 @@ coro_t f(int n) {
 
 coro_t g() { B val = co_await B{}; }
 
-int main() {
+int main(int, char**) {
   last_value = -1;
   f(0);
   assert(last_value == 0);
   f(1);
   assert(last_value == 42);
+
+  return 0;
 }

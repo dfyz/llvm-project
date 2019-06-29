@@ -21,7 +21,9 @@
 #include <type_traits>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     typedef std::hash<std::type_index> H;
     static_assert((std::is_same<typename H::argument_type, std::type_index>::value), "" );
@@ -29,4 +31,6 @@ int main()
 
     std::type_index t1 = typeid(int);
     assert(std::hash<std::type_index>()(t1) == t1.hash_code());
+
+  return 0;
 }

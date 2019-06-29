@@ -16,6 +16,7 @@
 #include <queue>
 #include <cassert>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 
 
@@ -53,7 +54,7 @@ struct test
 };
 
 
-int main()
+int main(int, char**)
 {
     test<MoveOnly> qo(std::less<MoveOnly>(),
                       make<std::vector<MoveOnly, test_allocator<MoveOnly> > >(5),
@@ -62,4 +63,6 @@ int main()
     assert(q.size() == 5);
     assert(q.c.get_allocator() == test_allocator<MoveOnly>(6));
     assert(q.top() == MoveOnly(4));
+
+  return 0;
 }

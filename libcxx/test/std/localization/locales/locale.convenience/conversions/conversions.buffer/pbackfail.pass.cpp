@@ -19,6 +19,8 @@
 #include <fstream>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct test_buf
     : public std::wbuffer_convert<std::codecvt_utf8<wchar_t> >
 {
@@ -37,7 +39,7 @@ struct test_buf
     virtual int_type pbackfail(int_type c = traits_type::eof()) {return base::pbackfail(c);}
 };
 
-int main()
+int main(int, char**)
 {
     {
         std::ifstream bs("underflow.dat");
@@ -55,4 +57,6 @@ int main()
         assert(f.sbumpc() == L'2');
         assert(f.sgetc() == L'3');
     }
+
+  return 0;
 }

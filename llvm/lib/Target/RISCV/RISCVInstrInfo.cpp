@@ -382,8 +382,8 @@ unsigned RISCVInstrInfo::insertIndirectBranch(MachineBasicBlock &MBB,
       .addMBB(&DestBB, RISCVII::MO_LO);
 
   RS->enterBasicBlockEnd(MBB);
-  unsigned Scav = RS->scavengeRegisterBackwards(
-      RISCV::GPRRegClass, MachineBasicBlock::iterator(LuiMI), false, 0);
+  unsigned Scav = RS->scavengeRegisterBackwards(RISCV::GPRRegClass,
+                                                LuiMI.getIterator(), false, 0);
   MRI.replaceRegWith(ScratchReg, Scav);
   MRI.clearVirtRegs();
   RS->setRegUsed(Scav);
@@ -436,10 +436,16 @@ unsigned RISCVInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
   case TargetOpcode::KILL:
   case TargetOpcode::DBG_VALUE:
     return 0;
+  case RISCV::PseudoCALLReg:
   case RISCV::PseudoCALL:
   case RISCV::PseudoTAIL:
+  case RISCV::PseudoLLA:
+  case RISCV::PseudoLA:
+  case RISCV::PseudoLA_TLS_IE:
+  case RISCV::PseudoLA_TLS_GD:
     return 8;
-  case TargetOpcode::INLINEASM: {
+  case TargetOpcode::INLINEASM:
+  case TargetOpcode::INLINEASM_BR: {
     const MachineFunction &MF = *MI.getParent()->getParent();
     const auto &TM = static_cast<const RISCVTargetMachine &>(MF.getTarget());
     return getInlineAsmLength(MI.getOperand(0).getSymbolName(),

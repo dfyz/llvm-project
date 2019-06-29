@@ -21,7 +21,9 @@
 #include <codecvt>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::codecvt_utf8<wchar_t> C;
@@ -41,4 +43,6 @@ int main()
         int r = c.encoding();
         assert(r == 0);
     }
+
+  return 0;
 }

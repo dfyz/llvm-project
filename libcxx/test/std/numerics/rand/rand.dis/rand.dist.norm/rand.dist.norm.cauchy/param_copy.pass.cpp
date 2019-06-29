@@ -17,7 +17,9 @@
 #include <limits>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::cauchy_distribution<> D;
@@ -27,4 +29,6 @@ int main()
         assert(p.a() == 10);
         assert(p.b() == .125);
     }
+
+  return 0;
 }

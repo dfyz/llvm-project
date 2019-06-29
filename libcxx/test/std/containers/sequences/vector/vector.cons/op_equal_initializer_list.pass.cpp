@@ -15,10 +15,11 @@
 #include <vector>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 #include "asan_testing.h"
 
-int main()
+int main(int, char**)
 {
     {
     std::vector<int> d;
@@ -40,4 +41,6 @@ int main()
     assert(d[2] == 5);
     assert(d[3] == 6);
     }
+
+  return 0;
 }

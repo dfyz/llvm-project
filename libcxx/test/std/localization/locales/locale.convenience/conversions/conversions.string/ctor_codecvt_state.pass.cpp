@@ -16,7 +16,9 @@
 #include <codecvt>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::codecvt_utf8<wchar_t> Codecvt;
@@ -24,4 +26,6 @@ int main()
         Myconv myconv(new Codecvt, std::mbstate_t());
         assert(myconv.converted() == 0);
     }
+
+  return 0;
 }

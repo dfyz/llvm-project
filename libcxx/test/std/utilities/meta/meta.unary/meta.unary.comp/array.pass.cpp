@@ -12,6 +12,8 @@
 
 #include <type_traits>
 
+#include "test_macros.h"
+
 template <class T>
 void test_array_imp()
 {
@@ -39,10 +41,12 @@ typedef char incomplete_array[];
 
 class incomplete_type;
 
-int main()
+int main(int, char**)
 {
     test_array<array>();
     test_array<const_array>();
     test_array<incomplete_array>();
     test_array<incomplete_type[]>();
+
+  return 0;
 }

@@ -16,11 +16,15 @@
 #include <random>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::extreme_value_distribution<> D;
         D d(.5, .5);
         assert(d.min() == -INFINITY);
     }
+
+  return 0;
 }

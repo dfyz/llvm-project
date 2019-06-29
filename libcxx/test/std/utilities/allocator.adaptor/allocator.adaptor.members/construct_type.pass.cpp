@@ -25,6 +25,8 @@
 #include "uses_alloc_types.hpp"
 #include "controlled_allocators.hpp"
 
+#include "test_macros.h"
+
 // - If uses_allocator_v<T, inner_allocator_type> is false and
 //   is_constructible_v<T, Args...> is true, calls
 //   OUTERMOST_ALLOC_TRAITS(*this)::construct(
@@ -125,8 +127,10 @@ void test_bullet_three() {
     POuter.reset();
 }
 
-int main() {
+int main(int, char**) {
     test_bullet_one();
     test_bullet_two();
     test_bullet_three();
+
+  return 0;
 }

@@ -16,6 +16,8 @@
 #include <random>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class T, T a, T c, T m>
 void
 test1()
@@ -46,10 +48,12 @@ test()
     test1<T, M-1, M-1, M>();
 }
 
-int main()
+int main(int, char**)
 {
     test<unsigned short>();
     test<unsigned int>();
     test<unsigned long>();
     test<unsigned long long>();
+
+  return 0;
 }

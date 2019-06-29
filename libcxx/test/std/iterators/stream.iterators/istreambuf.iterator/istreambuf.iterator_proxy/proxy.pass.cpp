@@ -28,7 +28,9 @@
 #include <sstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::istringstream inf("abc");
@@ -40,4 +42,6 @@ int main()
         std::istreambuf_iterator<wchar_t> i(inf);
         assert(*i++ == L'a');
     }
+
+  return 0;
 }

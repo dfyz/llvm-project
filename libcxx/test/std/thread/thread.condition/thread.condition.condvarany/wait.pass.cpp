@@ -20,6 +20,8 @@
 #include <thread>
 #include <cassert>
 
+#include "test_macros.h"
+
 std::condition_variable_any cv;
 
 typedef std::timed_mutex L0;
@@ -41,7 +43,7 @@ void f()
     assert(test2 != 0);
 }
 
-int main()
+int main(int, char**)
 {
     L1 lk(m0);
     std::thread t(f);
@@ -53,4 +55,6 @@ int main()
     lk.unlock();
     cv.notify_one();
     t.join();
+
+  return 0;
 }

@@ -15,11 +15,15 @@
 #include <system_error>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     const std::error_category& e_cat1 = std::generic_category();
     const std::error_category& e_cat2 = std::generic_category();
     const std::error_category& e_cat3 = std::system_category();
     assert(e_cat1 == e_cat2);
     assert(!(e_cat1 == e_cat3));
+
+  return 0;
 }

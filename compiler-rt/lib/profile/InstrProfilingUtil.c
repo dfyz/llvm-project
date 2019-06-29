@@ -80,7 +80,7 @@ void *lprofPtrFetchAdd(void **Mem, long ByteIncr) {
 
 #endif
 
-#ifdef _MSC_VER
+#ifdef _WIN32
 COMPILER_RT_VISIBILITY int lprofGetHostName(char *Name, int Len) {
   WCHAR Buffer[COMPILER_RT_MAX_HOSTLEN];
   DWORD BufferSize = sizeof(Buffer);
@@ -152,6 +152,26 @@ COMPILER_RT_VISIBILITY int lprofUnlockFd(int fd) {
   flock(fd, LOCK_UN);
   return 0;
 #endif
+}
+
+COMPILER_RT_VISIBILITY int lprofLockFileHandle(FILE *F) {
+  int fd;
+#if defined(_WIN32)
+  fd = _fileno(F);
+#else
+  fd = fileno(F);
+#endif
+  return lprofLockFd(fd);
+}
+
+COMPILER_RT_VISIBILITY int lprofUnlockFileHandle(FILE *F) {
+  int fd;
+#if defined(_WIN32)
+  fd = _fileno(F);
+#else
+  fd = fileno(F);
+#endif
+  return lprofUnlockFd(fd);
 }
 
 COMPILER_RT_VISIBILITY FILE *lprofOpenFileEx(const char *ProfileName) {

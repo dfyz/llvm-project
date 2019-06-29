@@ -18,9 +18,10 @@
 #include <scoped_allocator>
 #include <type_traits>
 
+#include "test_macros.h"
 #include "allocators.h"
 
-int main()
+int main(int, char**)
 {
     static_assert((std::is_same<
         std::scoped_allocator_adaptor<A1<int>>::inner_allocator_type,
@@ -33,4 +34,6 @@ int main()
     static_assert((std::is_same<
         std::scoped_allocator_adaptor<A1<int>, A2<int>, A3<int>>::inner_allocator_type,
         std::scoped_allocator_adaptor<A2<int>, A3<int>>>::value), "");
+
+  return 0;
 }

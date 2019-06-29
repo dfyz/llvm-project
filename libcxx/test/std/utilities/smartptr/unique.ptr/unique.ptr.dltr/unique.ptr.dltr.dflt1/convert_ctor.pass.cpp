@@ -19,9 +19,13 @@
 #include <memory>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::default_delete<int[]> d1;
     std::default_delete<const int[]> d2 = d1;
     ((void)d2);
+
+  return 0;
 }

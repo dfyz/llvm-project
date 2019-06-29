@@ -13,6 +13,7 @@
 // element_type* propagate_const::operator->();
 
 #include <experimental/propagate_const>
+#include "test_macros.h"
 #include "propagate_const_helpers.h"
 #include <cassert>
 
@@ -27,7 +28,9 @@ constexpr P f()
   return p;
 }
 
-int main() {
+int main(int, char**) {
   constexpr P p = f();
   static_assert(*(p.operator->())==2,"");
+
+  return 0;
 }

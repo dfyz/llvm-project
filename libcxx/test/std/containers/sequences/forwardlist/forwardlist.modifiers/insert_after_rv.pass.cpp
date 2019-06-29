@@ -15,10 +15,11 @@
 #include <forward_list>
 #include <cassert>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef MoveOnly T;
@@ -84,4 +85,6 @@ int main()
         assert(*next(c.begin(), 3) == 2);
         assert(distance(c.begin(), c.end()) == 4);
     }
+
+  return 0;
 }

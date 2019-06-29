@@ -24,6 +24,8 @@
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class Tp>
 using uncvref_t = typename std::remove_cv<typename std::remove_reference<Tp>::type>::type;
 
@@ -78,7 +80,7 @@ struct ConvertibleFromInt {
   ConvertibleFromInt(int) : state(FromInt) {}
 };
 
-int main()
+int main(int, char**)
 {
     // Test for the creation of dangling references when a tuple is used to
     // store a reference to another tuple as its only element.
@@ -174,4 +176,6 @@ int main()
         std::tuple<VT> t2 = {t1};
         assert(std::get<0>(t2).state == VT::FromInt);
     }
+
+  return 0;
 }

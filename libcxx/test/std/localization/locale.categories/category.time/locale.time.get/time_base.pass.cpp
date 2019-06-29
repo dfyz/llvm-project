@@ -17,7 +17,9 @@
 #include <locale>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::time_base::dateorder d = std::time_base::no_order;
     ((void)d); // Prevent unused warning
@@ -26,4 +28,6 @@ int main()
     assert(std::time_base::mdy == 2);
     assert(std::time_base::ymd == 3);
     assert(std::time_base::ydm == 4);
+
+  return 0;
 }

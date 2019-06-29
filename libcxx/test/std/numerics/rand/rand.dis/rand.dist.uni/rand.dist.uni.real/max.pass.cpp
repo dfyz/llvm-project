@@ -16,11 +16,15 @@
 #include <random>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::uniform_real_distribution<> D;
         D d(3, 8);
         assert(d.max() == 8);
     }
+
+  return 0;
 }

@@ -11,14 +11,18 @@
 #include <setjmp.h>
 #include <type_traits>
 
+#include "test_macros.h"
+
 #ifndef setjmp
 #error setjmp not defined
 #endif
 
-int main()
+int main(int, char**)
 {
     jmp_buf jb;
     ((void)jb); // Prevent unused warning
     static_assert((std::is_same<decltype(longjmp(jb, 0)), void>::value),
                   "std::is_same<decltype(longjmp(jb, 0)), void>::value");
+
+  return 0;
 }

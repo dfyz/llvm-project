@@ -53,7 +53,7 @@ struct A
     A();
 };
 
-int main()
+int main(int, char**)
 {
     test_is_move_assignable<int> ();
     test_is_move_assignable<A> ();
@@ -62,10 +62,11 @@ int main()
     test_is_move_assignable<NotEmpty> ();
     test_is_move_assignable<Empty> ();
 
-#if TEST_STD_VER >= 11
     test_is_not_move_assignable<const int> ();
     test_is_not_move_assignable<int[]> ();
     test_is_not_move_assignable<int[3]> ();
-#endif
+
     test_is_not_move_assignable<void> ();
+
+  return 0;
 }

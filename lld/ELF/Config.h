@@ -17,6 +17,7 @@
 #include "llvm/Support/CachePruning.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Endian.h"
+#include <atomic>
 #include <vector>
 
 namespace lld {
@@ -72,7 +73,6 @@ struct VersionDefinition {
   llvm::StringRef Name;
   uint16_t Id = 0;
   std::vector<SymbolVersion> Globals;
-  size_t NameOff = 0; // Offset in the string table
 };
 
 // This struct contains the global configuration for the linker.
@@ -81,6 +81,7 @@ struct VersionDefinition {
 // Most fields are initialized by the driver.
 struct Configuration {
   uint8_t OSABI = 0;
+  uint32_t AndFeatures = 0;
   llvm::CachePruningPolicy ThinLTOCachePolicy;
   llvm::StringMap<uint64_t> SectionStartMap;
   llvm::StringRef Chroot;
@@ -91,13 +92,17 @@ struct Configuration {
   llvm::StringRef Fini;
   llvm::StringRef Init;
   llvm::StringRef LTOAAPipeline;
+  llvm::StringRef LTOCSProfileFile;
   llvm::StringRef LTONewPmPasses;
   llvm::StringRef LTOObjPath;
   llvm::StringRef LTOSampleProfile;
   llvm::StringRef MapFile;
   llvm::StringRef OutputFile;
   llvm::StringRef OptRemarksFilename;
+  llvm::StringRef OptRemarksPasses;
+  llvm::StringRef OptRemarksFormat;
   llvm::StringRef ProgName;
+  llvm::StringRef PrintSymbolOrder;
   llvm::StringRef SoName;
   llvm::StringRef Sysroot;
   llvm::StringRef ThinLTOCacheDir;
@@ -133,6 +138,7 @@ struct Configuration {
   bool Cref;
   bool DefineCommon;
   bool Demangle = true;
+  bool DependentLibraries;
   bool DisableVerify;
   bool EhFrameHdr;
   bool EmitLLVM;
@@ -141,7 +147,9 @@ struct Configuration {
   bool ExecuteOnly;
   bool ExportDynamic;
   bool FixCortexA53Errata843419;
+  bool ForceBTI;
   bool FormatBinary = false;
+  bool RequireCET;
   bool GcSections;
   bool GdbIndex;
   bool GnuHash = false;
@@ -150,15 +158,18 @@ struct Configuration {
   bool HasDynSymTab;
   bool IgnoreDataAddressEquality;
   bool IgnoreFunctionAddressEquality;
+  bool LTOCSProfileGenerate;
   bool LTODebugPassManager;
   bool LTONewPassManager;
   bool MergeArmExidx;
   bool MipsN32Abi = false;
+  bool Nmagic;
   bool NoinhibitExec;
   bool Nostdlib;
   bool OFormatBinary;
   bool Omagic;
   bool OptRemarksWithHotness;
+  bool PacPlt;
   bool PicThunk;
   bool Pie;
   bool PrintGcSections;
@@ -188,6 +199,7 @@ struct Configuration {
   bool ZExecstack;
   bool ZGlobal;
   bool ZHazardplt;
+  bool ZIfuncNoplt;
   bool ZInitfirst;
   bool ZInterpose;
   bool ZKeepTextSectionPrefix;
@@ -214,6 +226,7 @@ struct Configuration {
   uint16_t DefaultSymbolVersion = llvm::ELF::VER_NDX_GLOBAL;
   uint16_t EMachine = llvm::ELF::EM_NONE;
   llvm::Optional<uint64_t> ImageBase;
+  uint64_t CommonPageSize;
   uint64_t MaxPageSize;
   uint64_t MipsGotSize;
   uint64_t ZStackSize;
@@ -252,6 +265,20 @@ struct Configuration {
   // little-endian written in the little-endian order, but I don't know
   // if that's true.)
   bool IsMips64EL;
+
+  // True if we need to set the DF_STATIC_TLS flag to an output file,
+  // which works as a hint to the dynamic loader that the file contains
+  // code compiled with the static TLS model. The thread-local variable
+  // compiled with the static TLS model is faster but less flexible, and
+  // it may not be loaded using dlopen().
+  //
+  // We set this flag to true when we see a relocation for the static TLS
+  // model. Once this becomes true, it will never become false.
+  //
+  // Since the flag is updated by multi-threaded code, we use std::atomic.
+  // (Writing to a variable is not considered thread-safe even if the
+  // variable is boolean and we always set the same value from all threads.)
+  std::atomic<bool> HasStaticTlsModel{false};
 
   // Holds set of ELF header flags for the target.
   uint32_t EFlags = 0;

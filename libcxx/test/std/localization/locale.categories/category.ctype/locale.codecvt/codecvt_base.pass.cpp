@@ -17,10 +17,14 @@
 #include <locale>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     assert(std::codecvt_base::ok == 0);
     assert(std::codecvt_base::partial == 1);
     assert(std::codecvt_base::error == 2);
     assert(std::codecvt_base::noconv == 3);
+
+  return 0;
 }

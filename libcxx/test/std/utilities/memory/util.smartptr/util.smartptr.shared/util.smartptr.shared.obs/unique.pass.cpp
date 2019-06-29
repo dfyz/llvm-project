@@ -15,7 +15,9 @@
 #include <memory>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     const std::shared_ptr<int> p(new int(32));
     assert(p.unique());
@@ -24,4 +26,6 @@ int main()
     assert(!p.unique());
     }
     assert(p.unique());
+
+  return 0;
 }

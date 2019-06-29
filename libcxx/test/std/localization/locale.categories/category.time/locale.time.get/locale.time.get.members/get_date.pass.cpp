@@ -16,6 +16,7 @@
 
 #include <locale>
 #include <cassert>
+#include "test_macros.h"
 #include "test_iterators.h"
 
 typedef input_iterator<const char*> I;
@@ -30,7 +31,7 @@ public:
         : F(refs) {}
 };
 
-int main()
+int main(int, char**)
 {
     const my_facet f(1);
     std::ios ios(0);
@@ -47,4 +48,6 @@ int main()
         assert(t.tm_year == 105);
         assert(err == std::ios_base::eofbit);
     }
+
+  return 0;
 }

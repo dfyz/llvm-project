@@ -16,6 +16,8 @@
 #include <streambuf>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class CharT>
 struct test
     : public std::basic_streambuf<CharT>
@@ -41,7 +43,7 @@ struct test
     }
 };
 
-int main()
+int main(int, char**)
 {
     {
         test<char> t;
@@ -57,4 +59,6 @@ int main()
         t.pbump(3);
         t.pbump(1);
     }
+
+  return 0;
 }

@@ -16,6 +16,7 @@
 #include <ios>
 #include <cassert>
 #include <streambuf>
+#include "test_macros.h"
 #include "test_iterators.h"
 
 typedef std::num_put<char, output_iterator<char*> > F;
@@ -28,7 +29,7 @@ public:
         : F(refs) {}
 };
 
-int main()
+int main(int, char**)
 {
     const my_facet f(1);
     {
@@ -45,4 +46,6 @@ int main()
         assert(rc > 0);
         assert(ex == expected_str);
     }
+
+  return 0;
 }

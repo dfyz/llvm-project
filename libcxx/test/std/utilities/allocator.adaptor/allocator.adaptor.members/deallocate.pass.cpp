@@ -18,9 +18,10 @@
 #include <scoped_allocator>
 #include <cassert>
 
+#include "test_macros.h"
 #include "allocators.h"
 
-int main()
+int main(int, char**)
 {
 
     {
@@ -42,4 +43,6 @@ int main()
         assert((A1<int>::deallocate_called == std::pair<int*, std::size_t>((int*)10, 20)));
     }
 
+
+  return 0;
 }

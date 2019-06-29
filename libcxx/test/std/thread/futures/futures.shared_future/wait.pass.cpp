@@ -18,6 +18,8 @@
 #include <future>
 #include <cassert>
 
+#include "test_macros.h"
+
 void func1(std::promise<int> p)
 {
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -39,7 +41,7 @@ void func5(std::promise<void> p)
     p.set_value();
 }
 
-int main()
+int main(int, char**)
 {
     typedef std::chrono::high_resolution_clock Clock;
     typedef std::chrono::duration<double, std::milli> ms;
@@ -85,4 +87,6 @@ int main()
         assert(f.valid());
         assert(t1-t0 < ms(5));
     }
+
+  return 0;
 }

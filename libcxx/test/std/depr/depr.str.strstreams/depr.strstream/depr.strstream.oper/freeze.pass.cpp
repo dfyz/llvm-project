@@ -15,7 +15,9 @@
 #include <strstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::strstream out;
@@ -30,4 +32,6 @@ int main()
         assert(out.str() == std::string("a"));
         out.freeze(false);
     }
+
+  return 0;
 }

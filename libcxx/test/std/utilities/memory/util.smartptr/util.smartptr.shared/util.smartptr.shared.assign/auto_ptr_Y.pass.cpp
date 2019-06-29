@@ -13,9 +13,13 @@
 
 // template<class Y> shared_ptr& operator=(auto_ptr<Y>&& r);
 
+#define _LIBCPP_DISABLE_DEPRECATION_WARNINGS
+
 #include <memory>
 #include <type_traits>
 #include <cassert>
+
+#include "test_macros.h"
 
 struct B
 {
@@ -40,7 +44,7 @@ struct A
 
 int A::count = 0;
 
-int main()
+int main(int, char**)
 {
     {
         std::auto_ptr<A> pA(new A);
@@ -110,4 +114,6 @@ int main()
     }
     assert(B::count == 0);
     assert(A::count == 0);
+
+  return 0;
 }

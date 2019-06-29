@@ -11,10 +11,11 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#include "WebAssemblyMCTargetDesc.h"
-#include "InstPrinter/WebAssemblyInstPrinter.h"
-#include "WebAssemblyMCAsmInfo.h"
-#include "WebAssemblyTargetStreamer.h"
+#include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
+#include "MCTargetDesc/WebAssemblyInstPrinter.h"
+#include "MCTargetDesc/WebAssemblyMCAsmInfo.h"
+#include "MCTargetDesc/WebAssemblyTargetStreamer.h"
+#include "TargetInfo/WebAssemblyTargetInfo.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
@@ -39,13 +40,13 @@ static MCAsmInfo *createMCAsmInfo(const MCRegisterInfo & /*MRI*/,
 }
 
 static MCInstrInfo *createMCInstrInfo() {
-  MCInstrInfo *X = new MCInstrInfo();
+  auto *X = new MCInstrInfo();
   InitWebAssemblyMCInstrInfo(X);
   return X;
 }
 
 static MCRegisterInfo *createMCRegisterInfo(const Triple & /*T*/) {
-  MCRegisterInfo *X = new MCRegisterInfo();
+  auto *X = new MCRegisterInfo();
   InitWebAssemblyMCRegisterInfo(X, 0);
   return X;
 }

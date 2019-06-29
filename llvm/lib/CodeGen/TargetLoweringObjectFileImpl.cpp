@@ -271,6 +271,19 @@ void TargetLoweringObjectFileELF::emitModuleMetadata(MCStreamer &Streamer,
     }
   }
 
+  if (NamedMDNode *DependentLibraries = M.getNamedMetadata("llvm.dependent-libraries")) {
+    auto *S = C.getELFSection(".deplibs", ELF::SHT_LLVM_DEPENDENT_LIBRARIES,
+                              ELF::SHF_MERGE | ELF::SHF_STRINGS, 1, "");
+
+    Streamer.SwitchSection(S);
+
+    for (const auto &Operand : DependentLibraries->operands()) {
+      Streamer.EmitBytes(
+          cast<MDString>(cast<MDNode>(Operand)->getOperand(0))->getString());
+      Streamer.EmitIntValue(0, 1);
+    }
+  }
+
   unsigned Version = 0;
   unsigned Flags = 0;
   StringRef Section;
@@ -1693,8 +1706,11 @@ MCSection *TargetLoweringObjectFileWasm::getExplicitSectionGlobal(
     Group = C->getName();
   }
 
-  return getContext().getWasmSection(Name, Kind, Group,
-                                     MCContext::GenericSectionID);
+  MCSectionWasm* Section =
+      getContext().getWasmSection(Name, Kind, Group,
+                                  MCContext::GenericSectionID);
+
+  return Section;
 }
 
 static MCSectionWasm *selectWasmSectionForGlobal(
@@ -1723,6 +1739,7 @@ static MCSectionWasm *selectWasmSectionForGlobal(
     UniqueID = *NextUniqueID;
     (*NextUniqueID)++;
   }
+
   return Ctx.getWasmSection(Name, Kind, Group, UniqueID);
 }
 

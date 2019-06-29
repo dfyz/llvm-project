@@ -89,9 +89,9 @@ AVRTargetLowering::AVRTargetLowering(const AVRTargetMachine &TM,
   setOperationAction(ISD::SRL_PARTS, MVT::i16, Expand);
 
   setOperationAction(ISD::ROTL, MVT::i8, Custom);
-  setOperationAction(ISD::ROTL, MVT::i16, Custom);
+  setOperationAction(ISD::ROTL, MVT::i16, Expand);
   setOperationAction(ISD::ROTR, MVT::i8, Custom);
-  setOperationAction(ISD::ROTR, MVT::i16, Custom);
+  setOperationAction(ISD::ROTR, MVT::i16, Expand);
 
   setOperationAction(ISD::BR_CC, MVT::i8, Custom);
   setOperationAction(ISD::BR_CC, MVT::i16, Custom);
@@ -237,7 +237,7 @@ AVRTargetLowering::AVRTargetLowering(const AVRTargetMachine &TM,
   setLibcallName(RTLIB::COS_F32, "cos");
 
   setMinFunctionAlignment(1);
-  setMinimumJumpTableEntries(INT_MAX);
+  setMinimumJumpTableEntries(UINT_MAX);
 }
 
 const char *AVRTargetLowering::getTargetNodeName(unsigned Opcode) const {
@@ -943,7 +943,7 @@ static void analyzeStandardArguments(TargetLowering::CallLoweringInfo *CLI,
                                         AVR::R19R18, AVR::R17R16, AVR::R15R14,
                                         AVR::R13R12, AVR::R11R10, AVR::R9R8};
   if (IsVarArg) {
-    // Variadic functions do not need all the analisys below.
+    // Variadic functions do not need all the analysis below.
     if (IsCall) {
       CCInfo.AnalyzeCallOperands(*Outs, ArgCC_AVR_Vararg);
     } else {

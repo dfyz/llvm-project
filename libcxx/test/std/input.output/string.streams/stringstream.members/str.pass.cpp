@@ -16,7 +16,9 @@
 #include <sstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::stringstream ss(" 123 456 ");
@@ -63,4 +65,6 @@ int main()
         ss.write("\xd1", 1);
         assert(ss.str().length() == 1);
     }
+
+  return 0;
 }

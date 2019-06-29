@@ -25,10 +25,11 @@
 #include <unordered_map>
 #include <cassert>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::unordered_map<double, int> C;
@@ -173,4 +174,6 @@ int main()
         assert(false);
     }
 #endif
+
+  return 0;
 }

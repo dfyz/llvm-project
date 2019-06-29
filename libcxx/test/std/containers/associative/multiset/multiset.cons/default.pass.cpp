@@ -15,9 +15,10 @@
 #include <set>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
     std::multiset<int> m;
@@ -50,4 +51,6 @@ int main()
     assert(m.begin() == m.end());
     }
 #endif
+
+  return 0;
 }

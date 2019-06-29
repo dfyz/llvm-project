@@ -16,7 +16,9 @@
 #include <type_traits>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::locale l("C");
@@ -49,4 +51,6 @@ int main()
             assert( cf.is(CF::alpha,  'a'));
         }
     }
+
+  return 0;
 }

@@ -14,7 +14,9 @@
 #include <string>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     static_assert((std::is_base_of<std::logic_error, std::out_of_range>::value),
                  "std::is_base_of<std::logic_error, std::out_of_range>::value");
@@ -38,4 +40,6 @@ int main()
     e2 = e;
     assert(e2.what() == msg);
     }
+
+  return 0;
 }

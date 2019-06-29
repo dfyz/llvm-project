@@ -8,6 +8,7 @@
 //
 // UNSUPPORTED: libcpp-has-no-threads
 // UNSUPPORTED: c++98, c++03, c++11
+// XFAIL: dylib-has-no-shared_mutex
 
 // FLAKY_TEST.
 
@@ -22,6 +23,8 @@
 #include <vector>
 #include <cstdlib>
 #include <cassert>
+
+#include "test_macros.h"
 
 std::shared_timed_mutex m;
 
@@ -57,7 +60,7 @@ void f()
     assert(d < ms(200));  // within 200ms
 }
 
-int main()
+int main(int, char**)
 {
     m.lock();
     std::vector<std::thread> v;
@@ -67,4 +70,6 @@ int main()
     m.unlock();
     for (auto& t : v)
         t.join();
+
+  return 0;
 }

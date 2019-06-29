@@ -10,10 +10,14 @@
 
 #include <version>
 
+#include "test_macros.h"
+
 #if !defined(_LIBCPP_VERSION)
 #error "_LIBCPP_VERSION must be defined after including <version>"
 #endif
 
-int main()
+int main(int, char**)
 {
+
+  return 0;
 }

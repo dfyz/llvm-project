@@ -14,6 +14,8 @@
 #include <cassert>
 #include <cstdlib>
 
+#include "test_macros.h"
+
 void f1() {}
 void f2() {}
 
@@ -22,7 +24,7 @@ void f3()
     std::exit(0);
 }
 
-int main()
+int main(int, char**)
 {
     std::unexpected_handler old = std::set_unexpected(f1);
     // verify there is a previous unexpected handler
@@ -33,4 +35,6 @@ int main()
     std::set_terminate(f3);
     (*old)();
     assert(0);
+
+  return 0;
 }

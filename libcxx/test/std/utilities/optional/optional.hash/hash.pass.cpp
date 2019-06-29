@@ -18,6 +18,8 @@
 
 #include "poisoned_hash_helper.hpp"
 
+#include "test_macros.h"
+
 struct A {};
 struct B {};
 
@@ -30,7 +32,7 @@ struct hash<B> {
 
 }
 
-int main()
+int main(int, char**)
 {
     using std::optional;
     const std::size_t nullopt_hash =
@@ -76,4 +78,6 @@ int main()
       test_hash_enabled_for_type<std::optional<B>>();
       test_hash_enabled_for_type<std::optional<const B>>();
     }
+
+  return 0;
 }

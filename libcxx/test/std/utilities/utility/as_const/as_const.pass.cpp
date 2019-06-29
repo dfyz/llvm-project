@@ -14,6 +14,8 @@
 #include <utility>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct S {int i;};
 bool operator==(const S& x, const S& y) { return x.i == y.i; }
 bool operator==(const volatile S& x, const volatile S& y) { return x.i == y.i; }
@@ -34,7 +36,7 @@ void test(T& t)
     assert(std::as_const<const volatile T>(t) == t);
 }
 
-int main()
+int main(int, char**)
 {
     int i = 3;
     double d = 4.0;
@@ -42,4 +44,6 @@ int main()
     test(i);
     test(d);
     test(s);
+
+  return 0;
 }

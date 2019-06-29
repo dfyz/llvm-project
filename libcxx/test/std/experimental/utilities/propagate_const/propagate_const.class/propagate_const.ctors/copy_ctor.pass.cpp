@@ -13,6 +13,7 @@
 // propagate_const(const propagate_const&)=delete;
 
 #include <experimental/propagate_const>
+#include "test_macros.h"
 #include "propagate_const_helpers.h"
 #include <type_traits>
 
@@ -20,4 +21,6 @@ using std::experimental::propagate_const;
 
 typedef propagate_const<X> P;
 
-int main() { static_assert(!std::is_constructible<P, const P &>::value, ""); }
+int main(int, char**) { static_assert(!std::is_constructible<P, const P &>::value, ""); 
+  return 0;
+}

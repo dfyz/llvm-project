@@ -18,10 +18,13 @@
 #include <functional>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     std::function<int(int)> f(std::allocator_arg, bare_allocator<int>(), nullptr);
     assert(!f);
+
+  return 0;
 }

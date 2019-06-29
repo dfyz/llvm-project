@@ -19,7 +19,9 @@
 #include <random>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::uniform_int_distribution<> D;
@@ -33,4 +35,6 @@ int main()
         D d2(3, 9);
         assert(d1 != d2);
     }
+
+  return 0;
 }

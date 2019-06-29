@@ -19,6 +19,7 @@
 #include <functional>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 
 template <class Iter, class T>
@@ -44,11 +45,13 @@ test()
     test(Iter(ia), Iter(ia+sa), 10, 7200);
 }
 
-int main()
+int main(int, char**)
 {
     test<input_iterator<const int*> >();
     test<forward_iterator<const int*> >();
     test<bidirectional_iterator<const int*> >();
     test<random_access_iterator<const int*> >();
     test<const int*>();
+
+  return 0;
 }

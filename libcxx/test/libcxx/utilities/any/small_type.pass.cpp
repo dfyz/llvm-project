@@ -13,6 +13,7 @@
 // Check that the size and alignment of any are what we expect.
 
 #include <any>
+#include "test_macros.h"
 #include "any_helpers.h"
 
 constexpr std::size_t BufferSize = (sizeof(void*) * 3);
@@ -54,7 +55,7 @@ struct alignas(DoubleBufferAlignment) OverSizeAndAlignedType {
     char buff[BufferSize + 1];
 };
 
-int main()
+int main(int, char**)
 {
     using std::any;
     using std::__any_imp::_IsSmallObject;
@@ -110,4 +111,6 @@ int main()
         static_assert(alignof(T) > BufferAlignment, "");
         static_assert(!_IsSmallObject<T>::value, "");
     }
+
+  return 0;
 }

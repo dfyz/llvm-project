@@ -15,6 +15,8 @@
 #include <system_error>
 #include <cassert>
 
+#include "test_macros.h"
+
 enum testing
 {
     zero, one, two
@@ -33,11 +35,13 @@ make_error_code(testing x)
     return std::error_code(static_cast<int>(x), std::generic_category());
 }
 
-int main()
+int main(int, char**)
 {
     {
         std::error_code ec(two);
         assert(ec.value() == 2);
         assert(ec.category() == std::generic_category());
     }
+
+  return 0;
 }

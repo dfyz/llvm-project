@@ -17,6 +17,8 @@
 #include <tuple>
 #include <cassert>
 
+#include "test_macros.h"
+
 int count = 0;
 
 struct Explicit {
@@ -44,7 +46,7 @@ struct ExplicitDerived : std::tuple<T> {
   explicit operator std::tuple<U>() && { ++count; return {}; }
 };
 
-int main() {
+int main(int, char**) {
   {
     std::tuple<Explicit> foo = Derived<int>{42}; ((void)foo);
     assert(count == 1);
@@ -84,4 +86,6 @@ int main() {
   }
   count = 0;
 
+
+  return 0;
 }

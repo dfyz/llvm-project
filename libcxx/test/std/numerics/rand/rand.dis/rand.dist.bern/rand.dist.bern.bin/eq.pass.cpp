@@ -19,7 +19,9 @@
 #include <random>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::binomial_distribution<> D;
@@ -39,4 +41,6 @@ int main()
         D d2(4, .25);
         assert(d1 != d2);
     }
+
+  return 0;
 }

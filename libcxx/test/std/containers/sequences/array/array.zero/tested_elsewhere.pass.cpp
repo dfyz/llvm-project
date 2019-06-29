@@ -12,6 +12,10 @@
 
 #include <array>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
+
+  return 0;
 }

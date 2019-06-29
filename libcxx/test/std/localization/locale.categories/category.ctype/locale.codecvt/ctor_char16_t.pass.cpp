@@ -15,6 +15,8 @@
 #include <locale>
 #include <cassert>
 
+#include "test_macros.h"
+
 //#ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
 
 typedef std::codecvt<char16_t, char, std::mbstate_t> F;
@@ -35,7 +37,7 @@ int my_facet::count = 0;
 
 //#endif
 
-int main()
+int main(int, char**)
 {
 //#ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
     {
@@ -54,4 +56,6 @@ int main()
     }
     assert(my_facet::count == 0);
 //#endif
+
+  return 0;
 }

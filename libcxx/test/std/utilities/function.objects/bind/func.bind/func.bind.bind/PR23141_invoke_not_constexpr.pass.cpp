@@ -19,6 +19,8 @@
 #include <functional>
 #include <type_traits>
 
+#include "test_macros.h"
+
 struct Fun
 {
   template<typename T, typename U>
@@ -28,7 +30,9 @@ struct Fun
   }
 };
 
-int main()
+int main(int, char**)
 {
     std::bind(Fun{}, std::placeholders::_1, 42)("hello");
+
+  return 0;
 }

@@ -18,7 +18,9 @@
 #include <atomic>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::atomic_flag f;
@@ -92,4 +94,6 @@ int main()
         assert(atomic_flag_test_and_set_explicit(&f, std::memory_order_seq_cst) == 0);
         assert(f.test_and_set() == 1);
     }
+
+  return 0;
 }

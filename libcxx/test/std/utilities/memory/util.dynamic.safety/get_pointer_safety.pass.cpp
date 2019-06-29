@@ -15,6 +15,8 @@
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
+
 
 void test_pr26961() {
   std::pointer_safety d;
@@ -22,7 +24,7 @@ void test_pr26961() {
   assert(d == std::get_pointer_safety());
 }
 
-int main()
+int main(int, char**)
 {
   {
     std::pointer_safety r = std::get_pointer_safety();
@@ -33,4 +35,6 @@ int main()
   {
     test_pr26961();
   }
+
+  return 0;
 }

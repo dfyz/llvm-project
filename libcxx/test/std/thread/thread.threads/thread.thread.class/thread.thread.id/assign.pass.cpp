@@ -17,7 +17,9 @@
 #include <thread>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::thread::id id0;
     std::thread::id id1;
@@ -25,4 +27,6 @@ int main()
     assert(id1 == id0);
     id1 = std::this_thread::get_id();
     assert(id1 != id0);
+
+  return 0;
 }

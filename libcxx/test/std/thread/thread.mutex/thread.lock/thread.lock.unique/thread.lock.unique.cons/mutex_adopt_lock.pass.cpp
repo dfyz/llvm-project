@@ -18,7 +18,9 @@
 #include <cassert>
 #include "nasty_containers.hpp"
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
     typedef std::mutex M;
@@ -36,4 +38,6 @@ int main()
     assert(lk.mutex() == std::addressof(m));
     assert(lk.owns_lock() == true);
     }
+
+  return 0;
 }

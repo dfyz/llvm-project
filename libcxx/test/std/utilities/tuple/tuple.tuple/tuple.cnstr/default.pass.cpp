@@ -19,6 +19,7 @@
 #include <cassert>
 #include <type_traits>
 
+#include "test_macros.h"
 #include "DefaultOnly.h"
 
 struct NoDefault {
@@ -44,7 +45,7 @@ struct IllFormedDefault {
     int value;
 };
 
-int main()
+int main(int, char**)
 {
     {
         std::tuple<> t;
@@ -106,4 +107,6 @@ int main()
         IllFormedDefault v(0);
         std::tuple<IllFormedDefault> t(v);
     }
+
+  return 0;
 }

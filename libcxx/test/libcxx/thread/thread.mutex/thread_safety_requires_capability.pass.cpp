@@ -20,6 +20,8 @@
 
 #include <mutex>
 
+#include "test_macros.h"
+
 std::mutex m;
 int foo __attribute__((guarded_by(m)));
 
@@ -27,8 +29,10 @@ void increment() __attribute__((requires_capability(m))) {
   foo++;
 }
 
-int main() {
+int main(int, char**) {
   m.lock();
   increment();
   m.unlock();
+
+  return 0;
 }

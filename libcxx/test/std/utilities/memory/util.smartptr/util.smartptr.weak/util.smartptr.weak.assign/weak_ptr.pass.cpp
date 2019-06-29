@@ -16,6 +16,8 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct B
 {
     static int count;
@@ -39,7 +41,7 @@ struct A
 
 int A::count = 0;
 
-int main()
+int main(int, char**)
 {
     {
         const std::shared_ptr<A> ps(new A);
@@ -74,4 +76,6 @@ int main()
     }
     assert(B::count == 0);
     assert(A::count == 0);
+
+  return 0;
 }

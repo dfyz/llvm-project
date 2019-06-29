@@ -28,6 +28,7 @@ public:
   void relocateOne(uint8_t *Loc, RelType Type, uint64_t Val) const override;
   RelExpr getRelExpr(RelType Type, const Symbol &S,
                      const uint8_t *Loc) const override;
+  RelType getDynRel(RelType Type) const override;
 };
 } // namespace
 
@@ -35,7 +36,7 @@ AMDGPU::AMDGPU() {
   RelativeRel = R_AMDGPU_RELATIVE64;
   GotRel = R_AMDGPU_ABS64;
   NoneRel = R_AMDGPU_NONE;
-  GotEntrySize = 8;
+  SymbolicRel = R_AMDGPU_ABS64;
 }
 
 static uint32_t getEFlags(InputFile *File) {
@@ -74,7 +75,7 @@ void AMDGPU::relocateOne(uint8_t *Loc, RelType Type, uint64_t Val) const {
     write32le(Loc, Val >> 32);
     break;
   default:
-    error(getErrorLocation(Loc) + "unrecognized reloc " + Twine(Type));
+    llvm_unreachable("unknown relocation");
   }
 }
 
@@ -94,8 +95,16 @@ RelExpr AMDGPU::getRelExpr(RelType Type, const Symbol &S,
   case R_AMDGPU_GOTPCREL32_HI:
     return R_GOT_PC;
   default:
-    return R_INVALID;
+    error(getErrorLocation(Loc) + "unknown relocation (" + Twine(Type) +
+          ") against symbol " + toString(S));
+    return R_NONE;
   }
+}
+
+RelType AMDGPU::getDynRel(RelType Type) const {
+  if (Type == R_AMDGPU_ABS64)
+    return Type;
+  return R_AMDGPU_NONE;
 }
 
 TargetInfo *elf::getAMDGPUTargetInfo() {

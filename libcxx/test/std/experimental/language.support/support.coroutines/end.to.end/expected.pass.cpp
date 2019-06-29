@@ -11,6 +11,8 @@
 
 #include <experimental/coroutine>
 #include <cassert>
+
+#include "test_macros.h"
 using namespace std::experimental;
 
 struct error {};
@@ -75,7 +77,7 @@ expected<int> f2() {
   co_return 200;
 }
 
-int main() {
+int main(int, char**) {
   auto c1 = f1();
   assert(f1_started && f1_resumed);
   assert(c1.value() == 100);
@@ -85,4 +87,6 @@ int main() {
   assert(f2_started && !f2_resumed);
   assert(c2.value() == 0);
   assert(c2.error() == 42);
+
+  return 0;
 }

@@ -16,7 +16,9 @@
 #include <random>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::normal_distribution<> D;
@@ -26,4 +28,6 @@ int main()
         assert(d.mean() == 0.25);
         assert(d.stddev() == 10);
     }
+
+  return 0;
 }

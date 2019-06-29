@@ -24,9 +24,7 @@
 using namespace lldb;
 using namespace lldb_private;
 
-//-------------------------------------------------------------------------
 // Options
-//-------------------------------------------------------------------------
 Options::Options() : m_getopt_table() { BuildValidOptionSets(); }
 
 Options::~Options() {}
@@ -760,7 +758,7 @@ bool Options::HandleOptionArgumentCompletion(
     CompletionRequest &request, OptionElementVector &opt_element_vector,
     int opt_element_index, CommandInterpreter &interpreter) {
   auto opt_defs = GetDefinitions();
-  std::unique_ptr<SearchFilter> filter_ap;
+  std::unique_ptr<SearchFilter> filter_up;
 
   int opt_arg_pos = opt_element_vector[opt_element_index].opt_arg_pos;
   int opt_defs_index = opt_element_vector[opt_element_index].opt_defs_index;
@@ -831,7 +829,7 @@ bool Options::HandleOptionArgumentCompletion(
               interpreter.GetDebugger().GetSelectedTarget();
           // Search filters require a target...
           if (target_sp)
-            filter_ap.reset(new SearchFilterByModule(target_sp, module_spec));
+            filter_up.reset(new SearchFilterByModule(target_sp, module_spec));
         }
         break;
       }
@@ -839,7 +837,7 @@ bool Options::HandleOptionArgumentCompletion(
   }
 
   return CommandCompletions::InvokeCommonCompletionCallbacks(
-      interpreter, completion_mask, request, filter_ap.get());
+      interpreter, completion_mask, request, filter_up.get());
 }
 
 void OptionGroupOptions::Append(OptionGroup *group) {
@@ -1009,7 +1007,7 @@ llvm::Expected<Args> Options::ParseAlias(const Args &args,
   std::unique_lock<std::mutex> lock;
   OptionParser::Prepare(lock);
   int val;
-  while (1) {
+  while (true) {
     int long_options_index = -1;
     val = OptionParser::Parse(argv.size(), &*argv.begin(), sstr.GetString(),
                               long_options, &long_options_index);
@@ -1162,7 +1160,7 @@ OptionElementVector Options::ParseForCompletion(const Args &args,
   bool failed_once = false;
   uint32_t dash_dash_pos = -1;
 
-  while (1) {
+  while (true) {
     bool missing_argument = false;
     int long_options_index = -1;
 
@@ -1338,6 +1336,9 @@ llvm::Expected<Args> Options::Parse(const Args &args,
                                                llvm::inconvertibleErrorCode());
   }
 
+  // Leading : tells getopt to return a : for a missing option argument AND to
+  // suppress error messages.
+  sstr << ":";
   for (int i = 0; long_options[i].definition != nullptr; ++i) {
     if (long_options[i].flag == nullptr) {
       if (isprint8(long_options[i].val)) {
@@ -1357,13 +1358,22 @@ llvm::Expected<Args> Options::Parse(const Args &args,
     }
   }
   std::vector<char *> argv = GetArgvForParsing(args);
+  // If the last option requires an argument but doesn't have one,
+  // some implementations of getopt_long will still try to read it.
+  argv.push_back(nullptr);
   std::unique_lock<std::mutex> lock;
   OptionParser::Prepare(lock);
   int val;
-  while (1) {
+  while (true) {
     int long_options_index = -1;
-    val = OptionParser::Parse(argv.size(), &*argv.begin(), sstr.GetString(),
+    val = OptionParser::Parse(argv.size() - 1, &*argv.begin(), sstr.GetString(),
                               long_options, &long_options_index);
+
+    if (val == ':') {
+      error.SetErrorStringWithFormat("last option requires an argument");
+      break;
+    }
+
     if (val == -1)
       break;
 
@@ -1436,10 +1446,12 @@ llvm::Expected<Args> Options::Parse(const Args &args,
     } else {
       error.SetErrorStringWithFormat("invalid option with value '%i'", val);
     }
-    if (error.Fail())
-      return error.ToError();
   }
 
+  if (error.Fail())
+    return error.ToError();
+
+  argv.pop_back();
   argv.erase(argv.begin(), argv.begin() + OptionParser::GetOptionIndex());
   return ReconstituteArgsAfterParsing(argv, args);
 }

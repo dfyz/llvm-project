@@ -16,11 +16,15 @@
 #include <random>
 #include <type_traits>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::uniform_real_distribution<float> D;
         typedef D::result_type result_type;
         static_assert((std::is_same<result_type, float>::value), "");
     }
+
+  return 0;
 }

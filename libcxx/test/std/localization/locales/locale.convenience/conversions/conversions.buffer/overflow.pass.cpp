@@ -19,6 +19,8 @@
 #include <fstream>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct test_buf
     : public std::wbuffer_convert<std::codecvt_utf8<wchar_t> >
 {
@@ -37,7 +39,7 @@ struct test_buf
     virtual int_type overflow(int_type c = traits_type::eof()) {return base::overflow(c);}
 };
 
-int main()
+int main(int, char**)
 {
     {
         std::ofstream bs("overflow.dat");
@@ -96,4 +98,6 @@ int main()
         assert(f.get() == -1);
     }
     std::remove("overflow.dat");
+
+  return 0;
 }

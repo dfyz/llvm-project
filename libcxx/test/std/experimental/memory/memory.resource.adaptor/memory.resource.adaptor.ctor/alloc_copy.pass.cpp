@@ -19,9 +19,11 @@
 
 #include "test_memory_resource.hpp"
 
+#include "test_macros.h"
+
 namespace ex = std::experimental::pmr;
 
-int main()
+int main(int, char**)
 {
     typedef CountingAllocator<char> AllocT;
     typedef ex::resource_adaptor<AllocT> R;
@@ -49,4 +51,6 @@ int main()
         assert(P.move_constructed == 0);
         assert(r.get_allocator() == a);
     }
+
+  return 0;
 }

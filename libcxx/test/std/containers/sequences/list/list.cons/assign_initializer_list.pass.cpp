@@ -15,9 +15,10 @@
 #include <list>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
     std::list<int> d;
@@ -39,4 +40,6 @@ int main()
     assert(*i++ == 5);
     assert(*i++ == 6);
     }
+
+  return 0;
 }

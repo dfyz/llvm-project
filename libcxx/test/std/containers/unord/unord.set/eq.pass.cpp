@@ -21,9 +21,10 @@
 #include <unordered_set>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::unordered_set<int> C;
@@ -155,4 +156,6 @@ int main()
         assert(!(c1 != c2));
     }
 #endif
+
+  return 0;
 }

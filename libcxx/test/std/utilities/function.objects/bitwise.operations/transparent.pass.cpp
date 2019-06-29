@@ -10,6 +10,8 @@
 #include <functional>
 #include <string>
 
+#include "test_macros.h"
+
 template <class T>
 struct is_transparent
 {
@@ -22,7 +24,7 @@ public:
 };
 
 
-int main () {
+int main(int, char**) {
     static_assert ( !is_transparent<std::bit_and<int>>::value, "" );
     static_assert ( !is_transparent<std::bit_and<std::string>>::value, "" );
     static_assert (  is_transparent<std::bit_and<void>>::value, "" );

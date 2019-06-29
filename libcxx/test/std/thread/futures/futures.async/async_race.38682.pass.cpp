@@ -29,6 +29,8 @@
 #include <numeric>
 #include <vector>
 
+#include "test_macros.h"
+
 
 static int worker(std::vector<int> const& data) {
   return std::accumulate(data.begin(), data.end(), 0);
@@ -38,7 +40,7 @@ static int& worker_ref(int& i) { return i; }
 
 static void worker_void() { }
 
-int main() {
+int main(int, char**) {
   // future<T>
   {
     std::vector<int> const v{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
@@ -65,4 +67,6 @@ int main() {
       fut.get();
     }
   }
+
+  return 0;
 }

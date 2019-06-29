@@ -18,11 +18,15 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
+
 namespace ex = std::experimental::pmr;
 
-int main()
+int main(int, char**)
 {
     typedef ex::polymorphic_allocator<void> T;
     static_assert(!std::is_copy_assignable<T>::value, "");
     static_assert(!std::is_move_assignable<T>::value, "");
+
+  return 0;
 }

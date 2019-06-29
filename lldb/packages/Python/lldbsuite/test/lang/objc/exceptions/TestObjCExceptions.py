@@ -44,6 +44,7 @@ class ObjCExceptionsTestCase(TestBase):
 
         self.assertEqual(variables.GetSize(), 1)
         self.assertEqual(variables.GetValueAtIndex(0).name, "exception")
+        self.assertEqual(variables.GetValueAtIndex(0).GetValueType(), lldb.eValueTypeVariableArgument)
 
         lldbutil.run_to_source_breakpoint(self, "// Set break point at this line.", lldb.SBFileSpec("main.mm"), launch_info=launch_info)
 
@@ -195,11 +196,12 @@ class ObjCExceptionsTestCase(TestBase):
         self.expect("thread list",
             substrs=['stopped', 'stop reason = signal SIGABRT'])
 
-        self.expect('thread exception', substrs=[])
+        self.expect('thread exception', substrs=['exception ='])
 
         process = self.dbg.GetSelectedTarget().process
         thread = process.GetSelectedThread()
 
-        # C++ exceptions are not exposed in the API (yet).
-        self.assertFalse(thread.GetCurrentException().IsValid())
+        self.assertTrue(thread.GetCurrentException().IsValid())
+
+        # C++ exception backtraces are not exposed in the API (yet).
         self.assertFalse(thread.GetCurrentExceptionBacktrace().IsValid())

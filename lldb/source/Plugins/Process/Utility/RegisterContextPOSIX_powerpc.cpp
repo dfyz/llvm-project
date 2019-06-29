@@ -93,7 +93,7 @@ RegisterContextPOSIX_powerpc::RegisterContextPOSIX_powerpc(
     Thread &thread, uint32_t concrete_frame_idx,
     RegisterInfoInterface *register_info)
     : RegisterContext(thread, concrete_frame_idx) {
-  m_register_info_ap.reset(register_info);
+  m_register_info_up.reset(register_info);
 }
 
 RegisterContextPOSIX_powerpc::~RegisterContextPOSIX_powerpc() {}
@@ -118,14 +118,14 @@ size_t RegisterContextPOSIX_powerpc::GetRegisterCount() {
 }
 
 size_t RegisterContextPOSIX_powerpc::GetGPRSize() {
-  return m_register_info_ap->GetGPRSize();
+  return m_register_info_up->GetGPRSize();
 }
 
 const RegisterInfo *RegisterContextPOSIX_powerpc::GetRegisterInfo() {
   // Commonly, this method is overridden and g_register_infos is copied and
   // specialized. So, use GetRegisterInfo() rather than g_register_infos in
   // this scope.
-  return m_register_info_ap->GetRegisterInfo();
+  return m_register_info_up->GetRegisterInfo();
 }
 
 const RegisterInfo *
@@ -133,7 +133,7 @@ RegisterContextPOSIX_powerpc::GetRegisterInfoAtIndex(size_t reg) {
   if (reg < k_num_registers_powerpc)
     return &GetRegisterInfo()[reg];
   else
-    return NULL;
+    return nullptr;
 }
 
 size_t RegisterContextPOSIX_powerpc::GetRegisterSetCount() {
@@ -150,7 +150,7 @@ const RegisterSet *RegisterContextPOSIX_powerpc::GetRegisterSet(size_t set) {
   if (IsRegisterSetAvailable(set))
     return &g_reg_sets_powerpc[set];
   else
-    return NULL;
+    return nullptr;
 }
 
 const char *RegisterContextPOSIX_powerpc::GetRegisterName(unsigned reg) {

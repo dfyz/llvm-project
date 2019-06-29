@@ -65,17 +65,15 @@ class ILFormat<dag outs, dag ins, string asmstr, list<dag> pattern>
 
 def TruePredicate : Predicate<"true">;
 
-// Exists to help track down where SubtargetPredicate isn't set rather
-// than letting tablegen crash with an unhelpful error.
-def InvalidPred : Predicate<"predicate not set on instruction or pattern">;
-
 class PredicateControl {
-  Predicate SubtargetPredicate = InvalidPred;
+  Predicate SubtargetPredicate = TruePredicate;
   list<Predicate> AssemblerPredicates = [];
   Predicate AssemblerPredicate = TruePredicate;
+  Predicate WaveSizePredicate = TruePredicate;
   list<Predicate> OtherPredicates = [];
   list<Predicate> Predicates = !listconcat([SubtargetPredicate,
-                                            AssemblerPredicate],
+                                            AssemblerPredicate,
+                                            WaveSizePredicate],
                                             AssemblerPredicates,
                                             OtherPredicates);
 }
@@ -584,7 +582,6 @@ int TWO_PI_INV = 0x3e22f983;
 int FP_UINT_MAX_PLUS_1 = 0x4f800000;    // 1 << 32 in floating point encoding
 int FP16_ONE = 0x3C00;
 int FP16_NEG_ONE = 0xBC00;
-int V2FP16_ONE = 0x3C003C00;
 int FP32_ONE = 0x3f800000;
 int FP32_NEG_ONE = 0xbf800000;
 int FP64_ONE = 0x3ff0000000000000;
@@ -625,9 +622,7 @@ class Extract_Element <ValueType sub_type, ValueType vec_type, int sub_idx,
   : AMDGPUPat<
   (sub_type (extractelt vec_type:$src, sub_idx)),
   (EXTRACT_SUBREG $src, sub_reg)
-> {
-  let SubtargetPredicate = TruePredicate;
-}
+>;
 
 /* Insert element pattern */
 class Insert_Element <ValueType elem_type, ValueType vec_type,
@@ -635,9 +630,7 @@ class Insert_Element <ValueType elem_type, ValueType vec_type,
   : AMDGPUPat <
   (insertelt vec_type:$vec, elem_type:$elem, sub_idx),
   (INSERT_SUBREG $vec, $elem, sub_reg)
-> {
-  let SubtargetPredicate = TruePredicate;
-}
+>;
 
 // XXX: Convert to new syntax and use COPY_TO_REG, once the DFAPacketizer
 // can handle COPY instructions.
@@ -810,7 +803,7 @@ multiclass IntMed3Pat<Instruction med3Inst,
                  SDPatternOperator max_oneuse,
                  ValueType vt = i32> {
 
-  // This matches 16 permutations of 
+  // This matches 16 permutations of
   // min(max(a, b), max(min(a, b), c))
   def : AMDGPUPat <
   (min (max_oneuse vt:$src0, vt:$src1),
@@ -818,7 +811,7 @@ multiclass IntMed3Pat<Instruction med3Inst,
   (med3Inst vt:$src0, vt:$src1, vt:$src2)
 >;
 
-  // This matches 16 permutations of 
+  // This matches 16 permutations of
   // max(min(x, y), min(max(x, y), z))
   def : AMDGPUPat <
   (max (min_oneuse vt:$src0, vt:$src1),
@@ -826,7 +819,7 @@ multiclass IntMed3Pat<Instruction med3Inst,
   (med3Inst $src0, $src1, $src2)
 >;
 }
-  
+
 // Special conversion patterns
 
 def cvt_rpi_i32_f32 : PatFrag <

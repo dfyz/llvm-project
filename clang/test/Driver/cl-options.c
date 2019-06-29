@@ -62,12 +62,16 @@
 // RUN: %clang_cl /Z7 -### -- %s 2>&1 | FileCheck -check-prefix=gdefcolumn %s
 // gdefcolumn-NOT: -dwarf-column-info
 
-// RUN: %clang_cl -### /FA -fprofile-instr-generate -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-GENERATE %s
-// RUN: %clang_cl -### /FA -fprofile-instr-generate=/tmp/somefile.profraw -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-GENERATE-FILE %s
+// RUN: %clang_cl -### /FA -fprofile-instr-generate -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-INSTR-GENERATE %s
+// RUN: %clang_cl -### /FA -fprofile-instr-generate=/tmp/somefile.profraw -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-INSTR-GENERATE-FILE %s
+// CHECK-PROFILE-INSTR-GENERATE: "-fprofile-instrument=clang" "--dependent-lib={{[^"]*}}clang_rt.profile-{{[^"]*}}.lib"
+// CHECK-PROFILE-INSTR-GENERATE-FILE: "-fprofile-instrument-path=/tmp/somefile.profraw"
+
+// RUN: %clang_cl -### /FA -fprofile-generate -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-GENERATE %s
+// CHECK-PROFILE-GENERATE: "-fprofile-instrument=llvm" "--dependent-lib={{[^"]*}}clang_rt.profile-{{[^"]*}}.lib"
+
 // RUN: %clang_cl -### /FA -fprofile-instr-generate -fprofile-instr-use -- %s 2>&1 | FileCheck -check-prefix=CHECK-NO-MIX-GEN-USE %s
 // RUN: %clang_cl -### /FA -fprofile-instr-generate -fprofile-instr-use=file -- %s 2>&1 | FileCheck -check-prefix=CHECK-NO-MIX-GEN-USE %s
-// CHECK-PROFILE-GENERATE: "-fprofile-instrument=clang"
-// CHECK-PROFILE-GENERATE-FILE: "-fprofile-instrument-path=/tmp/somefile.profraw"
 // CHECK-NO-MIX-GEN-USE: '{{[a-z=-]*}}' not allowed with '{{[a-z=-]*}}'
 
 // RUN: %clang_cl -### /FA -fprofile-instr-use -- %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-USE %s
@@ -177,6 +181,10 @@
 // RUN: %clang_cl --target=i686-pc-win32 -Werror /Oy- /O2 -### -- %s 2>&1 | FileCheck -check-prefix=Oy_2 %s
 // Oy_2: -momit-leaf-frame-pointer
 // Oy_2: -O2
+
+// RUN: %clang_cl --target=aarch64-pc-windows-msvc -Werror /Oy- /O2 -### -- %s 2>&1 | FileCheck -check-prefix=Oy_aarch64 %s
+// Oy_aarch64: -mdisable-fp-elim
+// Oy_aarch64: -O2
 
 // RUN: %clang_cl --target=i686-pc-win32 -Werror /O2 /O2 -### -- %s 2>&1 | FileCheck -check-prefix=O2O2 %s
 // O2O2: "-O2"
@@ -318,6 +326,13 @@
 // RUN: %clang_cl -c /Zc:twoPhase -### -- %s 2>&1 | FileCheck -check-prefix=DELAYEDOFF %s
 // DELAYEDOFF-NOT: "-fdelayed-template-parsing"
 
+// RUN: %clang_cl -c -### /std:c++latest -- %s 2>&1 | FileCheck -check-prefix CHECK-LATEST-CHAR8_T %s
+// CHECK-LATEST-CHAR8_T-NOT: "-fchar8_t"
+// RUN: %clang_cl -c -### /Zc:char8_t -- %s 2>&1 | FileCheck -check-prefix CHECK-CHAR8_T %s
+// CHECK-CHAR8_T: "-fchar8_t"
+// RUN: %clang_cl -c -### /Zc:char8_t- -- %s 2>&1 | FileCheck -check-prefix CHECK-CHAR8_T_ %s
+// CHECK-CHAR8_T_: "-fno-char8_t"
+
 // For some warning ids, we can map from MSVC warning to Clang warning.
 // RUN: %clang_cl -wd4005 -wd4100 -wd4910 -wd4996 -### -- %s 2>&1 | FileCheck -check-prefix=Wno %s
 // Wno: "-cc1"
@@ -386,14 +401,17 @@
 // Unsupported but parsed options. Check that we don't error on them.
 // (/Zs is for syntax-only)
 // RUN: %clang_cl /Zs \
+// RUN:     /await \
+// RUN:     /constexpr:depth1000 /constexpr:backtrace1000 /constexpr:steps1000 \
 // RUN:     /AIfoo \
 // RUN:     /AI foo_does_not_exist \
 // RUN:     /Bt \
 // RUN:     /Bt+ \
 // RUN:     /clr:pure \
+// RUN:     /d2FH4 \
 // RUN:     /docname \
 // RUN:     /EHsc \
-// RUN:     /F \
+// RUN:     /F 42 \
 // RUN:     /FA \
 // RUN:     /FAc \
 // RUN:     /Fafilename \
@@ -435,10 +453,14 @@
 // RUN:     /o foo.obj \
 // RUN:     /ofoo.obj \
 // RUN:     /openmp \
+// RUN:     /openmp:experimental \
 // RUN:     /Qfast_transcendentals \
 // RUN:     /QIfist \
 // RUN:     /Qimprecise_fwaits \
 // RUN:     /Qpar \
+// RUN:     /Qpar-report:1 \
+// RUN:     /Qsafe_fp_loads \
+// RUN:     /Qspectre \
 // RUN:     /Qvec-report:2 \
 // RUN:     /u \
 // RUN:     /V \
@@ -597,6 +619,7 @@
 // RUN:     -fno-coverage-mapping \
 // RUN:     -fdiagnostics-color \
 // RUN:     -fno-diagnostics-color \
+// RUN:     -fdebug-compilation-dir . \
 // RUN:     -fdiagnostics-parseable-fixits \
 // RUN:     -fdiagnostics-absolute-paths \
 // RUN:     -ferror-limit=10 \
@@ -619,6 +642,15 @@
 // RUN:     -fmerge-all-constants \
 // RUN:     -no-canonical-prefixes \
 // RUN:     -march=skylake \
+// RUN:     -fbracket-depth=123 \
+// RUN:     -fprofile-generate \
+// RUN:     -fprofile-generate=dir \
+// RUN:     -fno-profile-generate \
+// RUN:     -fno-profile-instr-generate \
+// RUN:     -fno-profile-instr-use \
+// RUN:     -fcs-profile-generate \
+// RUN:     -fcs-profile-generate=dir \
+// RUN:     -ftime-trace \
 // RUN:     --version \
 // RUN:     -Werror /Zs -- %s 2>&1
 

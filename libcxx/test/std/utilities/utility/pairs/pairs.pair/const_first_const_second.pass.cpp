@@ -19,6 +19,8 @@
 
 #include "archetypes.hpp"
 #include "test_convertible.hpp"
+
+#include "test_macros.h"
 using namespace ImplicitTypes; // Get implicitly archetypes
 
 struct ExplicitT {
@@ -46,7 +48,7 @@ void test_sfinae() {
     static_assert(test_convertible<P2,   T2,   T1Arg>() == CanConvert, "");
 }
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::pair<float, short*> P;
@@ -94,4 +96,6 @@ int main()
         static_assert(p.second == 10, "");
     }
 #endif
+
+  return 0;
 }

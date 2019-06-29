@@ -12,9 +12,11 @@
 
 #include <utility>
 
+#include "test_macros.h"
+
 struct S {};
 
-int main() {
+int main(int, char**) {
   using T = std::in_place_type_t<int>;
   static_assert( std::__is_inplace_type<T>::value, "");
   static_assert( std::__is_inplace_type<const T>::value, "");
@@ -30,4 +32,6 @@ int main() {
   static_assert(!std::__is_inplace_type<void>::value, "");
   static_assert(!std::__is_inplace_type<int>::value, "");
   static_assert(!std::__is_inplace_type<S>::value, "");
+
+  return 0;
 }

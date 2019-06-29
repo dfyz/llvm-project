@@ -2124,7 +2124,7 @@ let AdditionalPredicates = [NotInMicroMips] in {
             LW_FM<0x28>, ISA_MIPS1;
   def SH  : Store<"sh", GPR32Opnd, truncstorei16, II_SH>, MMRel, LW_FM<0x29>,
             ISA_MIPS1;
-  def SW  : Store<"sw", GPR32Opnd, store, II_SW>, MMRel, LW_FM<0x2b>, ISA_MIPS1;
+  def SW  : StdMMR6Rel, Store<"sw", GPR32Opnd, store, II_SW>, MMRel, LW_FM<0x2b>, ISA_MIPS1;
 }
 
 /// load/store left/right
@@ -2331,12 +2331,12 @@ def SDT_MipsEHRET : SDTypeProfile<0, 2, [SDTCisInt<0>, SDTCisPtrTy<1>]>;
 def MIPSehret : SDNode<"MipsISD::EH_RETURN", SDT_MipsEHRET,
                       [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 
-let Uses = [V0, V1], isTerminator = 1, isReturn = 1, isBarrier = 1, isCTI = 1 in {
+let Uses = [V0, V1], isTerminator = 1, isReturn = 1,
+           isBarrier = 1, isCTI = 1 in {
   def MIPSeh_return32 : MipsPseudo<(outs), (ins GPR32:$spoff, GPR32:$dst),
-                                [(MIPSehret GPR32:$spoff, GPR32:$dst)]>;
-  def MIPSeh_return64 : MipsPseudo<(outs), (ins GPR64:$spoff,
-                                                GPR64:$dst),
-                                [(MIPSehret GPR64:$spoff, GPR64:$dst)]>;
+                                   [(MIPSehret GPR32:$spoff, GPR32:$dst)]>;
+  def MIPSeh_return64 : MipsPseudo<(outs), (ins GPR64:$spoff, GPR64:$dst),
+                                   [(MIPSehret GPR64:$spoff, GPR64:$dst)]>;
 }
 
 /// Multiply and Divide Instructions.

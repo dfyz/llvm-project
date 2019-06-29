@@ -16,7 +16,9 @@
 #include <random>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::cauchy_distribution<> D;
@@ -25,4 +27,6 @@ int main()
         D d(p);
         assert(d.param() == p);
     }
+
+  return 0;
 }

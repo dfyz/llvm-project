@@ -15,8 +15,12 @@
 #include <chrono>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     assert(std::chrono::system_clock::duration::min() <
            std::chrono::system_clock::duration::zero());
+
+  return 0;
 }

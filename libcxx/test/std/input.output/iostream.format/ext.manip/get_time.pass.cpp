@@ -16,6 +16,7 @@
 #include <istream>
 #include <cassert>
 
+#include "test_macros.h"
 #include "platform_support.h" // locale name macros
 
 template <class CharT>
@@ -38,7 +39,7 @@ public:
     }
 };
 
-int main()
+int main(int, char**)
 {
     {
         testbuf<char> sb("  Sat Dec 31 23:55:59 2061");
@@ -72,4 +73,6 @@ int main()
         assert(is.eof());
         assert(!is.fail());
     }
+
+  return 0;
 }

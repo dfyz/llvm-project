@@ -35,6 +35,7 @@
 #include <experimental/functional>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 
 struct count_equal
@@ -89,7 +90,7 @@ test()
     do_search(Iter1(ih), Iter1(ih+sh), Iter2(ii), Iter2(ii+3), Iter1(ih+3),  sh*3);
 }
 
-int main() {
+int main(int, char**) {
     test<forward_iterator<const int*>, forward_iterator<const int*> >();
     test<forward_iterator<const int*>, bidirectional_iterator<const int*> >();
     test<forward_iterator<const int*>, random_access_iterator<const int*> >();
@@ -99,4 +100,6 @@ int main() {
     test<random_access_iterator<const int*>, forward_iterator<const int*> >();
     test<random_access_iterator<const int*>, bidirectional_iterator<const int*> >();
     test<random_access_iterator<const int*>, random_access_iterator<const int*> >();
+
+  return 0;
 }

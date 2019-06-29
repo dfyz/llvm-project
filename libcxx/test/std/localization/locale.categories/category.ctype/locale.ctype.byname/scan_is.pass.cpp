@@ -21,9 +21,10 @@
 
 #include <stdio.h>
 
+#include "test_macros.h"
 #include "platform_support.h" // locale name macros
 
-int main()
+int main(int, char**)
 {
     {
         std::locale l(LOCALE_en_US_UTF_8);
@@ -67,4 +68,6 @@ int main()
             assert(f.scan_is(F::graph, in.data(), in.data() + in.size()) - in.data() == 2);
         }
     }
+
+  return 0;
 }

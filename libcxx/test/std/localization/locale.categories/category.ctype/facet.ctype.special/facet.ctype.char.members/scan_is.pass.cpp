@@ -19,7 +19,9 @@
 
 #include <stdio.h>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::locale l = std::locale::classic();
     {
@@ -40,4 +42,6 @@ int main()
         assert(f.scan_is(F::alnum, in.data(), in.data() + in.size()) - in.data() == 1);
         assert(f.scan_is(F::graph, in.data(), in.data() + in.size()) - in.data() == 1);
     }
+
+  return 0;
 }

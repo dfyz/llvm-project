@@ -13,10 +13,14 @@
 #include <queue>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::queue<int> q;
     assert(q.size() == 0);
     q.push(1);
     assert(q.size() == 1);
+
+  return 0;
 }

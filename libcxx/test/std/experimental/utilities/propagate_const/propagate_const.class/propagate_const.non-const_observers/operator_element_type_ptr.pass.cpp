@@ -13,12 +13,13 @@
 // propagate_const::operator element_type*();
 
 #include <experimental/propagate_const>
+#include "test_macros.h"
 #include "propagate_const_helpers.h"
 #include <cassert>
 
 using std::experimental::propagate_const;
 
-int main() {
+int main(int, char**) {
 
   typedef propagate_const<XWithImplicitIntStarConversion> P;
 
@@ -31,4 +32,6 @@ int main() {
   *ptr_1 = 2;
 
   assert(*ptr_1==2);
+
+  return 0;
 }

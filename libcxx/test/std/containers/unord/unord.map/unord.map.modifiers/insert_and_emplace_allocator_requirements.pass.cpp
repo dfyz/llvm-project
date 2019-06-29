@@ -18,13 +18,16 @@
 
 #include <unordered_map>
 
+#include "test_macros.h"
 #include "container_test_types.h"
 #include "../../../map_allocator_requirement_test_templates.h"
 
-int main()
+int main(int, char**)
 {
   testMapInsert<TCT::unordered_map<> >();
   testMapInsertHint<TCT::unordered_map<> >();
   testMapEmplace<TCT::unordered_map<> >();
   testMapEmplaceHint<TCT::unordered_map<> >();
+
+  return 0;
 }

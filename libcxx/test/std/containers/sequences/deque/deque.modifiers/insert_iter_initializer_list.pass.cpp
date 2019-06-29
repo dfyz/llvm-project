@@ -15,9 +15,10 @@
 #include <deque>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
     std::deque<int> d(10, 1);
@@ -59,4 +60,6 @@ int main()
     assert(d[12] == 1);
     assert(d[13] == 1);
     }
+
+  return 0;
 }

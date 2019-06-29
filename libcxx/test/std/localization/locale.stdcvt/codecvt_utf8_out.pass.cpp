@@ -24,6 +24,8 @@
 #include <codecvt>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class CharT, size_t = sizeof(CharT)>
 struct TestHelper;
 
@@ -318,8 +320,10 @@ void TestHelper<CharT, 4>::test() {
   }
 }
 
-int main() {
+int main(int, char**) {
   TestHelper<wchar_t>::test();
   TestHelper<char32_t>::test();
   TestHelper<char16_t>::test();
+
+  return 0;
 }

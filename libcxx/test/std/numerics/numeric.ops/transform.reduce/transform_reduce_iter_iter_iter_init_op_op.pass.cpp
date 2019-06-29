@@ -20,6 +20,7 @@
 #include <cassert>
 #include <iterator>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 #include "test_iterators.h"
 
@@ -69,7 +70,7 @@ void test_move_only_types()
         [](const MoveOnly& lhs, const MoveOnly& rhs) { return MoveOnly{lhs.get() * rhs.get()}; }).get());
 }
 
-int main()
+int main(int, char**)
 {
     test_return_type<char, int>();
     test_return_type<int, int>();
@@ -107,4 +108,6 @@ int main()
     test<      int*,       unsigned int *>();
 
     test_move_only_types();
+
+  return 0;
 }

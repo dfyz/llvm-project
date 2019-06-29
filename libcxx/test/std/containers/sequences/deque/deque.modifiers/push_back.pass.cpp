@@ -15,6 +15,7 @@
 #include <deque>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 template <class C>
@@ -53,7 +54,7 @@ void test(int size)
     }
 }
 
-int main()
+int main(int, char**)
 {
     {
     int rng[] = {0, 1, 2, 3, 1023, 1024, 1025, 2046, 2047, 2048, 2049, 4094, 4095, 4096};
@@ -69,4 +70,6 @@ int main()
         test<std::deque<int, min_allocator<int>> >(rng[j]);
     }
 #endif
+
+  return 0;
 }

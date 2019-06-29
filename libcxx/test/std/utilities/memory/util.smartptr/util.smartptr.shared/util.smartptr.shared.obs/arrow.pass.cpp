@@ -16,7 +16,9 @@
 #include <utility>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     const std::shared_ptr<std::pair<int, int> > p(new std::pair<int, int>(3, 4));
     assert(p->first == 3);
@@ -25,4 +27,6 @@ int main()
     p->second = 6;
     assert(p->first == 5);
     assert(p->second == 6);
+
+  return 0;
 }

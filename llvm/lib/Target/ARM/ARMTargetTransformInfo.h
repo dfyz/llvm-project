@@ -48,7 +48,7 @@ class ARMTTIImpl : public BasicTTIImplBase<ARMTTIImpl> {
   const ARMTargetLowering *TLI;
 
   // Currently the following features are excluded from InlineFeatureWhitelist.
-  // ModeThumb, FeatureNoARM, ModeSoftFloat, FeatureVFPOnlySP, FeatureD16
+  // ModeThumb, FeatureNoARM, ModeSoftFloat, FeatureFP64, FeatureD32
   // Depending on whether they are set or unset, different
   // instructions/registers are available. For example, inlining a callee with
   // -thumb-mode in a caller with +thumb-mode, may cause the assembler to
@@ -92,6 +92,12 @@ public:
                            const Function *Callee) const;
 
   bool enableInterleavedAccessVectorization() { return true; }
+
+  bool shouldFavorBackedgeIndex(const Loop *L) const {
+    if (L->getHeader()->getParent()->hasOptSize())
+      return false;
+    return ST->isMClass() && ST->isThumb2() && L->getNumBlocks() == 1;
+  }
 
   /// Floating-point computation using ARMv8 AArch32 Advanced
   /// SIMD instructions remains unchanged from ARMv7. Only AArch64 SIMD
@@ -142,6 +148,8 @@ public:
     return ST->getMaxInterleaveFactor();
   }
 
+  int getMemcpyCost(const Instruction *I);
+
   int getShuffleCost(TTI::ShuffleKind Kind, Type *Tp, int Index, Type *SubTp);
 
   int getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
@@ -171,6 +179,12 @@ public:
                                  unsigned AddressSpace,
                                  bool UseMaskForCond = false,
                                  bool UseMaskForGaps = false);
+
+  bool isLoweredToCall(const Function *F);
+  bool isHardwareLoopProfitable(Loop *L, ScalarEvolution &SE,
+                                AssumptionCache &AC,
+                                TargetLibraryInfo *LibInfo,
+                                HardwareLoopInfo &HWLoopInfo);
 
   void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
                                TTI::UnrollingPreferences &UP);

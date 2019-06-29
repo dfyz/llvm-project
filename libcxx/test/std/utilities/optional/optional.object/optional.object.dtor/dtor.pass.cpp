@@ -15,6 +15,8 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
+
 using std::optional;
 
 struct PODType {
@@ -32,7 +34,7 @@ public:
 
 bool X::dtor_called = false;
 
-int main()
+int main(int, char**)
 {
     {
         typedef int T;
@@ -64,4 +66,6 @@ int main()
         }
         assert(X::dtor_called == true);
     }
+
+  return 0;
 }

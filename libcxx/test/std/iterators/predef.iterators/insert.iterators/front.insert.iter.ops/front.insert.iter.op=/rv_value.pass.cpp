@@ -20,6 +20,8 @@
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class C>
 void
 test(C c)
@@ -29,7 +31,9 @@ test(C c)
     assert(c.front() == typename C::value_type());
 }
 
-int main()
+int main(int, char**)
 {
     test(std::list<std::unique_ptr<int> >());
+
+  return 0;
 }

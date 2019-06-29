@@ -19,9 +19,10 @@
 #include <future>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_allocator.h"
 
-int main()
+int main(int, char**)
 {
     assert(test_alloc_base::alloc_count == 0);
     {
@@ -66,4 +67,6 @@ int main()
         assert(f.valid());
     }
     assert(test_alloc_base::alloc_count == 0);
+
+  return 0;
 }

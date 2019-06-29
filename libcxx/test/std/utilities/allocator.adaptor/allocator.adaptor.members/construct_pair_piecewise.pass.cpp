@@ -26,6 +26,8 @@
 #include "uses_alloc_types.hpp"
 #include "controlled_allocators.hpp"
 
+#include "test_macros.h"
+
 
 void test_no_inner_alloc()
 {
@@ -152,7 +154,9 @@ void test_with_inner_alloc()
         std::free(ptr);
     }
 }
-int main() {
+int main(int, char**) {
     test_no_inner_alloc();
     test_with_inner_alloc();
+
+  return 0;
 }

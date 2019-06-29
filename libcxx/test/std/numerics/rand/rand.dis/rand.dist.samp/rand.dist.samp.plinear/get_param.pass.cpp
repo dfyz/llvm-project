@@ -16,7 +16,9 @@
 #include <random>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::piecewise_linear_distribution<> D;
@@ -28,4 +30,6 @@ int main()
         D d(pa);
         assert(d.param() == pa);
     }
+
+  return 0;
 }

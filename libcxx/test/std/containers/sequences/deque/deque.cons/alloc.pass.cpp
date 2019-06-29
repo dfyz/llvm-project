@@ -13,6 +13,7 @@
 #include <deque>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_allocator.h"
 #include "../../../NotConstructible.h"
 #include "min_allocator.h"
@@ -26,7 +27,7 @@ test(const Allocator& a)
     assert(d.get_allocator() == a);
 }
 
-int main()
+int main(int, char**)
 {
     test<int>(std::allocator<int>());
     test<NotConstructible>(test_allocator<NotConstructible>(3));
@@ -36,4 +37,6 @@ int main()
     test<int>(explicit_allocator<int>());
     test<NotConstructible>(explicit_allocator<NotConstructible>{});
 #endif
+
+  return 0;
 }

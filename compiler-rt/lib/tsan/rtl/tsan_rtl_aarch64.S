@@ -3,14 +3,6 @@
 
 #include "sanitizer_common/sanitizer_asm.h"
 
-#if !defined(__APPLE__)
-.section .bss
-.type	__tsan_pointer_chk_guard, %object
-ASM_SIZE(ASM_SYMBOL_INTERCEPTOR(__tsan_pointer_chk_guard))
-__tsan_pointer_chk_guard:
-.zero	8
-#endif
-
 #if defined(__APPLE__)
 .align  2
 
@@ -335,9 +327,6 @@ ASM_SYMBOL_INTERCEPTOR(__sigsetjmp):
 ASM_SIZE(ASM_SYMBOL_INTERCEPTOR(__sigsetjmp))
 #endif
 
-#if defined(__linux__)
-/* We do not need executable stack.  */
-.section        .note.GNU-stack,"",@progbits
-#endif
+NO_EXEC_STACK_DIRECTIVE
 
 #endif

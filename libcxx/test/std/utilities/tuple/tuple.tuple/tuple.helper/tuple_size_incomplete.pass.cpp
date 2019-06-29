@@ -21,6 +21,8 @@
 #include <array>
 #include <type_traits>
 
+#include "test_macros.h"
+
 template <class T, size_t Size = sizeof(std::tuple_size<T>)>
 constexpr bool is_complete(int) { static_assert(Size > 0, ""); return true; }
 template <class> constexpr bool is_complete(long) { return false; }
@@ -50,7 +52,7 @@ void test_incomplete() {
 }
 
 
-int main()
+int main(int, char**)
 {
   test_complete<std::tuple<> >();
   test_complete<std::tuple<int&> >();
@@ -63,4 +65,6 @@ int main()
   test_incomplete<int>();
   test_incomplete<std::tuple<int>&>();
   test_incomplete<Dummy2>();
+
+  return 0;
 }

@@ -16,11 +16,12 @@
 #include <cassert>
 #include <iterator>
 
+#include "test_macros.h"
 #include "test_allocator.h"
 #include "MoveOnly.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef MoveOnly T;
@@ -193,4 +194,6 @@ int main()
         assert(c1.get_allocator() == A());
         assert(c0.empty());
     }
+
+  return 0;
 }

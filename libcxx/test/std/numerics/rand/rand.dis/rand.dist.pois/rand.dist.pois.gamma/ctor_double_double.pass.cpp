@@ -16,7 +16,9 @@
 #include <random>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::gamma_distribution<> D;
@@ -36,4 +38,6 @@ int main()
         assert(d.alpha() == 14.5);
         assert(d.beta() == 5.25);
     }
+
+  return 0;
 }

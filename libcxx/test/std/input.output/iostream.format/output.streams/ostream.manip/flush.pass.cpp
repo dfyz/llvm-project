@@ -17,6 +17,8 @@
 #include <ostream>
 #include <cassert>
 
+#include "test_macros.h"
+
 int sync_called = 0;
 
 template <class CharT>
@@ -38,7 +40,7 @@ protected:
         }
 };
 
-int main()
+int main(int, char**)
 {
     {
         testbuf<char> sb;
@@ -54,4 +56,6 @@ int main()
         assert(sync_called == 2);
         assert(os.good());
     }
+
+  return 0;
 }

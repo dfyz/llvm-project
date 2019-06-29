@@ -21,6 +21,7 @@
 #include <iterator>
 #include <vector>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 
 template <class Iter1, class T, class Iter2>
@@ -85,7 +86,7 @@ void basic_tests()
 
 }
 
-int main()
+int main(int, char**)
 {
     basic_tests();
 
@@ -96,4 +97,6 @@ int main()
     test<random_access_iterator<const int*> >();
     test<const int*>();
     test<      int*>();
+
+  return 0;
 }

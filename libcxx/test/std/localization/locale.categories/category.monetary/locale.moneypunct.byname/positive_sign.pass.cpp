@@ -21,6 +21,7 @@
 #include <limits>
 #include <cassert>
 
+#include "test_macros.h"
 #include "platform_support.h" // locale name macros
 
 class Fnf
@@ -55,7 +56,7 @@ public:
         : std::moneypunct_byname<wchar_t, true>(nm, refs) {}
 };
 
-int main()
+int main(int, char**)
 {
     {
         Fnf f("C", 1);
@@ -141,4 +142,6 @@ int main()
         Fwt f(LOCALE_zh_CN_UTF_8, 1);
         assert(f.positive_sign() == L"");
     }
+
+  return 0;
 }

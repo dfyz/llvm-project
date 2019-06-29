@@ -31,9 +31,10 @@
 #include <map>
 #include <type_traits>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
     typedef std::map<int, double> C;
@@ -66,4 +67,6 @@ int main()
     static_assert((std::is_same<C::difference_type, std::ptrdiff_t>::value), "");
     }
 #endif
+
+  return 0;
 }

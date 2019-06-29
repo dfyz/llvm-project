@@ -19,6 +19,8 @@
 #include <sstream>
 #include <cassert>
 
+#include "test_macros.h"
+
 void
 test1()
 {
@@ -37,8 +39,10 @@ test2()
     assert(e() == 13109570281517897720ull);
 }
 
-int main()
+int main(int, char**)
 {
     test1();
     test2();
+
+  return 0;
 }

@@ -17,7 +17,9 @@
 #include <sstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::ostringstream outf;
@@ -35,4 +37,6 @@ int main()
         std::ostreambuf_iterator<wchar_t>& iref2 = i++;
         assert(&iref2 == &i);
     }
+
+  return 0;
 }

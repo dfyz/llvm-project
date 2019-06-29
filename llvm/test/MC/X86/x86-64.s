@@ -183,11 +183,11 @@ smovq // CHECK: movsq
 // CHECK: movb (%eax), %al
         gs;movb 0(%eax), %al
 
-// CHECK: fadd %st
+// CHECK: fadd %st(0)
 // CHECK: fadd %st(1)
 // CHECK: fadd %st(7)
 
-fadd %st
+fadd %st(0)
 fadd %st(1)
 fadd %st(7)
 
@@ -307,13 +307,13 @@ insl	(%dx), %es:(%rdi)
 // CHECK: fxch %st(1)
 // CHECK: fucom %st(1)
 // CHECK: fucomp %st(1)
-// CHECK: faddp %st(1)
-// CHECK: faddp	%st
-// CHECK: fsubp %st(1)
-// CHECK: fsubrp %st(1)
-// CHECK: fmulp %st(1)
-// CHECK: fdivp %st(1)
-// CHECK: fdivrp %st(1)
+// CHECK: faddp %st, %st(1)
+// CHECK: faddp %st, %st(0)
+// CHECK: fsubp %st, %st(1)
+// CHECK: fsubrp %st, %st(1)
+// CHECK: fmulp %st, %st(1)
+// CHECK: fdivp %st, %st(1)
+// CHECK: fdivrp %st, %st(1)
 
 fxch
 fucom
@@ -456,8 +456,8 @@ mov %rdx, %db15
 // CHECK: encoding: [0x44,0x0f,0x23,0xfa]
 
 // rdar://8456371 - Handle commutable instructions written backward.
-// CHECK: 	faddp	%st(1)
-// CHECK:	fmulp	%st(2)
+// CHECK: 	faddp	%st, %st(1)
+// CHECK:	fmulp	%st, %st(2)
 faddp %st, %st(1)
 fmulp %st, %st(2)
 
@@ -725,6 +725,10 @@ movl	0, %eax   // CHECK: movl 0, %eax # encoding: [0x8b,0x04,0x25,0x00,0x00,0x00
 // CHECK: encoding: [0x48,0xb8,0x02,0x00,0x00,0x00,0x00,0x00,0xff,0xff]
         movq $0xFFFF000000000002, %rax
 
+// CHECK: movabsq 81985529216486895, %rax
+// CHECK: encoding: [0x48,0xa1,0xef,0xcd,0xab,0x89,0x67,0x45,0x23,0x01]
+        movabsq 0x123456789abcdef, %rax
+
 // CHECK: movq $-65536, %rax
 // CHECK: encoding: [0x48,0xc7,0xc0,0x00,0x00,0xff,0xff]
         movq $0xFFFFFFFFFFFF0000, %rax
@@ -736,6 +740,10 @@ movl	0, %eax   // CHECK: movl 0, %eax # encoding: [0x8b,0x04,0x25,0x00,0x00,0x00
 // CHECK: movq $10, %rax
 // CHECK: encoding: [0x48,0xc7,0xc0,0x0a,0x00,0x00,0x00]
         movq $10, %rax
+
+// CHECK: movq 81985529216486895, %rax
+// CHECK: encoding: [0x48,0x8b,0x04,0x25,0xef,0xcd,0xab,0x89]
+        movq 0x123456789abcdef, %rax
 
 // CHECK: movabsb -6066930261531658096, %al
 // CHECK: encoding: [0xa0,0x90,0x78,0x56,0x34,0x12,0xef,0xcd,0xab]
@@ -1391,12 +1399,12 @@ clac
 // CHECK: encoding: [0x0f,0x01,0xcb]
 stac
 
-// CHECK: faddp %st(1)
-// CHECK: fmulp %st(1)
-// CHECK: fsubp %st(1)
-// CHECK: fsubrp %st(1)
-// CHECK: fdivp %st(1)
-// CHECK: fdivrp %st(1)
+// CHECK: faddp %st, %st(1)
+// CHECK: fmulp %st, %st(1)
+// CHECK: fsubp %st, %st(1)
+// CHECK: fsubrp %st, %st(1)
+// CHECK: fdivp %st, %st(1)
+// CHECK: fdivrp %st, %st(1)
 faddp %st, %st(1)
 fmulp %st, %st(1)
 fsubp %st, %st(1)
@@ -1404,12 +1412,12 @@ fsubrp %st, %st(1)
 fdivp %st, %st(1)
 fdivrp %st, %st(1)
 
-// CHECK: faddp %st(1)
-// CHECK: fmulp %st(1)
-// CHECK: fsubp %st(1)
-// CHECK: fsubrp %st(1)
-// CHECK: fdivp %st(1)
-// CHECK: fdivrp %st(1)
+// CHECK: faddp %st, %st(1)
+// CHECK: fmulp %st, %st(1)
+// CHECK: fsubp %st, %st(1)
+// CHECK: fsubrp %st, %st(1)
+// CHECK: fdivp %st, %st(1)
+// CHECK: fdivrp %st, %st(1)
 faddp %st(1), %st
 fmulp %st(1), %st
 fsubp %st(1), %st
@@ -1417,12 +1425,12 @@ fsubrp %st(1), %st
 fdivp %st(1), %st
 fdivrp %st(1), %st
 
-// CHECK: faddp %st(1)
-// CHECK: fmulp %st(1)
-// CHECK: fsubp %st(1)
-// CHECK: fsubrp %st(1)
-// CHECK: fdivp %st(1)
-// CHECK: fdivrp %st(1)
+// CHECK: faddp %st, %st(1)
+// CHECK: fmulp %st, %st(1)
+// CHECK: fsubp %st, %st(1)
+// CHECK: fsubrp %st, %st(1)
+// CHECK: fdivp %st, %st(1)
+// CHECK: fdivrp %st, %st(1)
 faddp %st(1)
 fmulp %st(1)
 fsubp %st(1)
@@ -1430,12 +1438,12 @@ fsubrp %st(1)
 fdivp %st(1)
 fdivrp %st(1)
 
-// CHECK: faddp %st(1)
-// CHECK: fmulp %st(1)
-// CHECK: fsubp %st(1)
-// CHECK: fsubrp %st(1)
-// CHECK: fdivp %st(1)
-// CHECK: fdivrp %st(1)
+// CHECK: faddp %st, %st(1)
+// CHECK: fmulp %st, %st(1)
+// CHECK: fsubp %st, %st(1)
+// CHECK: fsubrp %st, %st(1)
+// CHECK: fdivp %st, %st(1)
+// CHECK: fdivrp %st, %st(1)
 faddp
 fmulp
 fsubp
@@ -1789,3 +1797,83 @@ rep
 // CHECK: lock
 // This line has to be the last one in the file
 lock
+
+// CHECK: enqcmd 268435456(%ebp,%r14d,8), %esi
+// CHECK: encoding: [0x67,0xf2,0x42,0x0f,0x38,0xf8,0xb4,0xf5,0x00,0x00,0x00,0x10]
+enqcmd  0x10000000(%ebp, %r14d, 8), %esi
+
+// CHECK: enqcmd (%r9d), %edi
+// CHECK: encoding: [0x67,0xf2,0x41,0x0f,0x38,0xf8,0x39]
+enqcmd  (%r9d), %edi
+
+// CHECK: enqcmd 8128(%ecx), %eax
+// CHECK: encoding: [0x67,0xf2,0x0f,0x38,0xf8,0x81,0xc0,0x1f,0x00,0x00]
+enqcmd  8128(%ecx), %eax
+
+// CHECK: enqcmd -8192(%edx), %ebx
+// CHECK: encoding: [0x67,0xf2,0x0f,0x38,0xf8,0x9a,0x00,0xe0,0xff,0xff]
+enqcmd  -8192(%edx), %ebx
+
+// CHECK: enqcmd 485498096, %eax
+// CHECK: encoding: [0x67,0xf2,0x0f,0x38,0xf8,0x04,0x25,0xf0,0x1c,0xf0,0x1c]
+enqcmd 485498096, %eax
+
+// CHECK: enqcmds 268435456(%ebp,%r14d,8), %esi
+// CHECK: encoding: [0x67,0xf3,0x42,0x0f,0x38,0xf8,0xb4,0xf5,0x00,0x00,0x00,0x10]
+enqcmds 0x10000000(%ebp, %r14d, 8), %esi
+
+// CHECK: enqcmds (%r9d), %edi
+// CHECK: encoding: [0x67,0xf3,0x41,0x0f,0x38,0xf8,0x39]
+enqcmds (%r9d), %edi
+
+// CHECK: enqcmds 8128(%ecx), %eax
+// CHECK: encoding: [0x67,0xf3,0x0f,0x38,0xf8,0x81,0xc0,0x1f,0x00,0x00]
+enqcmds 8128(%ecx), %eax
+
+// CHECK: enqcmds -8192(%edx), %ebx
+// CHECK: encoding: [0x67,0xf3,0x0f,0x38,0xf8,0x9a,0x00,0xe0,0xff,0xff]
+enqcmds -8192(%edx), %ebx
+
+// CHECK: enqcmds 485498096, %eax
+// CHECK: encoding: [0x67,0xf3,0x0f,0x38,0xf8,0x04,0x25,0xf0,0x1c,0xf0,0x1c]
+enqcmds 485498096, %eax
+
+// CHECK: enqcmd 268435456(%rbp,%r14,8), %rsi
+// CHECK: encoding: [0xf2,0x42,0x0f,0x38,0xf8,0xb4,0xf5,0x00,0x00,0x00,0x10]
+enqcmd  0x10000000(%rbp, %r14, 8), %rsi
+
+// CHECK: enqcmd (%r9), %rdi
+// CHECK: encoding: [0xf2,0x41,0x0f,0x38,0xf8,0x39]
+enqcmd  (%r9), %rdi
+
+// CHECK: enqcmd 8128(%rcx), %rax
+// CHECK: encoding: [0xf2,0x0f,0x38,0xf8,0x81,0xc0,0x1f,0x00,0x00]
+enqcmd  8128(%rcx), %rax
+
+// CHECK: enqcmd -8192(%rdx), %rbx
+// CHECK: encoding: [0xf2,0x0f,0x38,0xf8,0x9a,0x00,0xe0,0xff,0xff]
+enqcmd  -8192(%rdx), %rbx
+
+// CHECK: enqcmd 485498096, %rax
+// CHECK: encoding: [0xf2,0x0f,0x38,0xf8,0x04,0x25,0xf0,0x1c,0xf0,0x1c]
+enqcmd 485498096, %rax
+
+// CHECK: enqcmds 268435456(%rbp,%r14,8), %rsi
+// CHECK: encoding: [0xf3,0x42,0x0f,0x38,0xf8,0xb4,0xf5,0x00,0x00,0x00,0x10]
+enqcmds 0x10000000(%rbp, %r14, 8), %rsi
+
+// CHECK: enqcmds (%r9), %rdi
+// CHECK: encoding: [0xf3,0x41,0x0f,0x38,0xf8,0x39]
+enqcmds (%r9), %rdi
+
+// CHECK: enqcmds 8128(%rcx), %rax
+// CHECK: encoding: [0xf3,0x0f,0x38,0xf8,0x81,0xc0,0x1f,0x00,0x00]
+enqcmds 8128(%rcx), %rax
+
+// CHECK: enqcmds -8192(%rdx), %rbx
+// CHECK: encoding: [0xf3,0x0f,0x38,0xf8,0x9a,0x00,0xe0,0xff,0xff]
+enqcmds -8192(%rdx), %rbx
+
+// CHECK: enqcmds 485498096, %rax
+// CHECK: encoding: [0xf3,0x0f,0x38,0xf8,0x04,0x25,0xf0,0x1c,0xf0,0x1c]
+enqcmds 485498096, %rax

@@ -18,7 +18,9 @@
 #include <atomic>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::atomic_flag f;
@@ -34,4 +36,6 @@ int main()
         atomic_flag_clear(&f);
         assert(f.test_and_set() == 0);
     }
+
+  return 0;
 }

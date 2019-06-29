@@ -17,6 +17,8 @@
 #include <sstream>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class T>
 void
 test1()
@@ -129,7 +131,7 @@ test4()
     }
 }
 
-int main()
+int main(int, char**)
 {
     test1<unsigned short>();
     test1<unsigned int>();
@@ -150,4 +152,6 @@ int main()
     test4<unsigned int>();
     test4<unsigned long>();
     test4<unsigned long long>();
+
+  return 0;
 }

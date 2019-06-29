@@ -8,7 +8,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "AppleObjCTrampolineHandler.h"
-
 #include "AppleThreadPlanStepThroughObjCTrampoline.h"
 
 #include "lldb/Breakpoint/StoppointCallbackContext.h"
@@ -35,6 +34,8 @@
 #include "lldb/Utility/Log.h"
 
 #include "llvm/ADT/STLExtras.h"
+
+#include <memory>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -456,8 +457,9 @@ bool AppleObjCTrampolineHandler::AppleObjCVTables::InitializeVTableSymbols() {
     size_t num_modules = target_modules.GetSize();
     if (!m_objc_module_sp) {
       for (size_t i = 0; i < num_modules; i++) {
-        if (process_sp->GetObjCLanguageRuntime()->IsModuleObjCLibrary(
-                target_modules.GetModuleAtIndexUnlocked(i))) {
+        if (ObjCLanguageRuntime::Get(*process_sp)
+                ->IsModuleObjCLibrary(
+                    target_modules.GetModuleAtIndexUnlocked(i))) {
           m_objc_module_sp = target_modules.GetModuleAtIndexUnlocked(i);
           break;
         }
@@ -469,7 +471,7 @@ bool AppleObjCTrampolineHandler::AppleObjCVTables::InitializeVTableSymbols() {
       const Symbol *trampoline_symbol =
           m_objc_module_sp->FindFirstSymbolWithNameAndType(trampoline_name,
                                                            eSymbolTypeData);
-      if (trampoline_symbol != NULL) {
+      if (trampoline_symbol != nullptr) {
         m_trampoline_header = trampoline_symbol->GetLoadAddress(&target);
         if (m_trampoline_header == LLDB_INVALID_ADDRESS)
           return false;
@@ -479,7 +481,7 @@ bool AppleObjCTrampolineHandler::AppleObjCVTables::InitializeVTableSymbols() {
         const Symbol *changed_symbol =
             m_objc_module_sp->FindFirstSymbolWithNameAndType(changed_name,
                                                              eSymbolTypeCode);
-        if (changed_symbol != NULL) {
+        if (changed_symbol != nullptr) {
           const Address changed_symbol_addr = changed_symbol->GetAddress();
           if (!changed_symbol_addr.IsValid())
             return false;
@@ -540,7 +542,7 @@ bool AppleObjCTrampolineHandler::AppleObjCVTables::RefreshTrampolines(
     Status error;
     DataExtractor data;
     error = argument_values.GetValueAtIndex(0)->GetValueAsData(&exe_ctx, data,
-                                                               0, NULL);
+                                                               0, nullptr);
     lldb::offset_t offset = 0;
     lldb::addr_t region_addr = data.GetPointer(&offset);
 
@@ -667,7 +669,7 @@ AppleObjCTrampolineHandler::AppleObjCTrampolineHandler(
   ConstString msg_forward_name("_objc_msgForward");
   ConstString msg_forward_stret_name("_objc_msgForward_stret");
 
-  Target *target = process_sp ? &process_sp->GetTarget() : NULL;
+  Target *target = process_sp ? &process_sp->GetTarget() : nullptr;
   const Symbol *class_getMethodImplementation =
       m_objc_module_sp->FindFirstSymbolWithNameAndType(get_impl_name,
                                                        eSymbolTypeCode);
@@ -747,9 +749,9 @@ AppleObjCTrampolineHandler::AppleObjCTrampolineHandler(
   }
 
   // Build our vtable dispatch handler here:
-  m_vtables_ap.reset(new AppleObjCVTables(process_sp, m_objc_module_sp));
-  if (m_vtables_ap.get())
-    m_vtables_ap->ReadRegions();
+  m_vtables_up.reset(new AppleObjCVTables(process_sp, m_objc_module_sp));
+  if (m_vtables_up)
+    m_vtables_up->ReadRegions();
 }
 
 lldb::addr_t
@@ -769,8 +771,8 @@ AppleObjCTrampolineHandler::SetupDispatchFunction(Thread &thread,
 
     // First stage is to make the ClangUtility to hold our injected function:
 
-    if (!m_impl_code.get()) {
-      if (m_lookup_implementation_function_code != NULL) {
+    if (!m_impl_code) {
+      if (m_lookup_implementation_function_code != nullptr) {
         Status error;
         m_impl_code.reset(exe_ctx.GetTargetRef().GetUtilityFunctionForLanguage(
             m_lookup_implementation_function_code, eLanguageTypeObjC,
@@ -863,8 +865,8 @@ AppleObjCTrampolineHandler::GetStepThroughDispatchPlan(Thread &thread,
 
   if (!found_it) {
     uint32_t flags;
-    if (m_vtables_ap.get()) {
-      found_it = m_vtables_ap->IsAddressInVTables(curr_pc, flags);
+    if (m_vtables_up) {
+      found_it = m_vtables_up->IsAddressInVTables(curr_pc, flags);
       if (found_it) {
         this_dispatch.name = "vtable";
         this_dispatch.stret_return =
@@ -885,11 +887,11 @@ AppleObjCTrampolineHandler::GetStepThroughDispatchPlan(Thread &thread,
 
     lldb::StackFrameSP thread_cur_frame = thread.GetStackFrameAtIndex(0);
 
-    const ABI *abi = NULL;
+    const ABI *abi = nullptr;
     ProcessSP process_sp(thread.CalculateProcess());
     if (process_sp)
       abi = process_sp->GetABI().get();
-    if (abi == NULL)
+    if (abi == nullptr)
       return ret_plan_sp;
 
     TargetSP target_sp(thread.CalculateTarget());
@@ -1035,8 +1037,8 @@ AppleObjCTrampolineHandler::GetStepThroughDispatchPlan(Thread &thread,
                     isa_addr, sel_addr);
       }
       ObjCLanguageRuntime *objc_runtime =
-          thread.GetProcess()->GetObjCLanguageRuntime();
-      assert(objc_runtime != NULL);
+          ObjCLanguageRuntime::Get(*thread.GetProcess());
+      assert(objc_runtime != nullptr);
 
       impl_addr = objc_runtime->LookupInMethodCache(isa_addr, sel_addr);
     }
@@ -1048,8 +1050,8 @@ AppleObjCTrampolineHandler::GetStepThroughDispatchPlan(Thread &thread,
         log->Printf("Found implementation address in cache: 0x%" PRIx64,
                     impl_addr);
 
-      ret_plan_sp.reset(
-          new ThreadPlanRunToAddress(thread, impl_addr, stop_others));
+      ret_plan_sp = std::make_shared<ThreadPlanRunToAddress>(thread, impl_addr,
+                                                             stop_others);
     } else {
       // We haven't seen this class/selector pair yet.  Look it up.
       StreamString errors;
@@ -1128,9 +1130,9 @@ AppleObjCTrampolineHandler::GetStepThroughDispatchPlan(Thread &thread,
       // is not safe to run only one thread.  So we override the
       // stop_others value passed in to us here:
       const bool trampoline_stop_others = false;
-      ret_plan_sp.reset(new AppleThreadPlanStepThroughObjCTrampoline(
+      ret_plan_sp = std::make_shared<AppleThreadPlanStepThroughObjCTrampoline>(
           thread, this, dispatch_values, isa_addr, sel_addr,
-          trampoline_stop_others));
+          trampoline_stop_others);
       if (log) {
         StreamString s;
         ret_plan_sp->GetDescription(&s, eDescriptionLevelFull);

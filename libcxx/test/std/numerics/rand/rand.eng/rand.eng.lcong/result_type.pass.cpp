@@ -18,6 +18,8 @@
 #include <random>
 #include <type_traits>
 
+#include "test_macros.h"
+
 template <class T>
 void
 test()
@@ -27,10 +29,12 @@ test()
         T>::value), "");
 }
 
-int main()
+int main(int, char**)
 {
     test<unsigned short>();
     test<unsigned int>();
     test<unsigned long>();
     test<unsigned long long>();
+
+  return 0;
 }

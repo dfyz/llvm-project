@@ -19,6 +19,7 @@
 #include <cassert>
 #include <string>
 
+#include "test_macros.h"
 #include "allocators.h"
 
 struct B
@@ -110,7 +111,7 @@ struct F
 
 bool F::constructed = false;
 
-int main()
+int main(int, char**)
 {
 
     {
@@ -184,4 +185,6 @@ int main()
         assert(A3<F>::constructed);
         s->~S();
     }
+
+  return 0;
 }

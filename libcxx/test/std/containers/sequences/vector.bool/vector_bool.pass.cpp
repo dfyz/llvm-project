@@ -21,9 +21,10 @@
 #include <cassert>
 #include <type_traits>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
     typedef std::vector<bool> T;
@@ -50,4 +51,6 @@ int main()
     assert(h(vb) != 0);
     }
 #endif
+
+  return 0;
 }

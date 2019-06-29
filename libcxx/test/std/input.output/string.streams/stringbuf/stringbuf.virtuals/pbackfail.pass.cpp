@@ -16,6 +16,8 @@
 #include <sstream>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class CharT>
 struct testbuf
     : public std::basic_stringbuf<CharT>
@@ -32,7 +34,7 @@ struct testbuf
     void pbump(int n) {base::pbump(n);}
 };
 
-int main()
+int main(int, char**)
 {
     {  // sanity check
     testbuf<char> tb("");
@@ -92,4 +94,6 @@ int main()
         assert(sb.pbackfail(std::char_traits<wchar_t>::eof()) == std::char_traits<wchar_t>::eof());
         assert(sb.str() == L"133");
     }
+
+  return 0;
 }

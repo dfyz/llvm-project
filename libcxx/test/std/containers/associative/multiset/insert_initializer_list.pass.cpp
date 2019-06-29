@@ -18,9 +18,10 @@
 #include <cassert>
 #include <cstddef>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
     typedef std::multiset<int> C;
@@ -56,4 +57,6 @@ int main()
     assert(*++i == V(8));
     assert(*++i == V(10));
     }
+
+  return 0;
 }

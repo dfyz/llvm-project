@@ -15,7 +15,9 @@
 #include <random>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::bernoulli_distribution D;
@@ -32,4 +34,6 @@ int main()
         D d(0.75);
         assert(d.p() == 0.75);
     }
+
+  return 0;
 }

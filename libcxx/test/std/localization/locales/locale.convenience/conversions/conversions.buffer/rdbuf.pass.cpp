@@ -17,7 +17,9 @@
 #include <sstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     typedef std::wbuffer_convert<std::codecvt_utf8<wchar_t> > B;
     {
@@ -27,4 +29,6 @@ int main()
         b.rdbuf(s.rdbuf());
         assert(b.rdbuf() == s.rdbuf());
     }
+
+  return 0;
 }

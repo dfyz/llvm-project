@@ -14,6 +14,8 @@
 #include <limits>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct A
 {
     A(int i = 0) : data_(i) {}
@@ -22,7 +24,7 @@ struct A
 
 bool operator == (const A& x, const A& y) {return x.data_ == y.data_;}
 
-int main()
+int main(int, char**)
 {
     static_assert(std::numeric_limits<A>::is_specialized == false,
                  "std::numeric_limits<A>::is_specialized == false");
@@ -79,4 +81,6 @@ int main()
                  "std::numeric_limits<A>::tinyness_before == false");
     static_assert(std::numeric_limits<A>::round_style == std::round_toward_zero,
                  "std::numeric_limits<A>::round_style == std::round_toward_zero");
+
+  return 0;
 }

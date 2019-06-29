@@ -14,6 +14,7 @@
 #include <cassert>
 #include <cstddef>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 template <class T, class Allocator>
@@ -30,7 +31,7 @@ test(unsigned n, const T& x, const Allocator& a)
         assert(*i == x);
 }
 
-int main()
+int main(int, char**)
 {
     {
     std::allocator<int> a;
@@ -64,4 +65,6 @@ int main()
     test(4097, 157, a);
     }
 #endif
+
+  return 0;
 }

@@ -18,6 +18,7 @@
 #include <string>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 #if TEST_STD_VER >= 11
@@ -36,7 +37,7 @@ bool only_deletions ( const Unordered &whole, const Unordered &part ) {
 }
 #endif
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::unordered_multiset<int> C;
@@ -172,4 +173,6 @@ int main()
     assert (only_deletions (m, m2));
     }
 #endif
+
+  return 0;
 }

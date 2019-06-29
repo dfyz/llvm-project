@@ -12,10 +12,11 @@
 
 #include <vector>
 #include <cassert>
+#include "test_macros.h"
 #include "test_allocator.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         std::vector<int, test_allocator<int> > l(3, 2, test_allocator<int>(5));
@@ -40,4 +41,6 @@ int main()
         assert(l2.get_allocator() == min_allocator<int>());
     }
 #endif
+
+  return 0;
 }

@@ -15,9 +15,10 @@
 #include <map>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
     typedef std::map<int, double> M;
@@ -55,4 +56,6 @@ int main()
     assert(m.size() == 0);
     }
 #endif
+
+  return 0;
 }

@@ -21,6 +21,7 @@
 #include <functional>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 
 template <class InIter, class OutIter>
@@ -37,7 +38,7 @@ test()
         assert(ib[i] == ir[i]);
 }
 
-int main()
+int main(int, char**)
 {
     test<input_iterator<const int*>, output_iterator<int*> >();
     test<input_iterator<const int*>, forward_iterator<int*> >();
@@ -68,4 +69,6 @@ int main()
     test<const int*, bidirectional_iterator<int*> >();
     test<const int*, random_access_iterator<int*> >();
     test<const int*, int*>();
+
+  return 0;
 }

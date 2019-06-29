@@ -12,6 +12,8 @@
 #include <exception>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct A
 {
     ~A()
@@ -29,7 +31,7 @@ struct B
     }
 };
 
-int main()
+int main(int, char**)
 {
     try
     {
@@ -42,4 +44,6 @@ int main()
         assert(!std::uncaught_exception());
     }
     assert(!std::uncaught_exception());
+
+  return 0;
 }

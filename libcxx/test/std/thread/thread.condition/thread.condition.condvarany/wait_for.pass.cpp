@@ -24,6 +24,8 @@
 #include <chrono>
 #include <cassert>
 
+#include "test_macros.h"
+
 std::condition_variable_any cv;
 
 typedef std::timed_mutex L0;
@@ -62,7 +64,7 @@ void f()
     ++runs;
 }
 
-int main()
+int main(int, char**)
 {
     {
         L1 lk(m0);
@@ -88,4 +90,6 @@ int main()
         lk.unlock();
         t.join();
     }
+
+  return 0;
 }

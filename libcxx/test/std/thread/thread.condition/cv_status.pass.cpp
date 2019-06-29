@@ -15,8 +15,12 @@
 #include <condition_variable>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     assert(static_cast<int>(std::cv_status::no_timeout) == 0);
     assert(static_cast<int>(std::cv_status::timeout)    == 1);
+
+  return 0;
 }

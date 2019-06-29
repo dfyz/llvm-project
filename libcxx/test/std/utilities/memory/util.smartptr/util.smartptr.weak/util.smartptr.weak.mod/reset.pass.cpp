@@ -15,6 +15,8 @@
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct A
 {
     static int count;
@@ -26,7 +28,7 @@ struct A
 
 int A::count = 0;
 
-int main()
+int main(int, char**)
 {
     {
         std::shared_ptr<A> p1(new A);
@@ -37,4 +39,6 @@ int main()
         assert(p1.use_count() == 1);
     }
     assert(A::count == 0);
+
+  return 0;
 }

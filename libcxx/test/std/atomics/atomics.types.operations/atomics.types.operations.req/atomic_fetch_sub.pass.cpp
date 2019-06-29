@@ -31,6 +31,7 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
 #include "atomic_helpers.h"
 
 template <class T>
@@ -74,9 +75,11 @@ void testp()
     }
 }
 
-int main()
+int main(int, char**)
 {
     TestEachIntegralType<TestFn>()();
     testp<int*>();
     testp<const int*>();
+
+  return 0;
 }

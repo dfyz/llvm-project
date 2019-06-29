@@ -17,7 +17,9 @@
 
 #include "poisoned_hash_helper.hpp"
 
-int main() {
+#include "test_macros.h"
+
+int main(int, char**) {
   test_library_hash_specializations_available();
   {
     test_hash_enabled_for_type<std::bitset<0> >();
@@ -25,4 +27,6 @@ int main() {
     test_hash_enabled_for_type<std::bitset<1024> >();
     test_hash_enabled_for_type<std::bitset<100000> >();
   }
+
+  return 0;
 }

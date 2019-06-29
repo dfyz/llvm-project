@@ -13,7 +13,9 @@
 #include <queue>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::queue<int> q;
     assert(q.size() == 0);
@@ -23,4 +25,6 @@ int main()
     const std::queue<int>& cqr = q;
     const int& cir = cqr.back();
     assert(cir == 3);
+
+  return 0;
 }

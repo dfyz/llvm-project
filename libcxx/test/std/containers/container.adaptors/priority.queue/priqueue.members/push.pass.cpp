@@ -15,7 +15,9 @@
 #include <queue>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::priority_queue<int> q;
     q.push(1);
@@ -24,4 +26,6 @@ int main()
     assert(q.top() == 3);
     q.push(2);
     assert(q.top() == 3);
+
+  return 0;
 }

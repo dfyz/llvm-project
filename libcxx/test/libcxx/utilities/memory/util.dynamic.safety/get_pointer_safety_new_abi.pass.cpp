@@ -18,7 +18,9 @@
 #include <memory>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
   {
     static_assert(std::is_enum<std::pointer_safety>::value, "");
@@ -34,4 +36,6 @@ int main()
            r == std::pointer_safety::preferred ||
            r == std::pointer_safety::strict);
   }
+
+  return 0;
 }

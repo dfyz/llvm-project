@@ -18,6 +18,8 @@
 #include <ostream>
 #include <cassert>
 
+#include "test_macros.h"
+
 
 template <class CharT>
 struct testbuf
@@ -38,7 +40,7 @@ struct test_ostream
 };
 
 
-int main()
+int main(int, char**)
 {
     {
         testbuf<char> sb;
@@ -68,4 +70,6 @@ int main()
         assert(os.precision() == 6);
         assert(os.getloc().name() == "C");
     }
+
+  return 0;
 }

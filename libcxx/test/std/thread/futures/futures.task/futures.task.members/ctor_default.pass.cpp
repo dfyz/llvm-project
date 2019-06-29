@@ -18,10 +18,14 @@
 #include <future>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct A {};
 
-int main()
+int main(int, char**)
 {
     std::packaged_task<A(int, char)> p;
     assert(!p.valid());
+
+  return 0;
 }

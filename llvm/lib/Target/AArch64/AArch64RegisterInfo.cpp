@@ -216,11 +216,8 @@ bool AArch64RegisterInfo::isReservedReg(const MachineFunction &MF,
 }
 
 bool AArch64RegisterInfo::isAnyArgRegReserved(const MachineFunction &MF) const {
-  // FIXME: Get the list of argument registers from TableGen.
-  static const MCPhysReg GPRArgRegs[] = { AArch64::X0, AArch64::X1, AArch64::X2,
-                                          AArch64::X3, AArch64::X4, AArch64::X5,
-                                          AArch64::X6, AArch64::X7 };
-  return std::any_of(std::begin(GPRArgRegs), std::end(GPRArgRegs),
+  return std::any_of(std::begin(*AArch64::GPR64argRegClass.MC),
+                     std::end(*AArch64::GPR64argRegClass.MC),
                      [this, &MF](MCPhysReg r){return isReservedReg(MF, r);});
 }
 
@@ -282,7 +279,7 @@ bool AArch64RegisterInfo::hasBasePointer(const MachineFunction &MF) const {
   return false;
 }
 
-unsigned
+Register
 AArch64RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
   const AArch64FrameLowering *TFI = getFrameLowering(MF);
   return TFI->hasFP(MF) ? AArch64::FP : AArch64::SP;
@@ -456,7 +453,8 @@ void AArch64RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   if (MI.isDebugValue() || MI.getOpcode() == TargetOpcode::STACKMAP ||
       MI.getOpcode() == TargetOpcode::PATCHPOINT) {
     Offset = TFI->resolveFrameIndexReference(MF, FrameIndex, FrameReg,
-                                             /*PreferFP=*/true);
+                                             /*PreferFP=*/true,
+                                             /*ForSimm=*/false);
     Offset += MI.getOperand(FIOperandNum + 1).getImm();
     MI.getOperand(FIOperandNum).ChangeToRegister(FrameReg, false /*isDef*/);
     MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
@@ -471,7 +469,8 @@ void AArch64RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   }
 
   // Modify MI as necessary to handle as much of 'Offset' as possible
-  Offset = TFI->getFrameIndexReference(MF, FrameIndex, FrameReg);
+  Offset = TFI->resolveFrameIndexReference(
+      MF, FrameIndex, FrameReg, /*PreferFP=*/false, /*ForSimm=*/true);
 
   if (rewriteAArch64FrameIndex(MI, FIOperandNum, FrameReg, Offset, TII))
     return;

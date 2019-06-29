@@ -23,6 +23,8 @@
 #include <cassert>
 #include <sstream>
 
+#include "test_macros.h"
+
 template <class T>
 void
 test_signed()
@@ -112,7 +114,7 @@ test_float()
     }
 }
 
-int main()
+int main(int, char**)
 {
     test_signed<int>();
     test_signed<long>();
@@ -123,4 +125,6 @@ int main()
     test_float<float>();
     test_float<double>();
     test_float<long double>();
+
+  return 0;
 }

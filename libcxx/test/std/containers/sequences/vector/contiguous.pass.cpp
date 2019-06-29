@@ -13,6 +13,7 @@
 #include <vector>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_allocator.h"
 #include "min_allocator.h"
 
@@ -23,7 +24,7 @@ void test_contiguous ( const C &c )
         assert ( *(c.begin() + static_cast<typename C::difference_type>(i)) == *(std::addressof(*c.begin()) + i));
 }
 
-int main()
+int main(int, char**)
 {
     {
     typedef int T;
@@ -48,4 +49,6 @@ int main()
     test_contiguous(C(9, 11.0, A{}));
     }
 #endif
+
+  return 0;
 }

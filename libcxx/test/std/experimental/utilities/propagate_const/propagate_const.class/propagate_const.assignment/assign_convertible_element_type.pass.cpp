@@ -13,12 +13,13 @@
 // template <class U> propagate_const& propagate_const::operator=(U&&);
 
 #include <experimental/propagate_const>
+#include "test_macros.h"
 #include "propagate_const_helpers.h"
 #include <cassert>
 
 using std::experimental::propagate_const;
 
-int main() {
+int main(int, char**) {
 
   typedef propagate_const<CopyConstructibleFromX> PY;
 
@@ -30,4 +31,6 @@ int main() {
   p = x1;
 
   assert(*p==1);
+
+  return 0;
 }

@@ -17,7 +17,9 @@
 #include <limits>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::piecewise_constant_distribution<> D;
@@ -37,4 +39,6 @@ int main()
         P p2(b, b+4, p);
         assert(p1 != p2);
     }
+
+  return 0;
 }

@@ -17,9 +17,10 @@
 #include <queue>
 #include <cassert>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 
-int main()
+int main(int, char**)
 {
     std::priority_queue<MoveOnly> q;
     q.push(1);
@@ -28,4 +29,6 @@ int main()
     assert(q.top() == 3);
     q.push(2);
     assert(q.top() == 3);
+
+  return 0;
 }

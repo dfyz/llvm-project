@@ -16,6 +16,8 @@
 #include <locale>
 #include <cassert>
 
+#include "test_macros.h"
+
 typedef std::codecvt_byname<char16_t, char, std::mbstate_t> F;
 
 class my_facet
@@ -34,7 +36,7 @@ public:
 
 int my_facet::count = 0;
 
-int main()
+int main(int, char**)
 {
     {
         std::locale l(std::locale::classic(), new my_facet("en_US"));
@@ -66,4 +68,6 @@ int main()
         assert(my_facet::count == 1);
     }
     assert(my_facet::count == 0);
+
+  return 0;
 }

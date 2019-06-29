@@ -46,8 +46,6 @@ public:
 template <class ELFT> MIPS<ELFT>::MIPS() {
   GotPltHeaderEntriesNum = 2;
   DefaultMaxPageSize = 65536;
-  GotEntrySize = sizeof(typename ELFT::uint);
-  GotPltEntrySize = sizeof(typename ELFT::uint);
   GotBaseSymInGotPlt = false;
   PltEntrySize = 16;
   PltHeaderSize = 32;
@@ -61,11 +59,13 @@ template <class ELFT> MIPS<ELFT>::MIPS() {
 
   if (ELFT::Is64Bits) {
     RelativeRel = (R_MIPS_64 << 8) | R_MIPS_REL32;
+    SymbolicRel = R_MIPS_64;
     TlsGotRel = R_MIPS_TLS_TPREL64;
     TlsModuleIndexRel = R_MIPS_TLS_DTPMOD64;
     TlsOffsetRel = R_MIPS_TLS_DTPREL64;
   } else {
     RelativeRel = R_MIPS_REL32;
+    SymbolicRel = R_MIPS_32;
     TlsGotRel = R_MIPS_TLS_TPREL32;
     TlsModuleIndexRel = R_MIPS_TLS_DTPMOD32;
     TlsOffsetRel = R_MIPS_TLS_DTPREL32;
@@ -175,13 +175,15 @@ RelExpr MIPS<ELFT>::getRelExpr(RelType Type, const Symbol &S,
   case R_MIPS_NONE:
     return R_NONE;
   default:
-    return R_INVALID;
+    error(getErrorLocation(Loc) + "unknown relocation (" + Twine(Type) +
+          ") against symbol " + toString(S));
+    return R_NONE;
   }
 }
 
 template <class ELFT> RelType MIPS<ELFT>::getDynRel(RelType Type) const {
-  if (Type == R_MIPS_32 || Type == R_MIPS_64)
-    return RelativeRel;
+  if (Type == SymbolicRel)
+    return Type;
   return R_MIPS_NONE;
 }
 
@@ -325,13 +327,15 @@ void MIPS<ELFT>::writePlt(uint8_t *Buf, uint64_t GotPltEntryAddr,
     return;
   }
 
+  uint32_t LoadInst = ELFT::Is64Bits ? 0xddf90000 : 0x8df90000;
   uint32_t JrInst = isMipsR6() ? (Config->ZHazardplt ? 0x03200409 : 0x03200009)
                                : (Config->ZHazardplt ? 0x03200408 : 0x03200008);
+  uint32_t AddInst = ELFT::Is64Bits ? 0x65f80000 : 0x25f80000;
 
   write32<E>(Buf, 0x3c0f0000);     // lui   $15, %hi(.got.plt entry)
-  write32<E>(Buf + 4, 0x8df90000); // l[wd] $25, %lo(.got.plt entry)($15)
+  write32<E>(Buf + 4, LoadInst);   // l[wd] $25, %lo(.got.plt entry)($15)
   write32<E>(Buf + 8, JrInst);     // jr  $25 / jr.hb $25
-  write32<E>(Buf + 12, 0x25f80000); // addiu $24, $15, %lo(.got.plt entry)
+  write32<E>(Buf + 12, AddInst);   // [d]addiu $24, $15, %lo(.got.plt entry)
   writeValue<E>(Buf, GotPltEntryAddr + 0x8000, 16, 16);
   writeValue<E>(Buf + 4, GotPltEntryAddr, 16, 0);
   writeValue<E>(Buf + 12, GotPltEntryAddr, 16, 0);
@@ -345,10 +349,10 @@ bool MIPS<ELFT>::needsThunk(RelExpr Expr, RelType Type, const InputFile *File,
   // we cannot make the jump directly and need to create a small stubs
   // to save the target function address.
   // See page 3-38 ftp://www.linux-mips.org/pub/linux/mips/doc/ABI/mipsabi.pdf
-  if (Type != R_MIPS_26 && Type != R_MICROMIPS_26_S1 &&
-      Type != R_MICROMIPS_PC26_S1)
+  if (Type != R_MIPS_26 && Type != R_MIPS_PC26_S2 &&
+      Type != R_MICROMIPS_26_S1 && Type != R_MICROMIPS_PC26_S1)
     return false;
-  auto *F = dyn_cast_or_null<ELFFileBase<ELFT>>(File);
+  auto *F = dyn_cast_or_null<ObjFile<ELFT>>(File);
   if (!F)
     return false;
   // If current file has PIC code, LA25 stub is not required.
@@ -458,12 +462,74 @@ calculateMipsRelChain(uint8_t *Loc, RelType Type, uint64_t Val) {
   return std::make_pair(Type & 0xff, Val);
 }
 
+static bool isBranchReloc(RelType Type) {
+  return Type == R_MIPS_26 || Type == R_MIPS_PC26_S2 ||
+         Type == R_MIPS_PC21_S2 || Type == R_MIPS_PC16;
+}
+
+static bool isMicroBranchReloc(RelType Type) {
+  return Type == R_MICROMIPS_26_S1 || Type == R_MICROMIPS_PC16_S1 ||
+         Type == R_MICROMIPS_PC10_S1 || Type == R_MICROMIPS_PC7_S1;
+}
+
+template <class ELFT>
+static uint64_t fixupCrossModeJump(uint8_t *Loc, RelType Type, uint64_t Val) {
+  // Here we need to detect jump/branch from regular MIPS code
+  // to a microMIPS target and vice versa. In that cases jump
+  // instructions need to be replaced by their "cross-mode"
+  // equivalents.
+  const endianness E = ELFT::TargetEndianness;
+  bool IsMicroTgt = Val & 0x1;
+  bool IsCrossJump = (IsMicroTgt && isBranchReloc(Type)) ||
+                     (!IsMicroTgt && isMicroBranchReloc(Type));
+  if (!IsCrossJump)
+    return Val;
+
+  switch (Type) {
+  case R_MIPS_26: {
+    uint32_t Inst = read32<E>(Loc) >> 26;
+    if (Inst == 0x3 || Inst == 0x1d) { // JAL or JALX
+      writeValue<E>(Loc, 0x1d << 26, 32, 0);
+      return Val;
+    }
+    break;
+  }
+  case R_MICROMIPS_26_S1: {
+    uint32_t Inst = readShuffle<E>(Loc) >> 26;
+    if (Inst == 0x3d || Inst == 0x3c) { // JAL32 or JALX32
+      Val >>= 1;
+      writeShuffleValue<E>(Loc, 0x3c << 26, 32, 0);
+      return Val;
+    }
+    break;
+  }
+  case R_MIPS_PC26_S2:
+  case R_MIPS_PC21_S2:
+  case R_MIPS_PC16:
+  case R_MICROMIPS_PC16_S1:
+  case R_MICROMIPS_PC10_S1:
+  case R_MICROMIPS_PC7_S1:
+    // FIXME (simon): Support valid branch relocations.
+    break;
+  default:
+    llvm_unreachable("unexpected jump/branch relocation");
+  }
+
+  error(getErrorLocation(Loc) +
+        "unsupported jump/branch instruction between ISA modes referenced by " +
+        toString(Type) + " relocation");
+  return Val;
+}
+
 template <class ELFT>
 void MIPS<ELFT>::relocateOne(uint8_t *Loc, RelType Type, uint64_t Val) const {
   const endianness E = ELFT::TargetEndianness;
 
   if (ELFT::Is64Bits || Config->MipsN32Abi)
     std::tie(Type, Val) = calculateMipsRelChain(Loc, Type, Val);
+
+  // Detect cross-mode jump/branch and fix instruction.
+  Val = fixupCrossModeJump<ELFT>(Loc, Type, Val);
 
   // Thread pointer and DRP offsets from the start of TLS data area.
   // https://www.linux-mips.org/wiki/NPTL
@@ -631,7 +697,7 @@ void MIPS<ELFT>::relocateOne(uint8_t *Loc, RelType Type, uint64_t Val) const {
     writeShuffleValue<E>(Loc, Val, 23, 2);
     break;
   default:
-    error(getErrorLocation(Loc) + "unrecognized reloc " + Twine(Type));
+    llvm_unreachable("unknown relocation");
   }
 }
 

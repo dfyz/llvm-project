@@ -20,12 +20,16 @@
 #include <cstdlib>
 #include <cassert>
 
+#include "test_macros.h"
 
-int main()
+
+int main(int, char**)
 {
     std::list<int> v1(3);
     std::list<int> v2(3);
     int i = 4;
     v1.insert(v2.begin(), i);
     assert(false);
+
+  return 0;
 }

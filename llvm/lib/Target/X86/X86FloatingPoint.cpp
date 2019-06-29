@@ -59,7 +59,6 @@ namespace {
   struct FPS : public MachineFunctionPass {
     static char ID;
     FPS() : MachineFunctionPass(ID) {
-      initializeEdgeBundlesPass(*PassRegistry::getPassRegistry());
       // This is really only to keep valgrind quiet.
       // The logic in isLive() is too much for it.
       memset(Stack, 0, sizeof(Stack));
@@ -298,8 +297,15 @@ namespace {
 
     void setKillFlags(MachineBasicBlock &MBB) const;
   };
-  char FPS::ID = 0;
 }
+
+char FPS::ID = 0;
+
+INITIALIZE_PASS_BEGIN(FPS, DEBUG_TYPE, "X86 FP Stackifier",
+                      false, false)
+INITIALIZE_PASS_DEPENDENCY(EdgeBundles)
+INITIALIZE_PASS_END(FPS, DEBUG_TYPE, "X86 FP Stackifier",
+                    false, false)
 
 FunctionPass *llvm::createX86FloatingPointStackifierPass() { return new FPS(); }
 
@@ -590,7 +596,7 @@ namespace {
 }
 
 static int Lookup(ArrayRef<TableEntry> Table, unsigned Opcode) {
-  const TableEntry *I = std::lower_bound(Table.begin(), Table.end(), Opcode);
+  const TableEntry *I = llvm::lower_bound(Table, Opcode);
   if (I != Table.end() && I->from == Opcode)
     return I->to;
   return -1;
@@ -1095,6 +1101,8 @@ void FPS::handleZeroArgFP(MachineBasicBlock::iterator &I) {
   // Change from the pseudo instruction to the concrete instruction.
   MI.RemoveOperand(0); // Remove the explicit ST(0) operand
   MI.setDesc(TII->get(getConcreteOpcode(MI.getOpcode())));
+  MI.addOperand(
+      MachineOperand::CreateReg(X86::ST0, /*isDef*/ true, /*isImp*/ true));
 
   // Result gets pushed on the stack.
   pushReg(DestReg);
@@ -1139,6 +1147,8 @@ void FPS::handleOneArgFP(MachineBasicBlock::iterator &I) {
   // Convert from the pseudo instruction to the concrete instruction.
   MI.RemoveOperand(NumOps - 1); // Remove explicit ST(0) operand
   MI.setDesc(TII->get(getConcreteOpcode(MI.getOpcode())));
+  MI.addOperand(
+      MachineOperand::CreateReg(X86::ST0, /*isDef*/ false, /*isImp*/ true));
 
   if (MI.getOpcode() == X86::IST_FP64m || MI.getOpcode() == X86::ISTT_FP16m ||
       MI.getOpcode() == X86::ISTT_FP32m || MI.getOpcode() == X86::ISTT_FP64m ||
@@ -1472,7 +1482,8 @@ void FPS::handleSpecialFP(MachineBasicBlock::iterator &Inst) {
     break;
   }
 
-  case TargetOpcode::INLINEASM: {
+  case TargetOpcode::INLINEASM:
+  case TargetOpcode::INLINEASM_BR: {
     // The inline asm MachineInstr currently only *uses* FP registers for the
     // 'f' constraint.  These should be turned into the current ST(x) register
     // in the machine instr.

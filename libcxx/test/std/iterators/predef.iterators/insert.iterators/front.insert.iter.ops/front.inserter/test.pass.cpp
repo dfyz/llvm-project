@@ -17,6 +17,8 @@
 #include <cassert>
 #include "nasty_containers.hpp"
 
+#include "test_macros.h"
+
 template <class C>
 void
 test(C c)
@@ -27,8 +29,10 @@ test(C c)
     assert(c.front() == 0);
 }
 
-int main()
+int main(int, char**)
 {
     test(std::list<int>());
     test(nasty_list<int>());
+
+  return 0;
 }

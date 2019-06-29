@@ -10,7 +10,9 @@
 
 #include <ratio>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
     typedef std::ratio<1, 1> R1;
@@ -54,4 +56,6 @@ int main()
     typedef std::ratio_divide<R1, R2>::type R;
     static_assert(R::num == 630992477165LL && R::den == 127339199162436LL, "");
     }
+
+  return 0;
 }

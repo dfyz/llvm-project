@@ -16,10 +16,11 @@
 
 #include <set>
 #include <cassert>
+#include "test_macros.h"
 #include "../../../test_compare.h"
 #include "test_allocator.h"
 
-int main()
+int main(int, char**)
 {
     typedef test_compare<std::less<int> > Cmp;
     typedef test_allocator<int> A;
@@ -37,4 +38,6 @@ int main()
     assert(*++i == V(6));
     assert(m.key_comp() == Cmp(10));
     assert(m.get_allocator() == A(4));
+
+  return 0;
 }

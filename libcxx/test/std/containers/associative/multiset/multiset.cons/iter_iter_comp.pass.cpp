@@ -16,10 +16,11 @@
 #include <set>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 #include "../../../test_compare.h"
 
-int main()
+int main(int, char**)
 {
     typedef int V;
     V ar[] =
@@ -49,4 +50,6 @@ int main()
     assert(*next(m.begin(), 6) == 3);
     assert(*next(m.begin(), 7) == 3);
     assert(*next(m.begin(), 8) == 3);
+
+  return 0;
 }

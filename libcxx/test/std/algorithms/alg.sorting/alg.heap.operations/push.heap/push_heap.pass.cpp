@@ -18,6 +18,8 @@
 #include <random>
 #include <cassert>
 
+#include "test_macros.h"
+
 std::mt19937 randomness;
 
 void test(int N)
@@ -34,7 +36,9 @@ void test(int N)
     delete [] ia;
 }
 
-int main()
+int main(int, char**)
 {
     test(1000);
+
+  return 0;
 }

@@ -15,6 +15,8 @@
 #include <ostream>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class CharT>
 struct testbuf
     : public std::basic_streambuf<CharT>
@@ -22,7 +24,7 @@ struct testbuf
     testbuf() {}
 };
 
-int main()
+int main(int, char**)
 {
     {
         testbuf<char> sb;
@@ -48,4 +50,6 @@ int main()
         os << std::setprecision(10);
         assert(os.precision() == 10);
     }
+
+  return 0;
 }

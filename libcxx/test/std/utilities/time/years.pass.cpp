@@ -15,7 +15,9 @@
 #include <type_traits>
 #include <limits>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     typedef std::chrono::years D;
     typedef D::rep Rep;
@@ -24,4 +26,6 @@ int main()
     static_assert(std::is_integral<Rep>::value, "");
     static_assert(std::numeric_limits<Rep>::digits >= 17, "");
     static_assert(std::is_same_v<Period, std::ratio_multiply<std::ratio<146097, 400>, std::chrono::days::period>>, "");
+
+  return 0;
 }

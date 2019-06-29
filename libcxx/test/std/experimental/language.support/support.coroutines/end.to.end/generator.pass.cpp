@@ -16,6 +16,7 @@
 #include <vector>
 #include <cassert>
 
+#include "test_macros.h"
 #include "coroutine_types.h"
 
 using namespace std::experimental;
@@ -95,8 +96,10 @@ void test_mini_generator() {
   assert(sum == 10);
 }
 
-int main() {
+int main(int, char**) {
   test_count();
   test_range();
   test_mini_generator();
+
+  return 0;
 }

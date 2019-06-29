@@ -19,6 +19,8 @@
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
+
 int i = 0;
 
 void func(std::promise<int&> p)
@@ -27,7 +29,7 @@ void func(std::promise<int&> p)
     i = 4;
 }
 
-int main()
+int main(int, char**)
 {
     {
         std::promise<int&> p;
@@ -35,4 +37,6 @@ int main()
         std::thread(func, std::move(p)).detach();
         assert(f.get() == 4);
     }
+
+  return 0;
 }

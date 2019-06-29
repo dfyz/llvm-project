@@ -16,11 +16,12 @@
 
 #include <map>
 #include <cassert>
+#include "test_macros.h"
 #include "../../../test_compare.h"
 #include "test_allocator.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
     typedef std::pair<const int, double> V;
@@ -116,4 +117,6 @@ int main()
     assert(m.key_comp() == C(3));
     assert(m.get_allocator() == a);
     }
+
+  return 0;
 }

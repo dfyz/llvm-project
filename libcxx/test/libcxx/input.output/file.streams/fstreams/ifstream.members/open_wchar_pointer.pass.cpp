@@ -16,7 +16,9 @@
 #include <fstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
 #ifdef _LIBCPP_HAS_OPEN_WITH_WCHAR
     {
@@ -44,4 +46,6 @@ int main()
         assert(c == L'r');
     }
 #endif
+
+  return 0;
 }

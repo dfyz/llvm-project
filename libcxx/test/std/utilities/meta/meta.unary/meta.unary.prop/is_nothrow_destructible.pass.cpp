@@ -79,7 +79,7 @@ class Abstract
 };
 
 
-int main()
+int main(int, char**)
 {
     test_is_not_nothrow_destructible<void>();
     test_is_not_nothrow_destructible<char[]>();
@@ -101,7 +101,7 @@ int main()
     test_is_nothrow_destructible<Abstract>();
     test_is_nothrow_destructible<Empty>();
     test_is_nothrow_destructible<Union>();
-
+#endif
     // requires access control
     test_is_not_nothrow_destructible<ProtectedDestructor>();
     test_is_not_nothrow_destructible<PrivateDestructor>();
@@ -109,5 +109,7 @@ int main()
     test_is_not_nothrow_destructible<VirtualPrivateDestructor>();
     test_is_not_nothrow_destructible<PureProtectedDestructor>();
     test_is_not_nothrow_destructible<PurePrivateDestructor>();
-#endif
+
+
+  return 0;
 }

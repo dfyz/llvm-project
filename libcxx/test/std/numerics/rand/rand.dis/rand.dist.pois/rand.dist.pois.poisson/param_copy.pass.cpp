@@ -17,7 +17,9 @@
 #include <limits>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::poisson_distribution<> D;
@@ -26,4 +28,6 @@ int main()
         param_type p = p0;
         assert(p.mean() == .125);
     }
+
+  return 0;
 }

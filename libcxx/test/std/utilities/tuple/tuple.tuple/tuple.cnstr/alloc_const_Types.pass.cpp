@@ -19,6 +19,7 @@
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
 #include "allocators.h"
 #include "../alloc_first.h"
 #include "../alloc_last.h"
@@ -40,7 +41,7 @@ std::tuple<ImplicitCopy> testImplicitCopy2() {
     return {std::allocator_arg, std::allocator<void>{}, i};
 }
 
-int main()
+int main(int, char**)
 {
     {
         // check that the literal '0' can implicitly initialize a stored pointer.
@@ -94,4 +95,6 @@ int main()
         assert(!alloc_last::allocator_constructed);
         assert(std::get<2>(t) == alloc_last(3));
     }
+
+  return 0;
 }

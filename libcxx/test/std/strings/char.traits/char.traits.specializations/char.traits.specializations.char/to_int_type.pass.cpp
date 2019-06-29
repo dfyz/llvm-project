@@ -15,9 +15,13 @@
 #include <string>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     assert(std::char_traits<char>::to_int_type('a') == 'a');
     assert(std::char_traits<char>::to_int_type('A') == 'A');
     assert(std::char_traits<char>::to_int_type(0) == 0);
+
+  return 0;
 }

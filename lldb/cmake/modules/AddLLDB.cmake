@@ -83,7 +83,7 @@ function(add_lldb_library name)
       endif()
       if (NOT CMAKE_CONFIGURATION_TYPES)
         add_llvm_install_targets(install-${name}
-                                 DEPENDS $<TARGET_FILE:${name}>
+                                 DEPENDS ${name}
                                  COMPONENT ${name})
       endif()
     endif()
@@ -100,7 +100,11 @@ function(add_lldb_library name)
   # Add in any extra C++ compilation flags for this library.
   target_compile_options(${name} PRIVATE ${PARAM_EXTRA_CXXFLAGS})
 
-  set_target_properties(${name} PROPERTIES FOLDER "lldb libraries")
+  if(PARAM_PLUGIN)
+    set_target_properties(${name} PROPERTIES FOLDER "lldb plugins")
+  else()
+    set_target_properties(${name} PROPERTIES FOLDER "lldb libraries")
+  endif()
 endfunction(add_lldb_library)
 
 function(add_lldb_executable name)
@@ -141,6 +145,11 @@ function(add_lldb_executable name)
   endif()
 endfunction(add_lldb_executable)
 
+
+macro(add_lldb_tool_subdirectory name)
+  add_llvm_subdirectory(LLDB TOOL ${name})
+endmacro()
+
 function(add_lldb_tool name)
   add_lldb_executable(${name} GENERATE_INSTALL ${ARGN})
 endfunction()
@@ -175,25 +184,56 @@ endfunction()
 # added as an extra RPATH below.
 #
 function(lldb_setup_framework_rpaths_in_tool name)
-  # In the build-tree, we know the exact path to the binary in the framework.
-  set(rpath_build_tree "$<TARGET_FILE:liblldb>")
-
   # The installed framework is relocatable and can be in different locations.
-  set(rpaths_install_tree "@loader_path/../../../SharedFrameworks")
+  set(rpaths_install_tree)
+
+  if(LLDB_FRAMEWORK_INSTALL_DIR)
+    list(APPEND rpaths_install_tree "@loader_path/../${LLDB_FRAMEWORK_INSTALL_DIR}")
+  endif()
+
+  list(APPEND rpaths_install_tree "@loader_path/../../../SharedFrameworks")
   list(APPEND rpaths_install_tree "@loader_path/../../System/Library/PrivateFrameworks")
   list(APPEND rpaths_install_tree "@loader_path/../../Library/PrivateFrameworks")
 
-  if(LLDB_FRAMEWORK_INSTALL_DIR)
-    set(rpaths_install_tree "@loader_path/../${LLDB_FRAMEWORK_INSTALL_DIR}")
-  endif()
+  # In the build-tree, we know the exact path to the framework directory.
+  get_target_property(framework_target_dir liblldb LIBRARY_OUTPUT_DIRECTORY)
 
   # If LLDB_NO_INSTALL_DEFAULT_RPATH was NOT enabled (default), this overwrites
   # the default settings from llvm_setup_rpath().
   set_target_properties(${name} PROPERTIES
     BUILD_WITH_INSTALL_RPATH OFF
-    BUILD_RPATH "${rpath_build_tree}"
+    BUILD_RPATH "${framework_target_dir}"
     INSTALL_RPATH "${rpaths_install_tree}"
   )
 
   add_dependencies(${name} lldb-framework)
+endfunction()
+
+# Unified handling for executable LLDB.framework resources. Given the name of an
+# executable target, this function adds a post-build step to copy it to the
+# framework bundle in the build-tree.
+function(lldb_add_to_framework name)
+  set(subdir "LLDB.framework/Versions/${LLDB_FRAMEWORK_VERSION}/Resources")
+
+  # Destination for the copy in the build-tree. While the framework target may
+  # not exist yet, it will exist when the generator expression gets expanded.
+  set(copy_dest "$<TARGET_FILE_DIR:liblldb>/../../../${subdir}")
+
+  # Copy into the framework's Resources directory for testing.
+  add_custom_command(TARGET ${name} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${name}> ${copy_dest}
+    COMMENT "Copy ${name} to ${copy_dest}"
+  )
+endfunction()
+
+# CMake's set_target_properties() doesn't allow to pass lists for RPATH
+# properties directly (error: "called with incorrect number of arguments").
+# Instead of defining two list variables each time, use this helper function.
+function(lldb_setup_rpaths name)
+  cmake_parse_arguments(LIST "" "" "BUILD_RPATH;INSTALL_RPATH" ${ARGN})
+  set_target_properties(${name} PROPERTIES
+    BUILD_WITH_INSTALL_RPATH OFF
+    BUILD_RPATH "${LIST_BUILD_RPATH}"
+    INSTALL_RPATH "${LIST_INSTALL_RPATH}"
+  )
 endfunction()

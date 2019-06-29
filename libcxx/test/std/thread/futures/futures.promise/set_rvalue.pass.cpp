@@ -19,6 +19,8 @@
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct A
 {
     A() {}
@@ -26,7 +28,7 @@ struct A
     A(A&&) {throw 9;}
 };
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::unique_ptr<int> T;
@@ -60,4 +62,6 @@ int main()
             assert(j == 9);
         }
     }
+
+  return 0;
 }

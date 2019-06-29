@@ -22,12 +22,14 @@
 
 #include "archetypes.hpp"
 
+#include "test_macros.h"
+
 // Clang warns about missing braces when initializing std::array.
 #if defined(__clang__)
 #pragma clang diagnostic ignored "-Wmissing-braces"
 #endif
 
-int main()
+int main(int, char**)
 {
     using C = TestTypes::TestType;
     {
@@ -100,4 +102,6 @@ int main()
        assert(p.first.value == 42);
        assert(p.second.value == -42);
     }
+
+  return 0;
 }

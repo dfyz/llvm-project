@@ -13,6 +13,7 @@
 #include <string>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
 int sign(int x)
@@ -31,7 +32,7 @@ test(const S& s, SV sv, int x)
     assert(sign(s.compare(sv)) == sign(x));
 }
 
-int main()
+int main(int, char**)
 {
     {
     typedef std::string S;
@@ -75,4 +76,6 @@ int main()
     test(S("abcdefghijklmnopqrst"), SV("abcdefghijklmnopqrst"), 0);
     }
 #endif
+
+  return 0;
 }

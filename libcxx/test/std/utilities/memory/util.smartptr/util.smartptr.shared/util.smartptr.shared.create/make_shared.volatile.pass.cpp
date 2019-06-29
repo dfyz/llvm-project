@@ -15,6 +15,8 @@
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <typename T>
 void test(const T &t0)
 {
@@ -52,9 +54,11 @@ void test(const T &t0)
 
 }
 
-int main()
+int main(int, char**)
 {
     test<bool>(true);
     test<int>(3);
     test<double>(5.0);
+
+  return 0;
 }

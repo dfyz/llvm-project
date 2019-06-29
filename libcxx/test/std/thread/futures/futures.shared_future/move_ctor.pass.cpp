@@ -18,7 +18,9 @@
 #include <future>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef int T;
@@ -65,4 +67,6 @@ int main()
         assert(!f0.valid());
         assert(!f.valid());
     }
+
+  return 0;
 }

@@ -557,7 +557,7 @@ bool TailDuplicator::shouldTailDuplicate(bool IsSimple,
   unsigned MaxDuplicateCount;
   if (TailDupSize == 0 &&
       TailDuplicateSize.getNumOccurrences() == 0 &&
-      MF->getFunction().optForSize())
+      MF->getFunction().hasOptSize())
     MaxDuplicateCount = 1;
   else if (TailDupSize == 0)
     MaxDuplicateCount = TailDuplicateSize;
@@ -855,11 +855,6 @@ bool TailDuplicator::tailDuplicate(bool IsSimple, MachineBasicBlock *TailBB,
       }
     }
     appendCopies(PredBB, CopyInfos, Copies);
-
-    // Simplify
-    MachineBasicBlock *PredTBB = nullptr, *PredFBB = nullptr;
-    SmallVector<MachineOperand, 4> PredCond;
-    TII->analyzeBranch(*PredBB, PredTBB, PredFBB, PredCond);
 
     NumTailDupAdded += TailBB->size() - 1; // subtract one for removed branch
 

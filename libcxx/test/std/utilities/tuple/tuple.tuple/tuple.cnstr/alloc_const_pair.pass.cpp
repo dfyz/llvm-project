@@ -19,11 +19,12 @@
 #include <utility>
 #include <cassert>
 
+#include "test_macros.h"
 #include "allocators.h"
 #include "../alloc_first.h"
 #include "../alloc_last.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::pair<long, int> T0;
@@ -55,4 +56,6 @@ int main()
         assert(std::get<0>(t1) == 2);
         assert(std::get<1>(t1) == 3);
     }
+
+  return 0;
 }

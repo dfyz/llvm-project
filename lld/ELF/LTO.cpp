@@ -97,12 +97,17 @@ static lto::Config createConfig() {
 
   // Set up optimization remarks if we've been asked to.
   C.RemarksFilename = Config->OptRemarksFilename;
+  C.RemarksPasses = Config->OptRemarksPasses;
   C.RemarksWithHotness = Config->OptRemarksWithHotness;
+  C.RemarksFormat = Config->OptRemarksFormat;
 
   C.SampleProfile = Config->LTOSampleProfile;
   C.UseNewPM = Config->LTONewPassManager;
   C.DebugPassManager = Config->LTODebugPassManager;
   C.DwoDir = Config->DwoDir;
+
+  C.CSIRProfile = Config->LTOCSProfileFile;
+  C.RunCSIRInstr = Config->LTOCSProfileGenerate;
 
   if (Config->EmitLLVM) {
     C.PostInternalizeModuleHook = [](size_t Task, const Module &M) {
@@ -138,20 +143,15 @@ BitcodeCompiler::BitcodeCompiler() {
                                        Config->LTOPartitions);
 
   // Initialize UsedStartStop.
-  for (Symbol *Sym : Symtab->getSymbols()) {
+  Symtab->forEachSymbol([&](Symbol *Sym) {
     StringRef S = Sym->getName();
     for (StringRef Prefix : {"__start_", "__stop_"})
       if (S.startswith(Prefix))
         UsedStartStop.insert(S.substr(Prefix.size()));
-  }
+  });
 }
 
 BitcodeCompiler::~BitcodeCompiler() = default;
-
-static void undefine(Symbol *S) {
-  replaceSymbol<Undefined>(S, nullptr, S->getName(), STB_GLOBAL, STV_DEFAULT,
-                           S->Type);
-}
 
 void BitcodeCompiler::add(BitcodeFile &F) {
   lto::InputFile &Obj = *F.Obj;
@@ -197,7 +197,8 @@ void BitcodeCompiler::add(BitcodeFile &F) {
         !(DR->Section == nullptr && (!Sym->File || Sym->File->isElf()));
 
     if (R.Prevailing)
-      undefine(Sym);
+      Sym->replace(Undefined{nullptr, Sym->getName(), STB_GLOBAL, STV_DEFAULT,
+                             Sym->Type});
 
     // We tell LTO to not apply interprocedural optimization for wrapped
     // (with --wrap) symbols because otherwise LTO would inline them while
@@ -207,18 +208,24 @@ void BitcodeCompiler::add(BitcodeFile &F) {
   checkError(LTOObj->add(std::move(F.Obj), Resols));
 }
 
-static void createEmptyIndex(StringRef ModulePath) {
-  std::string Path = replaceThinLTOSuffix(getThinLTOOutputFile(ModulePath));
-  std::unique_ptr<raw_fd_ostream> OS = openFile(Path + ".thinlto.bc");
-  if (!OS)
-    return;
+// If LazyObjFile has not been added to link, emit empty index files.
+// This is needed because this is what GNU gold plugin does and we have a
+// distributed build system that depends on that behavior.
+static void thinLTOCreateEmptyIndexFiles() {
+  for (LazyObjFile *F : LazyObjFiles) {
+    if (!isBitcode(F->MB))
+      continue;
+    std::string Path = replaceThinLTOSuffix(getThinLTOOutputFile(F->getName()));
+    std::unique_ptr<raw_fd_ostream> OS = openFile(Path + ".thinlto.bc");
+    if (!OS)
+      continue;
 
-  ModuleSummaryIndex M(/*HaveGVs*/ false);
-  M.setSkipModuleByDistributedBackend();
-  WriteIndexToFile(M, *OS);
-
-  if (Config->ThinLTOEmitImportsFiles)
-    openFile(Path + ".imports");
+    ModuleSummaryIndex M(/*HaveGVs*/ false);
+    M.setSkipModuleByDistributedBackend();
+    WriteIndexToFile(M, *OS);
+    if (Config->ThinLTOEmitImportsFiles)
+      openFile(Path + ".imports");
+  }
 }
 
 // Merge all the bitcode files we have seen, codegen the result
@@ -239,12 +246,13 @@ std::vector<InputFile *> BitcodeCompiler::compile() {
                           Files[Task] = std::move(MB);
                         }));
 
-  checkError(LTOObj->run(
-      [&](size_t Task) {
-        return llvm::make_unique<lto::NativeObjectStream>(
-            llvm::make_unique<raw_svector_ostream>(Buf[Task]));
-      },
-      Cache));
+  if (!BitcodeFiles.empty())
+    checkError(LTOObj->run(
+        [&](size_t Task) {
+          return llvm::make_unique<lto::NativeObjectStream>(
+              llvm::make_unique<raw_svector_ostream>(Buf[Task]));
+        },
+        Cache));
 
   // Emit empty index files for non-indexed files
   for (StringRef S : ThinIndices) {
@@ -254,13 +262,8 @@ std::vector<InputFile *> BitcodeCompiler::compile() {
       openFile(Path + ".imports");
   }
 
-  // If LazyObjFile has not been added to link, emit empty index files.
-  // This is needed because this is what GNU gold plugin does and we have a
-  // distributed build system that depends on that behavior.
   if (Config->ThinLTOIndexOnly) {
-    for (LazyObjFile *F : LazyObjFiles)
-      if (!F->AddedToLink && isBitcode(F->MB))
-        createEmptyIndex(F->getName());
+    thinLTOCreateEmptyIndexFiles();
 
     if (!Config->LTOObjPath.empty())
       saveBuffer(Buf[0], Config->LTOObjPath);
@@ -276,19 +279,22 @@ std::vector<InputFile *> BitcodeCompiler::compile() {
   if (!Config->ThinLTOCacheDir.empty())
     pruneCache(Config->ThinLTOCacheDir, Config->ThinLTOCachePolicy);
 
-  std::vector<InputFile *> Ret;
-  for (unsigned I = 0; I != MaxTasks; ++I) {
-    if (Buf[I].empty())
-      continue;
-    if (Config->SaveTemps) {
-      if (I == 0)
-        saveBuffer(Buf[I], Config->OutputFile + ".lto.o");
-      else
-        saveBuffer(Buf[I], Config->OutputFile + Twine(I) + ".lto.o");
-    }
-    InputFile *Obj = createObjectFile(MemoryBufferRef(Buf[I], "lto.tmp"));
-    Ret.push_back(Obj);
+  if (!Config->LTOObjPath.empty()) {
+    saveBuffer(Buf[0], Config->LTOObjPath);
+    for (unsigned I = 1; I != MaxTasks; ++I)
+      saveBuffer(Buf[I], Config->LTOObjPath + Twine(I));
   }
+
+  if (Config->SaveTemps) {
+    saveBuffer(Buf[0], Config->OutputFile + ".lto.o");
+    for (unsigned I = 1; I != MaxTasks; ++I)
+      saveBuffer(Buf[I], Config->OutputFile + Twine(I) + ".lto.o");
+  }
+
+  std::vector<InputFile *> Ret;
+  for (unsigned I = 0; I != MaxTasks; ++I)
+    if (!Buf[I].empty())
+      Ret.push_back(createObjectFile(MemoryBufferRef(Buf[I], "lto.tmp")));
 
   for (std::unique_ptr<MemoryBuffer> &File : Files)
     if (File)

@@ -17,6 +17,7 @@
 #include <ios>
 #include <cassert>
 #include <streambuf>
+#include "test_macros.h"
 #include "test_iterators.h"
 
 typedef std::num_get<char, input_iterator<const char*> > F;
@@ -40,7 +41,7 @@ protected:
     virtual std::string do_grouping() const {return std::string("\1\2\3");}
 };
 
-int main()
+int main(int, char**)
 {
     const my_facet f(1);
     std::ios ios(0);
@@ -79,4 +80,6 @@ int main()
         assert(err == ios.goodbit);
         assert(v == 0xFFFF);
     }
+
+  return 0;
 }

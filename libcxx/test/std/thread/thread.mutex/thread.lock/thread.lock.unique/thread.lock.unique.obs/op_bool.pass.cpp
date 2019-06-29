@@ -17,9 +17,11 @@
 #include <mutex>
 #include <cassert>
 
+#include "test_macros.h"
+
 std::mutex m;
 
-int main()
+int main(int, char**)
 {
     std::unique_lock<std::mutex> lk0;
     assert(static_cast<bool>(lk0) == false);
@@ -27,4 +29,6 @@ int main()
     assert(static_cast<bool>(lk1) == true);
     lk1.unlock();
     assert(static_cast<bool>(lk1) == false);
+
+  return 0;
 }

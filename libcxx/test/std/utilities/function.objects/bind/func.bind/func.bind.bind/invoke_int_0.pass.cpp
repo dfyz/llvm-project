@@ -18,6 +18,8 @@
 #include <functional>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class R, class F>
 void
 test(F f, R expected)
@@ -40,7 +42,7 @@ struct A_int_0
     int operator()() const {return 5;}
 };
 
-int main()
+int main(int, char**)
 {
     test(std::bind(f), 1);
     test(std::bind(&f), 1);
@@ -51,4 +53,6 @@ int main()
     test(std::bind<int>(&f), 1);
     test(std::bind<int>(A_int_0()), 4);
     test_const(std::bind<int>(A_int_0()), 5);
+
+  return 0;
 }

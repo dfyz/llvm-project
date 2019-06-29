@@ -24,6 +24,8 @@
 
 #include "archetypes.hpp"
 
+#include "test_macros.h"
+
 
 constexpr bool implies(bool p, bool q) {
     return !p || q;
@@ -85,7 +87,7 @@ struct TrivialCopyNonTrivialMove {
     TrivialCopyNonTrivialMove& operator=(TrivialCopyNonTrivialMove&&) { return *this; }
 };
 
-int main() {
+int main(int, char**) {
     sink(
         ImplicitTypes::ApplyTypes<DoTestsMetafunction>{},
         ExplicitTypes::ApplyTypes<DoTestsMetafunction>{},
@@ -93,4 +95,5 @@ int main() {
         NonTrivialTypes::ApplyTypes<DoTestsMetafunction>{},
         DoTestsMetafunction<TrivialMoveNonTrivialCopy, TrivialCopyNonTrivialMove>{}
     );
+    return 0;
 }

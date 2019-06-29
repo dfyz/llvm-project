@@ -21,8 +21,10 @@
 
 #include "test_convertible.hpp"
 
+#include "test_macros.h"
 
-int main() {
+
+int main(int, char**) {
  using namespace fs;
   // Default ctor
   {
@@ -56,4 +58,6 @@ int main() {
     assert(f.type()  == file_type::regular);
     assert(f.permissions() == perms::owner_read);
   }
+
+  return 0;
 }

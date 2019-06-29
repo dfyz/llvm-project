@@ -22,6 +22,8 @@
 #include <exception>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct Uncaught {
     Uncaught(int depth) : d_(depth) {}
     ~Uncaught() { assert(std::uncaught_exceptions() == d_); }
@@ -41,7 +43,7 @@ struct Outer {
     int d_;
 };
 
-int main () {
+int main(int, char**) {
     assert(std::uncaught_exceptions() == 0);
     {
     Outer o(0);
@@ -58,4 +60,6 @@ int main () {
         }
     }
     assert(std::uncaught_exceptions() == 0);
+
+  return 0;
 }

@@ -63,7 +63,8 @@ SIRegisterInfo::SIRegisterInfo(const GCNSubtarget &ST) :
   SGPRPressureSets(getNumRegPressureSets()),
   VGPRPressureSets(getNumRegPressureSets()),
   SpillSGPRToVGPR(false),
-  SpillSGPRToSMEM(false) {
+  SpillSGPRToSMEM(false),
+  isWave32(ST.isWave32()) {
   if (EnableSpillSGPRToSMEM && ST.hasScalarStores())
     SpillSGPRToSMEM = true;
   else if (EnableSpillSGPRToVGPR)
@@ -138,11 +139,6 @@ unsigned SIRegisterInfo::reservedPrivateSegmentWaveByteOffsetReg(
   return AMDGPU::SGPR_32RegClass.getRegister(Reg);
 }
 
-unsigned SIRegisterInfo::reservedStackPtrOffsetReg(
-  const MachineFunction &MF) const {
-  return AMDGPU::SGPR32;
-}
-
 BitVector SIRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   BitVector Reserved(getNumRegs());
 
@@ -154,14 +150,25 @@ BitVector SIRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   // M0 has to be reserved so that llvm accepts it as a live-in into a block.
   reserveRegisterTuples(Reserved, AMDGPU::M0);
 
+  // Reserve src_vccz, src_execz, src_scc.
+  reserveRegisterTuples(Reserved, AMDGPU::SRC_VCCZ);
+  reserveRegisterTuples(Reserved, AMDGPU::SRC_EXECZ);
+  reserveRegisterTuples(Reserved, AMDGPU::SRC_SCC);
+
   // Reserve the memory aperture registers.
   reserveRegisterTuples(Reserved, AMDGPU::SRC_SHARED_BASE);
   reserveRegisterTuples(Reserved, AMDGPU::SRC_SHARED_LIMIT);
   reserveRegisterTuples(Reserved, AMDGPU::SRC_PRIVATE_BASE);
   reserveRegisterTuples(Reserved, AMDGPU::SRC_PRIVATE_LIMIT);
 
+  // Reserve src_pops_exiting_wave_id - support is not implemented in Codegen.
+  reserveRegisterTuples(Reserved, AMDGPU::SRC_POPS_EXITING_WAVE_ID);
+
   // Reserve xnack_mask registers - support is not implemented in Codegen.
   reserveRegisterTuples(Reserved, AMDGPU::XNACK_MASK);
+
+  // Reserve lds_direct register - support is not implemented in Codegen.
+  reserveRegisterTuples(Reserved, AMDGPU::LDS_DIRECT);
 
   // Reserve Trap Handler registers - support is not implemented in Codegen.
   reserveRegisterTuples(Reserved, AMDGPU::TBA);
@@ -174,6 +181,16 @@ BitVector SIRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   reserveRegisterTuples(Reserved, AMDGPU::TTMP10_TTMP11);
   reserveRegisterTuples(Reserved, AMDGPU::TTMP12_TTMP13);
   reserveRegisterTuples(Reserved, AMDGPU::TTMP14_TTMP15);
+
+  // Reserve null register - it shall never be allocated
+  reserveRegisterTuples(Reserved, AMDGPU::SGPR_NULL);
+
+  // Disallow vcc_hi allocation in wave32. It may be allocated but most likely
+  // will result in bugs.
+  if (isWave32) {
+    Reserved.set(AMDGPU::VCC);
+    Reserved.set(AMDGPU::VCC_HI);
+  }
 
   const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
 
@@ -224,7 +241,24 @@ BitVector SIRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
     assert(!isSubRegister(ScratchRSrcReg, FrameReg));
   }
 
+  for (unsigned Reg : MFI->WWMReservedRegs) {
+    reserveRegisterTuples(Reserved, Reg);
+  }
+
   return Reserved;
+}
+
+bool SIRegisterInfo::canRealignStack(const MachineFunction &MF) const {
+  const SIMachineFunctionInfo *Info = MF.getInfo<SIMachineFunctionInfo>();
+  // On entry, the base address is 0, so it can't possibly need any more
+  // alignment.
+
+  // FIXME: Should be able to specify the entry frame alignment per calling
+  // convention instead.
+  if (Info->isEntryFunction())
+    return false;
+
+  return TargetRegisterInfo::canRealignStack(MF);
 }
 
 bool SIRegisterInfo::requiresRegisterScavenging(const MachineFunction &Fn) const {
@@ -251,11 +285,20 @@ bool SIRegisterInfo::requiresFrameIndexScavenging(
 
 bool SIRegisterInfo::requiresFrameIndexReplacementScavenging(
   const MachineFunction &MF) const {
-  // m0 is needed for the scalar store offset. m0 is unallocatable, so we can't
-  // create a virtual register for it during frame index elimination, so the
-  // scavenger is directly needed.
-  return MF.getFrameInfo().hasStackObjects() &&
-         MF.getSubtarget<GCNSubtarget>().hasScalarStores() &&
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  if (!MFI.hasStackObjects())
+    return false;
+
+  // The scavenger is used for large frames which may require finding a free
+  // register for large offsets.
+  if (!isUInt<12>(MFI.getStackSize()))
+    return true;
+
+  // If using scalar stores, for spills, m0 is needed for the scalar store
+  // offset (pre-GFX9). m0 is unallocatable, so we can't create a virtual
+  // register for it during frame index elimination, so the scavenger is
+  // directly needed.
+  return MF.getSubtarget<GCNSubtarget>().hasScalarStores() &&
          MF.getInfo<SIMachineFunctionInfo>()->hasSpilledSGPRs();
 }
 
@@ -331,7 +374,8 @@ void SIRegisterInfo::materializeFrameBaseRegister(MachineBasicBlock *MBB,
 
   TII->getAddNoCarry(*MBB, Ins, DL, BaseReg)
     .addReg(OffsetReg, RegState::Kill)
-    .addReg(FIReg);
+    .addReg(FIReg)
+    .addImm(0); // clamp bit
 }
 
 void SIRegisterInfo::resolveFrameIndex(MachineInstr &MI, unsigned BaseReg,
@@ -403,11 +447,18 @@ static unsigned getNumSubRegsForSpillOp(unsigned Op) {
   case AMDGPU::SI_SPILL_V256_SAVE:
   case AMDGPU::SI_SPILL_V256_RESTORE:
     return 8;
+  case AMDGPU::SI_SPILL_S160_SAVE:
+  case AMDGPU::SI_SPILL_S160_RESTORE:
+  case AMDGPU::SI_SPILL_V160_SAVE:
+  case AMDGPU::SI_SPILL_V160_RESTORE:
+    return 5;
   case AMDGPU::SI_SPILL_S128_SAVE:
   case AMDGPU::SI_SPILL_S128_RESTORE:
   case AMDGPU::SI_SPILL_V128_SAVE:
   case AMDGPU::SI_SPILL_V128_RESTORE:
     return 4;
+  case AMDGPU::SI_SPILL_S96_SAVE:
+  case AMDGPU::SI_SPILL_S96_RESTORE:
   case AMDGPU::SI_SPILL_V96_SAVE:
   case AMDGPU::SI_SPILL_V96_RESTORE:
     return 3;
@@ -506,6 +557,7 @@ static bool buildMUBUFOffsetLoadStore(const SIInstrInfo *TII,
           .addImm(0) // glc
           .addImm(0) // slc
           .addImm(0) // tfe
+          .addImm(0) // dlc
           .cloneMemRefs(*MI);
 
   const MachineOperand *VDataIn = TII->getNamedOperand(*MI,
@@ -561,7 +613,7 @@ void SIRegisterInfo::buildSpillLoadStore(MachineBasicBlock::iterator MI,
     // We don't have access to the register scavenger if this function is called
     // during  PEI::scavengeFrameVirtualRegs().
     if (RS)
-      SOffset = RS->FindUnusedReg(&AMDGPU::SGPR_32RegClass);
+      SOffset = RS->scavengeRegister(&AMDGPU::SGPR_32RegClass, MI, 0, false);
 
     if (SOffset == AMDGPU::NoRegister) {
       // There are no free SGPRs, and since we are in the process of spilling
@@ -609,6 +661,7 @@ void SIRegisterInfo::buildSpillLoadStore(MachineBasicBlock::iterator MI,
       .addImm(0) // glc
       .addImm(0) // slc
       .addImm(0) // tfe
+      .addImm(0) // dlc
       .addMemOperand(NewMMO);
 
     if (NumSubRegs > 1)
@@ -667,6 +720,8 @@ bool SIRegisterInfo::spillSGPR(MachineBasicBlock::iterator MI,
   bool SpillToSMEM = spillSGPRToSMEM();
   if (SpillToSMEM && OnlyToVGPR)
     return false;
+
+  Register FrameReg = getFrameRegister(*MF);
 
   assert(SpillToVGPR || (SuperReg != MFI->getStackPtrOffsetReg() &&
                          SuperReg != MFI->getFrameOffsetReg() &&
@@ -727,11 +782,11 @@ bool SIRegisterInfo::spillSGPR(MachineBasicBlock::iterator MI,
       int64_t Offset = (ST.getWavefrontSize() * FrOffset) + (EltSize * i);
       if (Offset != 0) {
         BuildMI(*MBB, MI, DL, TII->get(AMDGPU::S_ADD_U32), OffsetReg)
-          .addReg(MFI->getFrameOffsetReg())
+          .addReg(FrameReg)
           .addImm(Offset);
       } else {
         BuildMI(*MBB, MI, DL, TII->get(AMDGPU::S_MOV_B32), OffsetReg)
-          .addReg(MFI->getFrameOffsetReg());
+          .addReg(FrameReg);
       }
 
       BuildMI(*MBB, MI, DL, TII->get(ScalarStoreOp))
@@ -739,6 +794,7 @@ bool SIRegisterInfo::spillSGPR(MachineBasicBlock::iterator MI,
         .addReg(MFI->getScratchRSrcReg())        // sbase
         .addReg(OffsetReg, RegState::Kill)       // soff
         .addImm(0)                               // glc
+        .addImm(0)                               // dlc
         .addMemOperand(MMO);
 
       continue;
@@ -798,11 +854,11 @@ bool SIRegisterInfo::spillSGPR(MachineBasicBlock::iterator MI,
         = MF->getMachineMemOperand(PtrInfo, MachineMemOperand::MOStore,
                                    EltSize, MinAlign(Align, EltSize * i));
       BuildMI(*MBB, MI, DL, TII->get(AMDGPU::SI_SPILL_V32_SAVE))
-        .addReg(TmpReg, RegState::Kill)    // src
-        .addFrameIndex(Index)              // vaddr
-        .addReg(MFI->getScratchRSrcReg())  // srrsrc
-        .addReg(MFI->getFrameOffsetReg())  // soffset
-        .addImm(i * 4)                     // offset
+        .addReg(TmpReg, RegState::Kill)       // src
+        .addFrameIndex(Index)                 // vaddr
+        .addReg(MFI->getScratchRSrcReg())     // srrsrc
+        .addReg(MFI->getStackPtrOffsetReg())  // soffset
+        .addImm(i * 4)                        // offset
         .addMemOperand(MMO);
     }
   }
@@ -858,6 +914,8 @@ bool SIRegisterInfo::restoreSGPR(MachineBasicBlock::iterator MI,
   unsigned EltSize = 4;
   unsigned ScalarLoadOp;
 
+  Register FrameReg = getFrameRegister(*MF);
+
   const TargetRegisterClass *RC = getPhysRegClass(SuperReg);
   if (SpillToSMEM && isSGPRClass(RC)) {
     // XXX - if private_element_size is larger than 4 it might be useful to be
@@ -889,18 +947,19 @@ bool SIRegisterInfo::restoreSGPR(MachineBasicBlock::iterator MI,
       int64_t Offset = (ST.getWavefrontSize() * FrOffset) + (EltSize * i);
       if (Offset != 0) {
         BuildMI(*MBB, MI, DL, TII->get(AMDGPU::S_ADD_U32), OffsetReg)
-          .addReg(MFI->getFrameOffsetReg())
+          .addReg(FrameReg)
           .addImm(Offset);
       } else {
         BuildMI(*MBB, MI, DL, TII->get(AMDGPU::S_MOV_B32), OffsetReg)
-          .addReg(MFI->getFrameOffsetReg());
+          .addReg(FrameReg);
       }
 
       auto MIB =
         BuildMI(*MBB, MI, DL, TII->get(ScalarLoadOp), SubReg)
-        .addReg(MFI->getScratchRSrcReg()) // sbase
-        .addReg(OffsetReg, RegState::Kill)                // soff
-        .addImm(0)                        // glc
+        .addReg(MFI->getScratchRSrcReg())  // sbase
+        .addReg(OffsetReg, RegState::Kill) // soff
+        .addImm(0)                         // glc
+        .addImm(0)                         // dlc
         .addMemOperand(MMO);
 
       if (NumSubRegs > 1 && i == 0)
@@ -936,10 +995,10 @@ bool SIRegisterInfo::restoreSGPR(MachineBasicBlock::iterator MI,
         MinAlign(Align, EltSize * i));
 
       BuildMI(*MBB, MI, DL, TII->get(AMDGPU::SI_SPILL_V32_RESTORE), TmpReg)
-        .addFrameIndex(Index)              // vaddr
-        .addReg(MFI->getScratchRSrcReg())  // srsrc
-        .addReg(MFI->getFrameOffsetReg())  // soffset
-        .addImm(i * 4)                     // offset
+        .addFrameIndex(Index)                 // vaddr
+        .addReg(MFI->getScratchRSrcReg())     // srsrc
+        .addReg(MFI->getStackPtrOffsetReg())  // soffset
+        .addImm(i * 4)                        // offset
         .addMemOperand(MMO);
 
       auto MIB =
@@ -970,13 +1029,17 @@ bool SIRegisterInfo::eliminateSGPRToVGPRSpillFrameIndex(
   switch (MI->getOpcode()) {
   case AMDGPU::SI_SPILL_S512_SAVE:
   case AMDGPU::SI_SPILL_S256_SAVE:
+  case AMDGPU::SI_SPILL_S160_SAVE:
   case AMDGPU::SI_SPILL_S128_SAVE:
+  case AMDGPU::SI_SPILL_S96_SAVE:
   case AMDGPU::SI_SPILL_S64_SAVE:
   case AMDGPU::SI_SPILL_S32_SAVE:
     return spillSGPR(MI, FI, RS, true);
   case AMDGPU::SI_SPILL_S512_RESTORE:
   case AMDGPU::SI_SPILL_S256_RESTORE:
+  case AMDGPU::SI_SPILL_S160_RESTORE:
   case AMDGPU::SI_SPILL_S128_RESTORE:
+  case AMDGPU::SI_SPILL_S96_RESTORE:
   case AMDGPU::SI_SPILL_S64_RESTORE:
   case AMDGPU::SI_SPILL_S32_RESTORE:
     return restoreSGPR(MI, FI, RS, true);
@@ -997,14 +1060,20 @@ void SIRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
   const SIInstrInfo *TII = ST.getInstrInfo();
   DebugLoc DL = MI->getDebugLoc();
 
+  assert(SPAdj == 0 && "unhandled SP adjustment in call sequence?");
+
   MachineOperand &FIOp = MI->getOperand(FIOperandNum);
   int Index = MI->getOperand(FIOperandNum).getIndex();
+
+  Register FrameReg = getFrameRegister(*MF);
 
   switch (MI->getOpcode()) {
     // SGPR register spill
     case AMDGPU::SI_SPILL_S512_SAVE:
     case AMDGPU::SI_SPILL_S256_SAVE:
+    case AMDGPU::SI_SPILL_S160_SAVE:
     case AMDGPU::SI_SPILL_S128_SAVE:
+    case AMDGPU::SI_SPILL_S96_SAVE:
     case AMDGPU::SI_SPILL_S64_SAVE:
     case AMDGPU::SI_SPILL_S32_SAVE: {
       spillSGPR(MI, Index, RS);
@@ -1014,7 +1083,9 @@ void SIRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
     // SGPR register restore
     case AMDGPU::SI_SPILL_S512_RESTORE:
     case AMDGPU::SI_SPILL_S256_RESTORE:
+    case AMDGPU::SI_SPILL_S160_RESTORE:
     case AMDGPU::SI_SPILL_S128_RESTORE:
+    case AMDGPU::SI_SPILL_S96_RESTORE:
     case AMDGPU::SI_SPILL_S64_RESTORE:
     case AMDGPU::SI_SPILL_S32_RESTORE: {
       restoreSGPR(MI, Index, RS);
@@ -1024,17 +1095,21 @@ void SIRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
     // VGPR register spill
     case AMDGPU::SI_SPILL_V512_SAVE:
     case AMDGPU::SI_SPILL_V256_SAVE:
+    case AMDGPU::SI_SPILL_V160_SAVE:
     case AMDGPU::SI_SPILL_V128_SAVE:
     case AMDGPU::SI_SPILL_V96_SAVE:
     case AMDGPU::SI_SPILL_V64_SAVE:
     case AMDGPU::SI_SPILL_V32_SAVE: {
       const MachineOperand *VData = TII->getNamedOperand(*MI,
                                                          AMDGPU::OpName::vdata);
+      assert(TII->getNamedOperand(*MI, AMDGPU::OpName::soffset)->getReg() ==
+             MFI->getStackPtrOffsetReg());
+
       buildSpillLoadStore(MI, AMDGPU::BUFFER_STORE_DWORD_OFFSET,
             Index,
             VData->getReg(), VData->isKill(),
             TII->getNamedOperand(*MI, AMDGPU::OpName::srsrc)->getReg(),
-            TII->getNamedOperand(*MI, AMDGPU::OpName::soffset)->getReg(),
+            FrameReg,
             TII->getNamedOperand(*MI, AMDGPU::OpName::offset)->getImm(),
             *MI->memoperands_begin(),
             RS);
@@ -1046,16 +1121,19 @@ void SIRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
     case AMDGPU::SI_SPILL_V64_RESTORE:
     case AMDGPU::SI_SPILL_V96_RESTORE:
     case AMDGPU::SI_SPILL_V128_RESTORE:
+    case AMDGPU::SI_SPILL_V160_RESTORE:
     case AMDGPU::SI_SPILL_V256_RESTORE:
     case AMDGPU::SI_SPILL_V512_RESTORE: {
       const MachineOperand *VData = TII->getNamedOperand(*MI,
                                                          AMDGPU::OpName::vdata);
+      assert(TII->getNamedOperand(*MI, AMDGPU::OpName::soffset)->getReg() ==
+             MFI->getStackPtrOffsetReg());
 
       buildSpillLoadStore(MI, AMDGPU::BUFFER_LOAD_DWORD_OFFSET,
             Index,
             VData->getReg(), VData->isKill(),
             TII->getNamedOperand(*MI, AMDGPU::OpName::srsrc)->getReg(),
-            TII->getNamedOperand(*MI, AMDGPU::OpName::soffset)->getReg(),
+            FrameReg,
             TII->getNamedOperand(*MI, AMDGPU::OpName::offset)->getImm(),
             *MI->memoperands_begin(),
             RS);
@@ -1067,24 +1145,23 @@ void SIRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
       const DebugLoc &DL = MI->getDebugLoc();
       bool IsMUBUF = TII->isMUBUF(*MI);
 
-      if (!IsMUBUF &&
-          MFI->getFrameOffsetReg() != MFI->getScratchWaveOffsetReg()) {
+      if (!IsMUBUF && !MFI->isEntryFunction()) {
         // Convert to an absolute stack address by finding the offset from the
         // scratch wave base and scaling by the wave size.
         //
-        // In an entry function/kernel the stack address is already the
-        // absolute address relative to the scratch wave offset.
+        // In an entry function/kernel the offset is already the absolute
+        // address relative to the frame register.
 
         unsigned DiffReg
           = MRI.createVirtualRegister(&AMDGPU::SReg_32_XM0RegClass);
 
         bool IsCopy = MI->getOpcode() == AMDGPU::V_MOV_B32_e32;
-        unsigned ResultReg = IsCopy ?
+        Register ResultReg = IsCopy ?
           MI->getOperand(0).getReg() :
           MRI.createVirtualRegister(&AMDGPU::VGPR_32RegClass);
 
         BuildMI(*MBB, MI, DL, TII->get(AMDGPU::S_SUB_U32), DiffReg)
-          .addReg(MFI->getFrameOffsetReg())
+          .addReg(FrameReg)
           .addReg(MFI->getScratchWaveOffsetReg());
 
         int64_t Offset = FrameInfo.getObjectOffset(Index);
@@ -1105,7 +1182,8 @@ void SIRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
           if (AMDGPU::isInlinableLiteral32(Offset, ST.hasInv2PiInlineImm())) {
             TII->getAddNoCarry(*MBB, MI, DL, ResultReg)
               .addImm(Offset)
-              .addReg(ScaledReg, RegState::Kill);
+              .addReg(ScaledReg, RegState::Kill)
+              .addImm(0); // clamp bit
           } else {
             unsigned ConstOffsetReg
               = MRI.createVirtualRegister(&AMDGPU::SReg_32_XM0RegClass);
@@ -1114,7 +1192,8 @@ void SIRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
               .addImm(Offset);
             TII->getAddNoCarry(*MBB, MI, DL, ResultReg)
               .addReg(ConstOffsetReg, RegState::Kill)
-              .addReg(ScaledReg, RegState::Kill);
+              .addReg(ScaledReg, RegState::Kill)
+              .addImm(0); // clamp bit
           }
         }
 
@@ -1132,8 +1211,10 @@ void SIRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator MI,
                AMDGPU::getNamedOperandIdx(MI->getOpcode(),
                                           AMDGPU::OpName::vaddr));
 
-        assert(TII->getNamedOperand(*MI, AMDGPU::OpName::soffset)->getReg()
-               == MFI->getFrameOffsetReg());
+        assert(TII->getNamedOperand(*MI, AMDGPU::OpName::soffset)->getReg() ==
+               MFI->getStackPtrOffsetReg());
+
+        TII->getNamedOperand(*MI, AMDGPU::OpName::soffset)->setReg(FrameReg);
 
         int64_t Offset = FrameInfo.getObjectOffset(Index);
         int64_t OldImm
@@ -1174,9 +1255,9 @@ StringRef SIRegisterInfo::getRegAsmName(unsigned Reg) const {
     }
 
   REG_RANGE(AMDGPU::VGPR0, AMDGPU::VGPR255, VGPR32RegNames);
-  REG_RANGE(AMDGPU::SGPR0, AMDGPU::SGPR103, SGPR32RegNames);
+  REG_RANGE(AMDGPU::SGPR0, AMDGPU::SGPR105, SGPR32RegNames);
   REG_RANGE(AMDGPU::VGPR0_VGPR1, AMDGPU::VGPR254_VGPR255, VGPR64RegNames);
-  REG_RANGE(AMDGPU::SGPR0_SGPR1, AMDGPU::SGPR102_SGPR103, SGPR64RegNames);
+  REG_RANGE(AMDGPU::SGPR0_SGPR1, AMDGPU::SGPR104_SGPR105, SGPR64RegNames);
   REG_RANGE(AMDGPU::VGPR0_VGPR1_VGPR2, AMDGPU::VGPR253_VGPR254_VGPR255,
             VGPR96RegNames);
 
@@ -1233,8 +1314,11 @@ const TargetRegisterClass *SIRegisterInfo::getPhysRegClass(unsigned Reg) const {
     &AMDGPU::VReg_64RegClass,
     &AMDGPU::SReg_64RegClass,
     &AMDGPU::VReg_96RegClass,
+    &AMDGPU::SReg_96RegClass,
     &AMDGPU::VReg_128RegClass,
     &AMDGPU::SReg_128RegClass,
+    &AMDGPU::VReg_160RegClass,
+    &AMDGPU::SReg_160RegClass,
     &AMDGPU::VReg_256RegClass,
     &AMDGPU::SReg_256RegClass,
     &AMDGPU::VReg_512RegClass,
@@ -1267,6 +1351,8 @@ bool SIRegisterInfo::hasVGPRs(const TargetRegisterClass *RC) const {
     return getCommonSubClass(&AMDGPU::VReg_96RegClass, RC) != nullptr;
   case 128:
     return getCommonSubClass(&AMDGPU::VReg_128RegClass, RC) != nullptr;
+  case 160:
+    return getCommonSubClass(&AMDGPU::VReg_160RegClass, RC) != nullptr;
   case 256:
     return getCommonSubClass(&AMDGPU::VReg_256RegClass, RC) != nullptr;
   case 512:
@@ -1287,6 +1373,8 @@ const TargetRegisterClass *SIRegisterInfo::getEquivalentVGPRClass(
     return &AMDGPU::VReg_96RegClass;
   case 128:
     return &AMDGPU::VReg_128RegClass;
+  case 160:
+    return &AMDGPU::VReg_160RegClass;
   case 256:
     return &AMDGPU::VReg_256RegClass;
   case 512:
@@ -1303,8 +1391,12 @@ const TargetRegisterClass *SIRegisterInfo::getEquivalentSGPRClass(
     return &AMDGPU::SGPR_32RegClass;
   case 64:
     return &AMDGPU::SReg_64RegClass;
+  case 96:
+    return &AMDGPU::SReg_96RegClass;
   case 128:
     return &AMDGPU::SReg_128RegClass;
+  case 160:
+    return &AMDGPU::SReg_160RegClass;
   case 256:
     return &AMDGPU::SReg_256RegClass;
   case 512:
@@ -1327,8 +1419,12 @@ const TargetRegisterClass *SIRegisterInfo::getSubRegClass(
       return &AMDGPU::SGPR_32RegClass;
     case 2:
       return &AMDGPU::SReg_64RegClass;
+    case 3:
+      return &AMDGPU::SReg_96RegClass;
     case 4:
       return &AMDGPU::SReg_128RegClass;
+    case 5:
+      return &AMDGPU::SReg_160RegClass;
     case 8:
       return &AMDGPU::SReg_256RegClass;
     case 16: /* fall-through */
@@ -1345,6 +1441,8 @@ const TargetRegisterClass *SIRegisterInfo::getSubRegClass(
       return &AMDGPU::VReg_96RegClass;
     case 4:
       return &AMDGPU::VReg_128RegClass;
+    case 5:
+      return &AMDGPU::VReg_160RegClass;
     case 8:
       return &AMDGPU::VReg_256RegClass;
     case 16: /* fall-through */
@@ -1407,6 +1505,10 @@ ArrayRef<int16_t> SIRegisterInfo::getRegSplitParts(const TargetRegisterClass *RC
       AMDGPU::sub4, AMDGPU::sub5, AMDGPU::sub6, AMDGPU::sub7,
     };
 
+    static const int16_t Sub0_4[] = {
+      AMDGPU::sub0, AMDGPU::sub1, AMDGPU::sub2, AMDGPU::sub3, AMDGPU::sub4,
+    };
+
     static const int16_t Sub0_3[] = {
       AMDGPU::sub0, AMDGPU::sub1, AMDGPU::sub2, AMDGPU::sub3,
     };
@@ -1428,6 +1530,8 @@ ArrayRef<int16_t> SIRegisterInfo::getRegSplitParts(const TargetRegisterClass *RC
       return makeArrayRef(Sub0_2);
     case 128:
       return makeArrayRef(Sub0_3);
+    case 160:
+      return makeArrayRef(Sub0_4);
     case 256:
       return makeArrayRef(Sub0_7);
     case 512:
@@ -1577,28 +1681,81 @@ unsigned SIRegisterInfo::getReturnAddressReg(const MachineFunction &MF) const {
 }
 
 const TargetRegisterClass *
+SIRegisterInfo::getRegClassForSizeOnBank(unsigned Size,
+                                         const RegisterBank &RB,
+                                         const MachineRegisterInfo &MRI) const {
+  switch (Size) {
+  case 1: {
+    switch (RB.getID()) {
+    case AMDGPU::VGPRRegBankID:
+      return &AMDGPU::VGPR_32RegClass;
+    case AMDGPU::VCCRegBankID:
+      // TODO: Check wavesize
+      return &AMDGPU::SReg_64_XEXECRegClass;
+    case AMDGPU::SGPRRegBankID:
+      return &AMDGPU::SReg_32_XM0RegClass;
+    case AMDGPU::SCCRegBankID:
+      // This needs to return an allocatable class, so don't bother returning
+      // the dummy SCC class.
+      return &AMDGPU::SReg_32_XM0RegClass;
+    default:
+      llvm_unreachable("unknown register bank");
+    }
+  }
+  case 32:
+    return RB.getID() == AMDGPU::VGPRRegBankID ? &AMDGPU::VGPR_32RegClass :
+                                                 &AMDGPU::SReg_32_XM0RegClass;
+  case 64:
+    return RB.getID() == AMDGPU::VGPRRegBankID ? &AMDGPU::VReg_64RegClass :
+                                                  &AMDGPU::SReg_64_XEXECRegClass;
+  case 96:
+    return RB.getID() == AMDGPU::VGPRRegBankID ? &AMDGPU::VReg_96RegClass :
+                                                 &AMDGPU::SReg_96RegClass;
+  case 128:
+    return RB.getID() == AMDGPU::VGPRRegBankID ? &AMDGPU::VReg_128RegClass :
+                                                 &AMDGPU::SReg_128RegClass;
+  case 160:
+    return RB.getID() == AMDGPU::VGPRRegBankID ? &AMDGPU::VReg_160RegClass :
+                                                 &AMDGPU::SReg_160RegClass;
+  case 256:
+    return RB.getID() == AMDGPU::VGPRRegBankID ? &AMDGPU::VReg_256RegClass :
+                                                 &AMDGPU::SReg_256RegClass;
+  case 512:
+    return RB.getID() == AMDGPU::VGPRRegBankID ? &AMDGPU::VReg_512RegClass :
+                                                 &AMDGPU::SReg_512RegClass;
+  default:
+    if (Size < 32)
+      return RB.getID() == AMDGPU::VGPRRegBankID ? &AMDGPU::VGPR_32RegClass :
+                                                   &AMDGPU::SReg_32_XM0RegClass;
+    assert(Size < 512 && "unimplemented");
+    return getRegClassForSizeOnBank(PowerOf2Ceil(Size), RB, MRI);
+  }
+}
+
+const TargetRegisterClass *
 SIRegisterInfo::getConstrainedRegClassForOperand(const MachineOperand &MO,
                                          const MachineRegisterInfo &MRI) const {
-  unsigned Size = getRegSizeInBits(MO.getReg(), MRI);
-  const RegisterBank *RB = MRI.getRegBankOrNull(MO.getReg());
-  if (!RB)
-    return nullptr;
+  if (const RegisterBank *RB = MRI.getRegBankOrNull(MO.getReg()))
+    return getRegClassForTypeOnBank(MRI.getType(MO.getReg()), *RB, MRI);
+  return nullptr;
+}
 
-  switch (Size) {
-  case 32:
-    return RB->getID() == AMDGPU::VGPRRegBankID ? &AMDGPU::VGPR_32RegClass :
-                                                  &AMDGPU::SReg_32_XM0RegClass;
-  case 64:
-    return RB->getID() == AMDGPU::VGPRRegBankID ? &AMDGPU::VReg_64RegClass :
-                                                   &AMDGPU::SReg_64_XEXECRegClass;
-  case 96:
-    return RB->getID() == AMDGPU::VGPRRegBankID ? &AMDGPU::VReg_96RegClass :
-                                                  nullptr;
-  case 128:
-    return RB->getID() == AMDGPU::VGPRRegBankID ? &AMDGPU::VReg_128RegClass :
-                                                  &AMDGPU::SReg_128RegClass;
+unsigned SIRegisterInfo::getVCC() const {
+  return isWave32 ? AMDGPU::VCC_LO : AMDGPU::VCC;
+}
+
+const TargetRegisterClass *
+SIRegisterInfo::getRegClass(unsigned RCID) const {
+  switch ((int)RCID) {
+  case AMDGPU::SReg_1RegClassID:
+    return getBoolRC();
+  case AMDGPU::SReg_1_XEXECRegClassID:
+    return isWave32 ? &AMDGPU::SReg_32_XM0_XEXECRegClass
+      : &AMDGPU::SReg_64_XEXECRegClass;
+  case -1:
+    return nullptr;
   default:
-    llvm_unreachable("not implemented");
+    return AMDGPURegisterInfo::getRegClass(RCID);
   }
 }
 

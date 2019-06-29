@@ -15,10 +15,14 @@
 #include <valarray>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::slice s(1, 3, 2);
     assert(s.start() == 1);
     assert(s.size() == 3);
     assert(s.stride() == 2);
+
+  return 0;
 }

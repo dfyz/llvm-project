@@ -15,10 +15,11 @@
 #include <vector>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 #include "asan_testing.h"
 
-int main()
+int main(int, char**)
 {
     {
         std::vector<int> v;
@@ -56,4 +57,6 @@ int main()
         assert(v[0] == 3);
         assert(is_contiguous_container_asan_correct(v));
     }
+
+  return 0;
 }

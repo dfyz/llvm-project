@@ -19,6 +19,8 @@
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct Explicit {
   int value;
   explicit Explicit(int x) : value(x) {}
@@ -44,7 +46,7 @@ struct D
     explicit D(int i) : B(i) {}
 };
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::tuple<long> T0;
@@ -100,4 +102,6 @@ int main()
         std::tuple<Implicit> t2 = std::move(t1);
         assert(std::get<0>(t2).value == 42);
     }
+
+  return 0;
 }

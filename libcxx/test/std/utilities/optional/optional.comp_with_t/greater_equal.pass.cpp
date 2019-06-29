@@ -14,6 +14,8 @@
 
 #include <optional>
 
+#include "test_macros.h"
+
 using std::optional;
 
 struct X {
@@ -26,7 +28,7 @@ constexpr bool operator>=(const X& lhs, const X& rhs) {
   return lhs.i_ >= rhs.i_;
 }
 
-int main() {
+int main(int, char**) {
   {
     typedef X T;
     typedef optional<T> O;
@@ -62,4 +64,6 @@ int main() {
     static_assert(o1 >= 42, "");
     static_assert(!(11 >= o1), "");
   }
+
+  return 0;
 }

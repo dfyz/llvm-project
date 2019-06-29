@@ -12,10 +12,14 @@
 
 #include <exception>
 
+#include "test_macros.h"
+
 void f() {}
 
-int main()
+int main(int, char**)
 {
     std::unexpected_handler p = f;
     ((void)p);
+
+  return 0;
 }

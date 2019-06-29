@@ -16,7 +16,9 @@
 #include <random>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         unsigned a[] = {3, 5, 7};
@@ -25,4 +27,6 @@ int main()
         std::linear_congruential_engine<unsigned, 5, 7, 11> e2(4);
         assert(e1 == e2);
     }
+
+  return 0;
 }

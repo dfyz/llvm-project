@@ -15,6 +15,8 @@
 #include <valarray>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct S {
     S() { ctor_called = true; }
     static bool ctor_called;
@@ -22,7 +24,7 @@ struct S {
 
 bool S::ctor_called = false;
 
-int main()
+int main(int, char**)
 {
     {
         std::valarray<int> v;
@@ -45,4 +47,6 @@ int main()
         assert(v.size() == 0);
         assert(!S::ctor_called);
     }
+
+  return 0;
 }

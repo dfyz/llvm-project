@@ -18,6 +18,8 @@
 #include <string>
 #include <cassert>
 
+#include "test_macros.h"
+
 class test1
     : public std::error_category
 {
@@ -27,8 +29,10 @@ public:
     virtual std::string message(int) const {return std::string();}
 };
 
-int main()
+int main(int, char**)
 {
     static_assert(std::is_nothrow_default_constructible<test1>::value,
                                  "error_category() must exist and be noexcept");
+
+  return 0;
 }

@@ -19,6 +19,8 @@
 #include <complex>
 #include <type_traits>
 
+#include "test_macros.h"
+
 template <class T>
 void
 test()
@@ -27,9 +29,11 @@ test()
     static_assert((std::is_same<typename C::value_type, T>::value), "");
 }
 
-int main()
+int main(int, char**)
 {
     test<float>();
     test<double>();
     test<long double>();
+
+  return 0;
 }

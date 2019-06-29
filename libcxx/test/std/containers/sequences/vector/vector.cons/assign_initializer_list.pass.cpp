@@ -15,6 +15,7 @@
 #include <vector>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 #include "asan_testing.h"
 
@@ -30,7 +31,7 @@ void test ( Vec &v )
     assert(v[3] == 6);
 }
 
-int main()
+int main(int, char**)
 {
     {
     typedef std::vector<int> V;
@@ -48,4 +49,6 @@ int main()
     test(d1);
     test(d2);
     }
+
+  return 0;
 }

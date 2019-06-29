@@ -17,7 +17,11 @@
 #include <random>
 #include <type_traits>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     static_assert((std::is_same<std::seed_seq::result_type, std::uint_least32_t>::value), "");
+
+  return 0;
 }

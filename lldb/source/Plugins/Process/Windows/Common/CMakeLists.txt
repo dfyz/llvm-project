@@ -1,6 +1,7 @@
 set(PROC_WINDOWS_COMMON_SOURCES
   DebuggerThread.cpp
   LocalDebugDelegate.cpp
+  ProcessDebugger.cpp
   ProcessWindows.cpp
   ProcessWindowsLog.cpp
   RegisterContextWindows.cpp
@@ -24,6 +25,7 @@ add_lldb_library(lldbPluginProcessWindowsCommon PLUGIN
     lldbCore
     lldbHost
     lldbInterpreter
+    lldbPluginDynamicLoaderWindowsDYLD
     lldbSymbol
     lldbTarget
     ws2_32

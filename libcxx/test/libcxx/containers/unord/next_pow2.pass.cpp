@@ -22,7 +22,8 @@
 #include <unordered_map>
 #include <cassert>
 
-#include <iostream>
+#include "test_macros.h"
+
 
 bool
 is_power_of_two(unsigned long n)
@@ -74,7 +75,7 @@ fuzz_unordered_map_reserve(unsigned num_inserts,
     assert(m.bucket_count() >= num_reserve2);
 }
 
-int main()
+int main(int, char**)
 {
     test_next_pow2();
 

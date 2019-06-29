@@ -16,7 +16,11 @@
 
 #include <mutex>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::timed_mutex m;
+
+  return 0;
 }

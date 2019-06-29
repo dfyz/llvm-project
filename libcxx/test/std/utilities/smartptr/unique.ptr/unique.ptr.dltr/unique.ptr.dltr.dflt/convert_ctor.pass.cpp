@@ -13,6 +13,8 @@
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct A
 {
     static int count;
@@ -34,7 +36,7 @@ struct B
 
 int B::count = 0;
 
-int main()
+int main(int, char**)
 {
     std::default_delete<B> d2;
     std::default_delete<A> d1 = d2;
@@ -44,4 +46,6 @@ int main()
     d1(p);
     assert(A::count == 0);
     assert(B::count == 0);
+
+  return 0;
 }

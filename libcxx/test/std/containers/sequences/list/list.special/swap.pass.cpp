@@ -13,10 +13,11 @@
 
 #include <list>
 #include <cassert>
+#include "test_macros.h"
 #include "test_allocator.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         int a1[] = {1, 3, 7, 9, 10};
@@ -136,4 +137,6 @@ int main()
         assert(c2.get_allocator() == A());
     }
 #endif
+
+  return 0;
 }

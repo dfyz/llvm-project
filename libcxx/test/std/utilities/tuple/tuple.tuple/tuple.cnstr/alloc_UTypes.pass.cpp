@@ -18,6 +18,7 @@
 #include <tuple>
 #include <cassert>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 #include "allocators.h"
 #include "../alloc_first.h"
@@ -77,7 +78,7 @@ struct Explicit {
   explicit Explicit(int x) : value(x) {}
 };
 
-int main()
+int main(int, char**)
 {
     {
         std::tuple<Explicit> t{std::allocator_arg, std::allocator<void>{}, 42};
@@ -148,4 +149,6 @@ int main()
     // ensure that the "reduced-arity-initialization" extension is not offered
     // for these constructors.
     test_uses_allocator_sfinae_evaluation();
+
+  return 0;
 }

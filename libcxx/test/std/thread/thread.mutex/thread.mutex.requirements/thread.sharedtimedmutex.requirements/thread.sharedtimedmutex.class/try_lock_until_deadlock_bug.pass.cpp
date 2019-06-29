@@ -21,6 +21,8 @@
 #include <cstdlib>
 #include <cassert>
 
+#include "test_macros.h"
+
 std::shared_timed_mutex m;
 
 const int total_readers = 2;
@@ -47,7 +49,7 @@ void blocked_reader() {
   m.unlock_shared();
 }
 
-int main()
+int main(int, char**)
 {
   typedef std::chrono::steady_clock Clock;
 
@@ -66,4 +68,6 @@ int main()
   t1.join();
   t2.join();
   t3.join();
+
+  return 0;
 }

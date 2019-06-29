@@ -13,10 +13,14 @@
 
 #include <memory>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     char* p = new char[10];
     std::declare_no_pointers(p, 10);
     std::undeclare_no_pointers(p, 10);
     delete [] p;
+
+  return 0;
 }

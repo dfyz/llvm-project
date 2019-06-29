@@ -19,7 +19,9 @@
 
 #include <stdio.h>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::locale l = std::locale::classic();
     {
@@ -114,4 +116,6 @@ int main()
         assert( (m[5] & F::alnum));
         assert( (m[5] & F::graph));
     }
+
+  return 0;
 }

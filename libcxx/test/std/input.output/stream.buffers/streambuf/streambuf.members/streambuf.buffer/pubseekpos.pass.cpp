@@ -17,6 +17,8 @@
 #include <streambuf>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class CharT>
 struct test
     : public std::basic_streambuf<CharT>
@@ -24,10 +26,12 @@ struct test
     test() {}
 };
 
-int main()
+int main(int, char**)
 {
     {
         test<char> t;
         assert(t.pubseekpos(0, std::ios_base::app) == -1);
     }
+
+  return 0;
 }

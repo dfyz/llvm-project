@@ -18,7 +18,9 @@
 #include <fstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::ifstream fso("test.dat");
@@ -36,4 +38,6 @@ int main()
         fs >> x;
         assert(x == 3.25);
     }
+
+  return 0;
 }

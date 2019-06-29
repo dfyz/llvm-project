@@ -16,6 +16,7 @@
 #include <istream>
 #include <cassert>
 
+#include "test_macros.h"
 #include "platform_support.h" // locale name macros
 
 template <class CharT>
@@ -38,7 +39,7 @@ public:
     }
 };
 
-int main()
+int main(int, char**)
 {
     {
         testbuf<char> sb("  -$1,234,567.89");
@@ -72,4 +73,6 @@ int main()
         is >> std::get_money(x, true);
         assert(x == -123456789);
     }
+
+  return 0;
 }

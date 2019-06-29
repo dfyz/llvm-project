@@ -12,10 +12,11 @@
 
 #include <list>
 #include <cassert>
+#include "test_macros.h"
 #include "DefaultOnly.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         std::list<double> l(5, 2);
@@ -49,4 +50,6 @@ int main()
         assert(l.back() == 3.5);
     }
 #endif
+
+  return 0;
 }

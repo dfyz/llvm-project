@@ -16,11 +16,14 @@
 
 #include <unordered_map>
 
+#include "test_macros.h"
 #include "container_test_types.h"
 #include "../../../map_allocator_requirement_test_templates.h"
 
-int main()
+int main(int, char**)
 {
   testMultimapInsert<TCT::unordered_multimap<> >();
   testMultimapInsertHint<TCT::unordered_multimap<> >();
+
+  return 0;
 }

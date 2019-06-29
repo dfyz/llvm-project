@@ -17,9 +17,10 @@
 #include <map>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
     typedef std::pair<const int, double> V;
@@ -69,4 +70,6 @@ int main()
     assert(*next(m.begin()) == V(2, 1));
     assert(*next(m.begin(), 2) == V(3, 1));
     }
+
+  return 0;
 }

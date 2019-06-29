@@ -25,9 +25,12 @@
 //      : true_type { };
 
 #include <future>
+#include "test_macros.h"
 #include "test_allocator.h"
 
-int main()
+int main(int, char**)
 {
     static_assert((std::uses_allocator<std::packaged_task<double(int, char)>, test_allocator<int> >::value), "");
+
+  return 0;
 }

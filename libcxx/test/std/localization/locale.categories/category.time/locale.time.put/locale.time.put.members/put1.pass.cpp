@@ -15,6 +15,7 @@
 
 #include <locale>
 #include <cassert>
+#include "test_macros.h"
 #include "test_iterators.h"
 
 typedef std::time_put<char, output_iterator<char*> > F;
@@ -27,7 +28,7 @@ public:
         : F(refs) {}
 };
 
-int main()
+int main(int, char**)
 {
     const my_facet f(1);
     char str[200];
@@ -57,4 +58,6 @@ int main()
         std::string ex(str, iter.base());
         assert(ex == "The number of the month is 05.");
     }
+
+  return 0;
 }

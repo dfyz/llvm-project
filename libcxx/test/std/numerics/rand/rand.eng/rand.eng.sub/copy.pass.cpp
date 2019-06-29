@@ -16,6 +16,8 @@
 #include <random>
 #include <cassert>
 
+#include "test_macros.h"
+
 void
 test1()
 {
@@ -46,8 +48,10 @@ test2()
     assert(e1 == e2);
 }
 
-int main()
+int main(int, char**)
 {
     test1();
     test2();
+
+  return 0;
 }

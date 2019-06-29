@@ -11,6 +11,8 @@
 #include <string>
 #include <cassert>
 
+#include "test_macros.h"
+
 //    The only way to create an unique_ptr<T[]> is to default construct them.
 
 class foo {
@@ -21,7 +23,7 @@ private:
     int val_;
     };
 
-int main()
+int main(int, char**)
 {
     {
     auto p1 = std::make_unique<int[]>(5);
@@ -40,4 +42,6 @@ int main()
     for ( int i = 0; i < 7; ++i )
         assert ( p3[i].get () == 3 );
     }
+
+  return 0;
 }

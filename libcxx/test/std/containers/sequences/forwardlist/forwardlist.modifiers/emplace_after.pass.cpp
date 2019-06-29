@@ -16,10 +16,11 @@
 #include <forward_list>
 #include <cassert>
 
+#include "test_macros.h"
 #include "../../../Emplaceable.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef Emplaceable T;
@@ -83,4 +84,6 @@ int main()
         assert(*next(c.begin(), 3) == Emplaceable(2, 3.5));
         assert(distance(c.begin(), c.end()) == 4);
     }
+
+  return 0;
 }

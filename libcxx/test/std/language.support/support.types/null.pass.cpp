@@ -8,10 +8,14 @@
 
 #include <cstddef>
 
+#include "test_macros.h"
+
 #ifndef NULL
 #error NULL not defined
 #endif
 
-int main()
+int main(int, char**)
 {
+
+  return 0;
 }

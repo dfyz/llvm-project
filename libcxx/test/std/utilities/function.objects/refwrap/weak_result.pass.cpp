@@ -15,6 +15,8 @@
 #include <functional>
 #include <type_traits>
 
+#include "test_macros.h"
+
 template <class Arg, class Result>
 struct my_unary_function
 { // std::unary_function was removed in C++17
@@ -68,7 +70,7 @@ public:
     static const bool value = sizeof(test<T>(0)) == 1;
 };
 
-int main()
+int main(int, char**)
 {
     static_assert((std::is_same<std::reference_wrapper<functor1>::result_type,
                                 char>::value), "");
@@ -93,4 +95,6 @@ int main()
     static_assert(has_result_type<std::reference_wrapper<functor3> >::value, "");
     static_assert(!has_result_type<std::reference_wrapper<functor4> >::value, "");
     static_assert(!has_result_type<std::reference_wrapper<C> >::value, "");
+
+  return 0;
 }

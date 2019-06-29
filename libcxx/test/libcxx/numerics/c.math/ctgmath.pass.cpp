@@ -10,14 +10,18 @@
 
 #include <ctgmath>
 
+#include "test_macros.h"
+
 #ifndef _LIBCPP_VERSION
 #error _LIBCPP_VERSION not defined
 #endif
 
-int main()
+int main(int, char**)
 {
     std::complex<double> cd;
     ((void)cd);
     double x = std::sin(0);
     ((void)x);
+
+  return 0;
 }

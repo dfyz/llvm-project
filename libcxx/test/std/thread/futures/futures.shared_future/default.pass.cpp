@@ -17,7 +17,9 @@
 #include <future>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::shared_future<int> f;
@@ -31,4 +33,6 @@ int main()
         std::shared_future<void> f;
         assert(!f.valid());
     }
+
+  return 0;
 }

@@ -15,11 +15,12 @@
 #include <deque>
 #include <cassert>
 
+#include "test_macros.h"
 #include "MoveOnly.h"
 #include "test_allocator.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         int ab[] = {3, 4, 2, 8, 0, 1, 44, 34, 45, 96, 80, 1, 13, 31, 45};
@@ -68,4 +69,6 @@ int main()
         assert(c1.size() == 0);
         assert(c3.get_allocator() == c1.get_allocator());
     }
+
+  return 0;
 }

@@ -22,6 +22,7 @@
 #include <iterator>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 
 template <class It>
@@ -42,7 +43,7 @@ constepxr_test(It i, typename std::iterator_traits<It>::difference_type n, It x)
 }
 #endif
 
-int main()
+int main(int, char**)
 {
     {
     const char* s = "1234567890";
@@ -68,4 +69,6 @@ int main()
     static_assert( constepxr_test(s+5, -5, s), "" );
     }
 #endif
+
+  return 0;
 }

@@ -21,6 +21,8 @@
 
 #include "archetypes.hpp"
 #include "test_convertible.hpp"
+
+#include "test_macros.h"
 using namespace ImplicitTypes; // Get implicitly archetypes
 
 template <class T1, class T1Arg,
@@ -46,7 +48,7 @@ struct ImplicitT {
 };
 
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::pair<std::unique_ptr<int>, short*> P;
@@ -96,4 +98,6 @@ int main()
         static_assert(p.second.value == 43, "");
     }
 #endif
+
+  return 0;
 }

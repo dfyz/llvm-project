@@ -17,7 +17,9 @@
 #include <cstring>
 #include <string>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::strstream inout;
     int i = 123;
@@ -33,4 +35,6 @@ int main()
     assert(d == 4.5);
     assert(std::strcmp(s.c_str(), "dog") == 0);
     inout.freeze(false);
+
+  return 0;
 }

@@ -18,6 +18,8 @@
 #include <random>
 #include <cassert>
 
+#include "test_macros.h"
+
 std::mt19937 randomness;
 
 void
@@ -50,7 +52,7 @@ test(int N)
     test_one(N, N-1);
 }
 
-int main()
+int main(int, char**)
 {
     int d = 0;
     std::nth_element(&d, &d, &d);
@@ -62,4 +64,6 @@ int main()
     test(997);
     test(1000);
     test(1009);
+
+  return 0;
 }

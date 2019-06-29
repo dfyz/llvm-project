@@ -15,6 +15,8 @@
 #include <ios>
 #include <cassert>
 
+#include "test_macros.h"
+
 class test
     : public std::ios
 {
@@ -25,8 +27,10 @@ public:
     }
 };
 
-int main()
+int main(int, char**)
 {
     const test t;
     assert(t.width() == 0);
+
+  return 0;
 }

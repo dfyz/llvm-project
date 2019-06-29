@@ -12,11 +12,15 @@
 
 #include <iostream>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
 #if 0
     std::wclog << L"Hello World!\n";
 #else
     (void)std::wclog;
 #endif
+
+  return 0;
 }

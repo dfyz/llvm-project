@@ -18,7 +18,9 @@
 #include <string>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::locale l = std::locale::classic();
     {
@@ -35,4 +37,6 @@ int main()
         assert(f.hash(x1.data(), x1.data() + x1.size())
             != f.hash(x2.data(), x2.data() + x2.size()));
     }
+
+  return 0;
 }

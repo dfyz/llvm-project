@@ -17,7 +17,9 @@
 #include <sstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::stringbuf sb("0123456789", std::ios_base::in);
@@ -73,4 +75,6 @@ int main()
         assert(sb.sputc(L'3') == L'3');
         assert(sb.str() == L"0123456789");
     }
+
+  return 0;
 }

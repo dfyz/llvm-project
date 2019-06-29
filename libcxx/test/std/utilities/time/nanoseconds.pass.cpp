@@ -14,7 +14,9 @@
 #include <type_traits>
 #include <limits>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     typedef std::chrono::nanoseconds D;
     typedef D::rep Rep;
@@ -23,4 +25,6 @@ int main()
     static_assert(std::is_integral<Rep>::value, "");
     static_assert(std::numeric_limits<Rep>::digits >= 63, "");
     static_assert((std::is_same<Period, std::nano>::value), "");
+
+  return 0;
 }

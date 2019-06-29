@@ -15,6 +15,8 @@
 #include <complex>
 #include <cassert>
 
+#include "test_macros.h"
+
 template <class T>
 void
 test(const std::complex<T>& z, std::complex<T> x)
@@ -32,9 +34,11 @@ test()
     test(std::complex<T>(-1, -2), std::complex<T>(-1, 2));
 }
 
-int main()
+int main(int, char**)
 {
     test<float>();
     test<double>();
     test<long double>();
+
+  return 0;
 }

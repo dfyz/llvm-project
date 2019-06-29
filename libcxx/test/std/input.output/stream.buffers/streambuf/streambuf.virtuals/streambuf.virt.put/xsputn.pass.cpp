@@ -17,6 +17,8 @@
 #include <cassert>
 #include <cstring>
 
+#include "test_macros.h"
+
 struct test
     : public std::basic_streambuf<char>
 {
@@ -30,7 +32,7 @@ struct test
     }
 };
 
-int main()
+int main(int, char**)
 {
     {
         test t;
@@ -41,4 +43,6 @@ int main()
         assert(t.sputn(in, sizeof(in)) == sizeof(in));
         assert(std::strcmp(in, out) == 0);
     }
+
+  return 0;
 }

@@ -13,9 +13,10 @@
 #include <forward_list>
 #include <cassert>
 
+#include "test_macros.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         typedef int T;
@@ -151,4 +152,6 @@ int main()
         assert(distance(c.begin(), c.end()) == 0);
     }
 #endif
+
+  return 0;
 }

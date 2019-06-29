@@ -17,7 +17,9 @@
 #include <random>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::uniform_real_distribution<> D;
@@ -37,4 +39,6 @@ int main()
         assert(d.a() == -6);
         assert(d.b() == 106);
     }
+
+  return 0;
 }

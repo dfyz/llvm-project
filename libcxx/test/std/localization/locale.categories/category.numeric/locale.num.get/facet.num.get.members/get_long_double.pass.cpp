@@ -21,6 +21,7 @@
 #include <cassert>
 #include <streambuf>
 #include <cmath>
+#include "test_macros.h"
 #include "test_iterators.h"
 #include "hexfloat.h"
 
@@ -35,7 +36,7 @@ public:
 };
 
 
-int main()
+int main(int, char**)
 {
     const my_facet f(1);
     std::ios ios(0);
@@ -267,4 +268,6 @@ int main()
         assert(err == ios.goodbit);
         assert(v == 2);
     }
+
+  return 0;
 }

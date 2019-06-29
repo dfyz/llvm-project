@@ -13,10 +13,11 @@
 
 #include <vector>
 #include <cassert>
+#include "test_macros.h"
 #include "test_allocator.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         std::vector<bool> v1(100);
@@ -94,4 +95,6 @@ int main()
         assert(v[1] == true);
     }
 #endif
+
+  return 0;
 }

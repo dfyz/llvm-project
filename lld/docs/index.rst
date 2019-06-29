@@ -173,4 +173,6 @@ document soon.
    AtomLLD
    WebAssembly
    windows_support
+   missingkeyfunction
+   Partitions
    ReleaseNotes

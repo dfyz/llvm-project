@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_iterators.h"
 
 template <class Iter1, class Iter2, class OutIter>
@@ -43,7 +44,7 @@ test()
     assert(std::lexicographical_compare(ic, base(ce), ir, ir+sr) == 0);
 }
 
-int main()
+int main(int, char**)
 {
     test<input_iterator<const int*>, input_iterator<const int*>, output_iterator<int*> >();
     test<input_iterator<const int*>, input_iterator<const int*>, forward_iterator<int*> >();
@@ -194,4 +195,6 @@ int main()
     test<const int*, const int*, bidirectional_iterator<int*> >();
     test<const int*, const int*, random_access_iterator<int*> >();
     test<const int*, const int*, int*>();
+
+  return 0;
 }

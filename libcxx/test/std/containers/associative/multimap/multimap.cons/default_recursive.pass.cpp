@@ -14,6 +14,8 @@
 
 #include <map>
 
+#include "test_macros.h"
+
 struct X
 {
     std::multimap<int, X> m;
@@ -23,6 +25,8 @@ struct X
     std::multimap<int, X>::const_reverse_iterator cri;
 };
 
-int main()
+int main(int, char**)
 {
+
+  return 0;
 }

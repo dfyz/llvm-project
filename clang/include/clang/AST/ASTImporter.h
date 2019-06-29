@@ -32,6 +32,7 @@
 namespace clang {
 
 class ASTContext;
+class Attr;
 class ASTImporterLookupTable;
 class CXXBaseSpecifier;
 class CXXCtorInitializer;
@@ -42,8 +43,8 @@ class FileManager;
 class NamedDecl;
 class Stmt;
 class TagDecl;
+class TranslationUnitDecl;
 class TypeSourceInfo;
-class Attr;
 
   class ImportError : public llvm::ErrorInfo<ImportError> {
   public:
@@ -115,6 +116,18 @@ class Attr;
     /// context to the corresponding declarations in the "to" context.
     llvm::DenseMap<Decl *, Decl *> ImportedDecls;
 
+    /// Mapping from the already-imported declarations in the "from"
+    /// context to the error status of the import of that declaration.
+    /// This map contains only the declarations that were not correctly
+    /// imported. The same declaration may or may not be included in
+    /// ImportedDecls. This map is updated continuously during imports and never
+    /// cleared (like ImportedDecls).
+    llvm::DenseMap<Decl *, ImportError> ImportDeclErrors;
+
+    /// Mapping from the already-imported declarations in the "to"
+    /// context to the corresponding declarations in the "from" context.
+    llvm::DenseMap<Decl *, Decl *> ImportedFromDecls;
+
     /// Mapping from the already-imported statements in the "from"
     /// context to the corresponding statements in the "to" context.
     llvm::DenseMap<Stmt *, Stmt *> ImportedStmts;
@@ -136,6 +149,15 @@ class Attr;
     FoundDeclsTy findDeclsInToCtx(DeclContext *DC, DeclarationName Name);
 
     void AddToLookupTable(Decl *ToD);
+
+  protected:
+    /// Can be overwritten by subclasses to implement their own import logic.
+    /// The overwritten method should call this method if it didn't import the
+    /// decl on its own.
+    virtual Expected<Decl *> ImportImpl(Decl *From);
+
+    /// Used only in unittests to verify the behaviour of the error handling.
+    virtual bool returnWithErrorInTest() { return false; };
 
   public:
 
@@ -172,62 +194,50 @@ class Attr;
     /// \return Error information (success or error).
     template <typename ImportT>
     LLVM_NODISCARD llvm::Error importInto(ImportT &To, const ImportT &From) {
-      To = Import(From);
-      if (From && !To)
-          return llvm::make_error<ImportError>();
-      return llvm::Error::success();
-      // FIXME: this should be the final code
-      //auto ToOrErr = Import(From);
-      //if (ToOrErr)
-      //  To = *ToOrErr;
-      //return ToOrErr.takeError();
+      auto ToOrErr = Import(From);
+      if (ToOrErr)
+        To = *ToOrErr;
+      return ToOrErr.takeError();
     }
 
     /// Import the given type from the "from" context into the "to"
     /// context. A null type is imported as a null type (no error).
     ///
     /// \returns The equivalent type in the "to" context, or the import error.
-    llvm::Expected<QualType> Import_New(QualType FromT);
-    // FIXME: Remove this version.
-    QualType Import(QualType FromT);
+    llvm::Expected<QualType> Import(QualType FromT);
 
     /// Import the given type source information from the
     /// "from" context into the "to" context.
     ///
     /// \returns The equivalent type source information in the "to"
     /// context, or the import error.
-    llvm::Expected<TypeSourceInfo *> Import_New(TypeSourceInfo *FromTSI);
-    // FIXME: Remove this version.
-    TypeSourceInfo *Import(TypeSourceInfo *FromTSI);
+    llvm::Expected<TypeSourceInfo *> Import(TypeSourceInfo *FromTSI);
 
     /// Import the given attribute from the "from" context into the
     /// "to" context.
     ///
     /// \returns The equivalent attribute in the "to" context, or the import
     /// error.
-    llvm::Expected<Attr *> Import_New(const Attr *FromAttr);
-    // FIXME: Remove this version.
-    Attr *Import(const Attr *FromAttr);
+    llvm::Expected<Attr *> Import(const Attr *FromAttr);
 
     /// Import the given declaration from the "from" context into the
     /// "to" context.
     ///
     /// \returns The equivalent declaration in the "to" context, or the import
     /// error.
-    llvm::Expected<Decl *> Import_New(Decl *FromD);
-    llvm::Expected<Decl *> Import_New(const Decl *FromD) {
-      return Import_New(const_cast<Decl *>(FromD));
-    }
-    // FIXME: Remove this version.
-    Decl *Import(Decl *FromD);
-    Decl *Import(const Decl *FromD) {
+    llvm::Expected<Decl *> Import(Decl *FromD);
+    llvm::Expected<const Decl *> Import(const Decl *FromD) {
       return Import(const_cast<Decl *>(FromD));
     }
 
     /// Return the copy of the given declaration in the "to" context if
     /// it has already been imported from the "from" context.  Otherwise return
-    /// NULL.
+    /// nullptr.
     Decl *GetAlreadyImportedOrNull(const Decl *FromD) const;
+
+    /// Return the translation unit from where the declaration was
+    /// imported. If it does not exist nullptr is returned.
+    TranslationUnitDecl *GetFromTU(Decl *ToD);
 
     /// Import the given declaration context from the "from"
     /// AST context into the "to" AST context.
@@ -241,28 +251,21 @@ class Attr;
     ///
     /// \returns The equivalent expression in the "to" context, or the import
     /// error.
-    llvm::Expected<Expr *> Import_New(Expr *FromE);
-    // FIXME: Remove this version.
-    Expr *Import(Expr *FromE);
+    llvm::Expected<Expr *> Import(Expr *FromE);
 
     /// Import the given statement from the "from" context into the
     /// "to" context.
     ///
     /// \returns The equivalent statement in the "to" context, or the import
     /// error.
-    llvm::Expected<Stmt *> Import_New(Stmt *FromS);
-    // FIXME: Remove this version.
-    Stmt *Import(Stmt *FromS);
+    llvm::Expected<Stmt *> Import(Stmt *FromS);
 
     /// Import the given nested-name-specifier from the "from"
     /// context into the "to" context.
     ///
     /// \returns The equivalent nested-name-specifier in the "to"
     /// context, or the import error.
-    llvm::Expected<NestedNameSpecifier *>
-    Import_New(NestedNameSpecifier *FromNNS);
-    // FIXME: Remove this version.
-    NestedNameSpecifier *Import(NestedNameSpecifier *FromNNS);
+    llvm::Expected<NestedNameSpecifier *> Import(NestedNameSpecifier *FromNNS);
 
     /// Import the given nested-name-specifier-loc from the "from"
     /// context into the "to" context.
@@ -270,42 +273,32 @@ class Attr;
     /// \returns The equivalent nested-name-specifier-loc in the "to"
     /// context, or the import error.
     llvm::Expected<NestedNameSpecifierLoc>
-    Import_New(NestedNameSpecifierLoc FromNNS);
-    // FIXME: Remove this version.
-    NestedNameSpecifierLoc Import(NestedNameSpecifierLoc FromNNS);
+    Import(NestedNameSpecifierLoc FromNNS);
 
     /// Import the given template name from the "from" context into the
     /// "to" context, or the import error.
-    llvm::Expected<TemplateName> Import_New(TemplateName From);
-    // FIXME: Remove this version.
-    TemplateName Import(TemplateName From);
+    llvm::Expected<TemplateName> Import(TemplateName From);
 
     /// Import the given source location from the "from" context into
     /// the "to" context.
     ///
     /// \returns The equivalent source location in the "to" context, or the
     /// import error.
-    llvm::Expected<SourceLocation> Import_New(SourceLocation FromLoc);
-    // FIXME: Remove this version.
-    SourceLocation Import(SourceLocation FromLoc);
+    llvm::Expected<SourceLocation> Import(SourceLocation FromLoc);
 
     /// Import the given source range from the "from" context into
     /// the "to" context.
     ///
     /// \returns The equivalent source range in the "to" context, or the import
     /// error.
-    llvm::Expected<SourceRange> Import_New(SourceRange FromRange);
-    // FIXME: Remove this version.
-    SourceRange Import(SourceRange FromRange);
+    llvm::Expected<SourceRange> Import(SourceRange FromRange);
 
     /// Import the given declaration name from the "from"
     /// context into the "to" context.
     ///
     /// \returns The equivalent declaration name in the "to" context, or the
     /// import error.
-    llvm::Expected<DeclarationName> Import_New(DeclarationName FromName);
-    // FIXME: Remove this version.
-    DeclarationName Import(DeclarationName FromName);
+    llvm::Expected<DeclarationName> Import(DeclarationName FromName);
 
     /// Import the given identifier from the "from" context
     /// into the "to" context.
@@ -319,46 +312,32 @@ class Attr;
     ///
     /// \returns The equivalent selector in the "to" context, or the import
     /// error.
-    llvm::Expected<Selector> Import_New(Selector FromSel);
-    // FIXME: Remove this version.
-    Selector Import(Selector FromSel);
+    llvm::Expected<Selector> Import(Selector FromSel);
 
     /// Import the given file ID from the "from" context into the
     /// "to" context.
     ///
     /// \returns The equivalent file ID in the source manager of the "to"
     /// context, or the import error.
-    llvm::Expected<FileID> Import_New(FileID);
-    // FIXME: Remove this version.
-    FileID Import(FileID);
+    llvm::Expected<FileID> Import(FileID, bool IsBuiltin = false);
 
     /// Import the given C++ constructor initializer from the "from"
     /// context into the "to" context.
     ///
     /// \returns The equivalent initializer in the "to" context, or the import
     /// error.
-    llvm::Expected<CXXCtorInitializer *>
-    Import_New(CXXCtorInitializer *FromInit);
-    // FIXME: Remove this version.
-    CXXCtorInitializer *Import(CXXCtorInitializer *FromInit);
+    llvm::Expected<CXXCtorInitializer *> Import(CXXCtorInitializer *FromInit);
 
     /// Import the given CXXBaseSpecifier from the "from" context into
     /// the "to" context.
     ///
     /// \returns The equivalent CXXBaseSpecifier in the source manager of the
     /// "to" context, or the import error.
-    llvm::Expected<CXXBaseSpecifier *>
-    Import_New(const CXXBaseSpecifier *FromSpec);
-    // FIXME: Remove this version.
-    CXXBaseSpecifier *Import(const CXXBaseSpecifier *FromSpec);
+    llvm::Expected<CXXBaseSpecifier *> Import(const CXXBaseSpecifier *FromSpec);
 
     /// Import the definition of the given declaration, including all of
     /// the declarations it contains.
-    LLVM_NODISCARD llvm::Error ImportDefinition_New(Decl *From);
-
-    // FIXME: Compatibility function.
-    // Usages of this should be changed to ImportDefinition_New.
-    void ImportDefinition(Decl *From);
+    LLVM_NODISCARD llvm::Error ImportDefinition(Decl *From);
 
     /// Cope with a name conflict when importing a declaration into the
     /// given context.
@@ -421,9 +400,13 @@ class Attr;
 
     /// Subclasses can override this function to observe all of the \c From ->
     /// \c To declaration mappings as they are imported.
-    virtual Decl *Imported(Decl *From, Decl *To) { return To; }
+    virtual void Imported(Decl *From, Decl *To) {}
+
+    void RegisterImportedDecl(Decl *FromD, Decl *ToD);
 
     /// Store and assign the imported declaration to its counterpart.
+    /// It may happen that several decls from the 'from' context are mapped to
+    /// the same decl in the 'to' context.
     Decl *MapImported(Decl *From, Decl *To);
 
     /// Called by StructuralEquivalenceContext.  If a RecordDecl is
@@ -433,6 +416,14 @@ class Attr;
     /// RecordDecl can be found, we can complete it without the need for
     /// importation, eliminating this loop.
     virtual Decl *GetOriginalDecl(Decl *To) { return nullptr; }
+
+    /// Return if import of the given declaration has failed and if yes
+    /// the kind of the problem. This gives the first error encountered with
+    /// the node.
+    llvm::Optional<ImportError> getImportDeclErrorIfAny(Decl *FromD) const;
+
+    /// Mark (newly) imported declaration with error.
+    void setImportDeclError(Decl *From, ImportError Error);
 
     /// Determine whether the given types are structurally
     /// equivalent.
@@ -444,7 +435,6 @@ class Attr;
     /// \returns The index of the field in its parent context (starting from 0).
     /// On error `None` is returned (parent context is non-record).
     static llvm::Optional<unsigned> getFieldIndex(Decl *F);
-
   };
 
 } // namespace clang

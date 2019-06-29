@@ -15,6 +15,8 @@
 #include <functional>
 #include <cassert>
 
+#include "test_macros.h"
+
 class functor1
 {
 };
@@ -42,7 +44,7 @@ test_function()
     assert(&r2.get() == &f);
 }
 
-int main()
+int main(int, char**)
 {
     void (*fp)() = f;
     test(fp);
@@ -53,4 +55,6 @@ int main()
     test(i);
     const int j = 0;
     test(j);
+
+  return 0;
 }

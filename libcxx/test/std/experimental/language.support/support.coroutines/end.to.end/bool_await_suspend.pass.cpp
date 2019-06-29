@@ -15,6 +15,8 @@
 #include <experimental/coroutine>
 #include <cassert>
 
+#include "test_macros.h"
+
 using namespace std::experimental;
 
 struct coro_t {
@@ -57,7 +59,7 @@ coro_t g() {
   g_resumed = true;
 }
 
-int main() {
+int main(int, char**) {
   assert(!f_started && !f_resumed && !g_started && !g_resumed);
   auto fret = f();
   assert(f_started && !f_resumed);
@@ -65,4 +67,6 @@ int main() {
   assert(f_started && !f_resumed);
   g();
   assert(g_started && g_resumed);
+
+  return 0;
 }

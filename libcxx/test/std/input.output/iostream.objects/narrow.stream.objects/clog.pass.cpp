@@ -12,11 +12,15 @@
 
 #include <iostream>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
 #if 0
     std::clog << "Hello World!\n";
 #else
     (void)std::clog;
 #endif
+
+  return 0;
 }

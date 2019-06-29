@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: c++experimental
 // UNSUPPORTED: c++98, c++03
 
 // <experimental/memory_resource>
@@ -20,6 +19,8 @@
 #include <cassert>
 
 #include "test_memory_resource.hpp"
+
+#include "test_macros.h"
 
 namespace ex = std::experimental::pmr;
 
@@ -41,7 +42,7 @@ void testForSizeAndAlign() {
     }
 }
 
-int main()
+int main(int, char**)
 {
     {
         ex::polymorphic_allocator<int> a;
@@ -58,4 +59,6 @@ int main()
         testForSizeAndAlign<73, MA>();
         testForSizeAndAlign<13, MA>();
     }
+
+  return 0;
 }

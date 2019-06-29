@@ -16,7 +16,9 @@
 #include <random>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::discrete_distribution<> D;
@@ -27,4 +29,6 @@ int main()
         d.param(p);
         assert(d.param() == p);
     }
+
+  return 0;
 }

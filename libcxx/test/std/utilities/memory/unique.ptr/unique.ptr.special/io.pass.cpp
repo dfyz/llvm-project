@@ -21,11 +21,15 @@
 #include <sstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     std::unique_ptr<int> p(new int(3));
     std::ostringstream os;
     assert(os.str().empty());
     os << p;
     assert(!os.str().empty());
+
+  return 0;
 }

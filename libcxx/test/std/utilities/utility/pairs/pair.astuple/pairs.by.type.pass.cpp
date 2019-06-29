@@ -16,7 +16,9 @@
 
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     typedef std::complex<float> cf;
     {
@@ -81,4 +83,6 @@ int main()
     static_assert(std::get<int>(std::move(p)) == 1, "");
     static_assert(std::get<const int>(std::move(p)) == 2, "");
     }
+
+  return 0;
 }

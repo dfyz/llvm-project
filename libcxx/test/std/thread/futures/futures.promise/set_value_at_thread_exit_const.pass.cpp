@@ -18,13 +18,15 @@
 #include <future>
 #include <cassert>
 
+#include "test_macros.h"
+
 void func(std::promise<int> p)
 {
     const int i = 5;
     p.set_value_at_thread_exit(i);
 }
 
-int main()
+int main(int, char**)
 {
     {
         std::promise<int> p;
@@ -32,4 +34,6 @@ int main()
         std::thread(func, std::move(p)).detach();
         assert(f.get() == 5);
     }
+
+  return 0;
 }

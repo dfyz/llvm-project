@@ -15,7 +15,9 @@
 #include <strstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::strstreambuf sb;
@@ -28,4 +30,6 @@ int main()
         assert(sb.pcount() == 2);
         sb.freeze(false);
     }
+
+  return 0;
 }

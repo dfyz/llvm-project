@@ -20,6 +20,8 @@
 #include <thread>
 #include <cassert>
 
+#include "test_macros.h"
+
 typedef std::shared_ptr<int> Ptr;
 typedef std::weak_ptr<int> WeakPtr;
 
@@ -77,7 +79,7 @@ void run_test(Ptr p) {
     assert(p.use_count() == 3);
 }
 
-int main() {
+int main(int, char**) {
   {
     // Test with out-of-place shared_count.
     Ptr p(new int(42));
@@ -91,4 +93,6 @@ int main() {
     run_test(p);
     assert(p.use_count() == 1);
   }
+
+  return 0;
 }

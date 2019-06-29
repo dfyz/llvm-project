@@ -16,7 +16,9 @@
 #include <random>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         typedef std::mt19937 Engine;
@@ -25,4 +27,6 @@ int main()
         Adaptor a(e);
         assert(a.base() == e);
     }
+
+  return 0;
 }

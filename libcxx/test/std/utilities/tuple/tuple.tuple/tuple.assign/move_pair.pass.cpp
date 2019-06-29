@@ -20,6 +20,8 @@
 #include <memory>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct B
 {
     int id_;
@@ -35,7 +37,7 @@ struct D
     explicit D(int i) : B(i) {}
 };
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::pair<long, std::unique_ptr<D>> T0;
@@ -46,4 +48,6 @@ int main()
         assert(std::get<0>(t1) == 2);
         assert(std::get<1>(t1)->id_ == 3);
     }
+
+  return 0;
 }

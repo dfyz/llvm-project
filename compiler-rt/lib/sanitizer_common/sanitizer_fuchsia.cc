@@ -46,9 +46,14 @@ unsigned int internal_sleep(unsigned int seconds) {
   return 0;
 }
 
-u64 NanoTime() { return _zx_clock_get(ZX_CLOCK_UTC); }
+u64 NanoTime() {
+  zx_time_t time;
+  zx_status_t status = _zx_clock_get(ZX_CLOCK_UTC, &time);
+  CHECK_EQ(status, ZX_OK);
+  return time;
+}
 
-u64 MonotonicNanoTime() { return _zx_clock_get(ZX_CLOCK_MONOTONIC); }
+u64 MonotonicNanoTime() { return _zx_clock_get_monotonic(); }
 
 uptr internal_getpid() {
   zx_info_handle_basic_t info;
@@ -252,12 +257,14 @@ static uptr DoMmapFixedOrDie(zx_handle_t vmar, uptr fixed_addr, uptr map_size,
   return addr;
 }
 
-uptr ReservedAddressRange::Map(uptr fixed_addr, uptr map_size) {
+uptr ReservedAddressRange::Map(uptr fixed_addr, uptr map_size,
+                               const char *name) {
   return DoMmapFixedOrDie(os_handle_, fixed_addr, map_size, base_,
                           name_, false);
 }
 
-uptr ReservedAddressRange::MapOrDie(uptr fixed_addr, uptr map_size) {
+uptr ReservedAddressRange::MapOrDie(uptr fixed_addr, uptr map_size,
+                                    const char *name) {
   return DoMmapFixedOrDie(os_handle_, fixed_addr, map_size, base_,
                           name_, true);
 }

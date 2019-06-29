@@ -18,6 +18,7 @@
 #include <streambuf>
 #include <cassert>
 
+#include "test_macros.h"
 #include "platform_support.h" // locale name macros
 
 template <class CharT>
@@ -49,7 +50,7 @@ struct test
     }
 };
 
-int main()
+int main(int, char**)
 {
     {
         test<char> t;
@@ -82,4 +83,6 @@ int main()
         test<wchar_t> t;
         test<wchar_t> t2 = t;
     }
+
+  return 0;
 }

@@ -16,7 +16,9 @@
 #include <string>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
 #if defined(__cpp_lib_char8_t) && __cpp_lib_char8_t >= 201811L
     char8_t s2[3] = {0};
@@ -26,4 +28,6 @@ int main()
     assert(s2[2] == char8_t(5));
     assert(std::char_traits<char8_t>::assign(NULL, 0, char8_t(5)) == NULL);
 #endif
+
+  return 0;
 }

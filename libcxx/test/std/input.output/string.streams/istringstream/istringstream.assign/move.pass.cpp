@@ -18,7 +18,9 @@
 #include <sstream>
 #include <cassert>
 
-int main()
+#include "test_macros.h"
+
+int main(int, char**)
 {
     {
         std::istringstream ss0(" 123 456");
@@ -82,4 +84,6 @@ int main()
         s1 >> s;
         assert(s == L"Dddddddddddddddddd");
     }
+
+  return 0;
 }

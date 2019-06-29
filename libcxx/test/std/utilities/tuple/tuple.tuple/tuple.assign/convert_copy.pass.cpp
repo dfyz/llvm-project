@@ -19,6 +19,8 @@
 #include <string>
 #include <cassert>
 
+#include "test_macros.h"
+
 struct B
 {
     int id_;
@@ -32,7 +34,7 @@ struct D
     explicit D(int i = 0) : B(i) {}
 };
 
-int main()
+int main(int, char**)
 {
     {
         typedef std::tuple<long> T0;
@@ -85,4 +87,6 @@ int main()
         assert(std::get<0>(t) == 43);
         assert(&std::get<0>(t) == &x);
     }
+
+  return 0;
 }

@@ -20,6 +20,8 @@
 #include <type_traits>
 #include <cassert>
 
+#include "test_macros.h"
+
 namespace coro = std::experimental;
 
 template <class C>
@@ -38,8 +40,10 @@ void do_test() {
   }
 }
 
-int main()
+int main(int, char**)
 {
   do_test<coro::coroutine_handle<>>();
   do_test<coro::coroutine_handle<int>>();
+
+  return 0;
 }

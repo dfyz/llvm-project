@@ -18,6 +18,8 @@
 #include <cassert>
 #include <cstdint>
 
+#include "test_macros.h"
+
 namespace ex = std::experimental::parallelism_v2;
 
 template <typename SimdType>
@@ -210,7 +212,9 @@ void test_access() {
   }
 }
 
-int main() {
+int main(int, char**) {
   test_access<ex::native_simd<int>>();
   test_access<ex::fixed_size_simd<int, 4>>();
+
+  return 0;
 }

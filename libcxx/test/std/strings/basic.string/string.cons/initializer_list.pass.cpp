@@ -15,10 +15,11 @@
 #include <string>
 #include <cassert>
 
+#include "test_macros.h"
 #include "test_allocator.h"
 #include "min_allocator.h"
 
-int main()
+int main(int, char**)
 {
     {
         std::string s = {'a', 'b', 'c'};
@@ -40,4 +41,6 @@ int main()
         s = {L'a', L'b', L'c'};
         assert(s == L"abc");
     }
+
+  return 0;
 }

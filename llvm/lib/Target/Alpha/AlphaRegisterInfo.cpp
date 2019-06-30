@@ -132,6 +132,6 @@ AlphaRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   }
 }
 
-unsigned AlphaRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
+Register AlphaRegisterInfo::getFrameRegister(const MachineFunction &MF) const {
   return getFrameLowering(MF)->hasFP(MF) ? Alpha::R15 : Alpha::R30;
 }

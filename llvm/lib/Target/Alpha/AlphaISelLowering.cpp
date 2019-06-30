@@ -920,7 +920,7 @@ AlphaTargetLowering::isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const {
   return false;
 }
 
-bool AlphaTargetLowering::isFPImmLegal(const APFloat &Imm, EVT VT) const {
+bool AlphaTargetLowering::isFPImmLegal(const APFloat &Imm, EVT VT, bool ForCodeSize) const {
   if (VT != MVT::f32 && VT != MVT::f64)
     return false;
   // +0.0   F31

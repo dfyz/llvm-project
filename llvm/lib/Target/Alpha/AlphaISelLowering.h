@@ -110,7 +110,7 @@ namespace llvm {
     /// isFPImmLegal - Returns true if the target can instruction select the
     /// specified FP immediate natively. If false, the legalizer will
     /// materialize the FP immediate as a load from a constant pool.
-    bool isFPImmLegal(const APFloat &Imm, EVT VT) const override;
+    bool isFPImmLegal(const APFloat &Imm, EVT VT, bool ForCodeSize) const override;
 
     bool shouldInsertFencesForAtomic(const Instruction *I) const override;
 

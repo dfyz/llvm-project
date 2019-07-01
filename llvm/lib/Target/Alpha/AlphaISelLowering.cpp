@@ -163,6 +163,8 @@ AlphaTargetLowering::AlphaTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::ATOMIC_LOAD,  MVT::i32, Expand);
   setOperationAction(ISD::ATOMIC_STORE, MVT::i32, Expand);
 
+  setOperationAction(ISD::READCYCLECOUNTER, MVT::i64, Legal);
+
   setStackPointerRegisterToSaveRestore(Alpha::R30);
 
   setJumpBufSize(272);

@@ -1,3 +1,5 @@
-- CodeGen tests
-  - CTPOP is not generated
-  - RPCC is not generated 
+Failing Tests (4):
+    LLVM :: CodeGen/Alpha/ctlz.ll
+    LLVM :: CodeGen/Alpha/ctpop.ll
+    LLVM :: CodeGen/Alpha/jmp_table.ll
+    LLVM :: CodeGen/Alpha/private.ll

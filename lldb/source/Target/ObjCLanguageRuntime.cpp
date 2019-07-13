@@ -46,19 +46,6 @@ bool ObjCLanguageRuntime::IsWhitelistedRuntimeValue(ConstString name) {
   return name == g_self || name == g_cmd;
 }
 
-bool ObjCLanguageRuntime::IsRuntimeSupportValue(ValueObject &valobj) {
-  // All runtime support values have to be marked as artificial by the
-  // compiler. But not all artificial variables should be hidden from
-  // the user.
-  if (!valobj.GetVariable())
-    return false;
-  if (!valobj.GetVariable()->IsArtificial())
-    return false;
-
-  // Whitelist "self" and "_cmd".
-  return !IsWhitelistedRuntimeValue(valobj.GetName());
-}
-
 bool ObjCLanguageRuntime::AddClass(ObjCISA isa,
                                    const ClassDescriptorSP &descriptor_sp,
                                    const char *class_name) {
@@ -410,4 +397,39 @@ Status ObjCLanguageRuntime::ObjCExceptionPrecondition::ConfigurePrecondition(
     error.SetErrorString(
         "The ObjC Exception breakpoint doesn't support extra options.");
   return error;
+}
+
+llvm::Optional<CompilerType>
+ObjCLanguageRuntime::GetRuntimeType(CompilerType base_type) {
+  CompilerType class_type;
+  bool is_pointer_type = false;
+
+  if (ClangASTContext::IsObjCObjectPointerType(base_type, &class_type))
+    is_pointer_type = true;
+  else if (ClangASTContext::IsObjCObjectOrInterfaceType(base_type))
+    class_type = base_type;
+  else
+    return llvm::None;
+
+  if (!class_type)
+    return llvm::None;
+
+  ConstString class_name(class_type.GetConstTypeName());
+  if (!class_name)
+    return llvm::None;
+
+  TypeSP complete_objc_class_type_sp = LookupInCompleteClassCache(class_name);
+  if (!complete_objc_class_type_sp)
+    return llvm::None;
+
+  CompilerType complete_class(
+      complete_objc_class_type_sp->GetFullCompilerType());
+  if (complete_class.GetCompleteType()) {
+    if (is_pointer_type)
+      return complete_class.GetPointerType();
+    else
+      return complete_class;
+  }
+
+  return llvm::None;
 }

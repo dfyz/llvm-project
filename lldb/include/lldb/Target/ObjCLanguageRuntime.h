@@ -250,6 +250,8 @@ public:
 
   lldb::TypeSP LookupInCompleteClassCache(ConstString &name);
 
+  llvm::Optional<CompilerType> GetRuntimeType(CompilerType base_type) override;
+
   virtual UtilityFunction *CreateObjectChecker(const char *) = 0;
 
   virtual ObjCRuntimeVersions GetRuntimeVersion() const {
@@ -301,8 +303,7 @@ public:
 
   /// Check whether the name is "self" or "_cmd" and should show up in
   /// "frame variable".
-  static bool IsWhitelistedRuntimeValue(ConstString name);
-  bool IsRuntimeSupportValue(ValueObject &valobj) override;
+  bool IsWhitelistedRuntimeValue(ConstString name) override;
 
 protected:
   // Classes that inherit from ObjCLanguageRuntime can see and modify these

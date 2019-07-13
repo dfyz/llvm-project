@@ -179,9 +179,12 @@ struct Attributor {
     assert(AAType::ID != Attribute::None &&
            "Cannot lookup generic abstract attributes!");
 
-    // Determine the argument number automatically for llvm::Arguments.
+    // Determine the argument number automatically for llvm::Arguments if none
+    // is set. Do not override a given one as it could be a use of the argument
+    // in a call site.
     if (auto *Arg = dyn_cast<Argument>(&V))
-      ArgNo = Arg->getArgNo();
+      if (ArgNo == -1)
+        ArgNo = Arg->getArgNo();
 
     // If a function was given together with an argument number, perform the
     // lookup for the actual argument instead. Don't do it for variadic
@@ -196,8 +199,12 @@ struct Attributor {
     const auto &KindToAbstractAttributeMap = AAMap.lookup({&V, ArgNo});
     if (AAType *AA = static_cast<AAType *>(
             KindToAbstractAttributeMap.lookup(AAType::ID))) {
-      QueryMap[AA].insert(&QueryingAA);
-      return AA;
+      // Do not return an attribute with an invalid state. This minimizes checks
+      // at the calls sites and allows the fallback below to kick in.
+      if (AA->getState().isValidState()) {
+        QueryMap[AA].insert(&QueryingAA);
+        return AA;
+      }
     }
 
     // If no abstract attribute was found and we look for a call site argument,
@@ -377,7 +384,7 @@ struct AbstractState {
 /// state will catch up with the assumed one, for a pessimistic fixpoint it is
 /// the other way around.
 struct IntegerState : public AbstractState {
-  /// Undrlying integer type, we assume 32 bits to be enough.
+  /// Underlying integer type, we assume 32 bits to be enough.
   using base_t = uint32_t;
 
   /// Initialize the (best) state.
@@ -642,21 +649,60 @@ Pass *createAttributorLegacyPass();
 ///                       Abstract Attribute Classes
 /// ----------------------------------------------------------------------------
 
+/// An abstract attribute for the returned values of a function.
+struct AAReturnedValues : public AbstractAttribute {
+  /// See AbstractAttribute::AbstractAttribute(...).
+  AAReturnedValues(Function &F, InformationCache &InfoCache)
+      : AbstractAttribute(F, InfoCache) {}
+
+  /// Check \p Pred on all returned values.
+  ///
+  /// This method will evaluate \p Pred on returned values and return
+  /// true if (1) all returned values are known, and (2) \p Pred returned true
+  /// for all returned values.
+  virtual bool
+  checkForallReturnedValues(std::function<bool(Value &)> &Pred) const = 0;
+
+  /// See AbstractAttribute::getAttrKind()
+  Attribute::AttrKind getAttrKind() const override { return ID; }
+
+  /// The identifier used by the Attributor for this class of attributes.
+  static constexpr Attribute::AttrKind ID = Attribute::Returned;
+};
+
 struct AANoUnwind : public AbstractAttribute {
-    /// An abstract interface for all nosync attributes.
-    AANoUnwind(Value &V, InformationCache &InfoCache)
-        : AbstractAttribute(V, InfoCache) {}
+  /// An abstract interface for all nosync attributes.
+  AANoUnwind(Value &V, InformationCache &InfoCache)
+      : AbstractAttribute(V, InfoCache) {}
 
-    /// See AbstractAttribute::getAttrKind()/
-    virtual Attribute::AttrKind getAttrKind() const override { return ID; }
+  /// See AbstractAttribute::getAttrKind()/
+  Attribute::AttrKind getAttrKind() const override { return ID; }
 
-    static constexpr Attribute::AttrKind ID = Attribute::NoUnwind;
+  static constexpr Attribute::AttrKind ID = Attribute::NoUnwind;
 
-    /// Returns true if nounwind is assumed.
-    virtual bool isAssumedNoUnwind() const = 0;
+  /// Returns true if nounwind is assumed.
+  virtual bool isAssumedNoUnwind() const = 0;
 
-    /// Returns true if nounwind is known.
-    virtual bool isKnownNoUnwind() const = 0;
+  /// Returns true if nounwind is known.
+  virtual bool isKnownNoUnwind() const = 0;
+};
+
+struct AANoSync : public AbstractAttribute {
+  /// An abstract interface for all nosync attributes.
+  AANoSync(Value &V, InformationCache &InfoCache)
+      : AbstractAttribute(V, InfoCache) {}
+
+  /// See AbstractAttribute::getAttrKind().
+  Attribute::AttrKind getAttrKind() const override { return ID; }
+
+  static constexpr Attribute::AttrKind ID =
+      Attribute::AttrKind(Attribute::NoSync);
+
+  /// Returns true if "nosync" is assumed.
+  virtual bool isAssumedNoSync() const = 0;
+
+  /// Returns true if "nosync" is known.
+  virtual bool isKnownNoSync() const = 0;
 };
 
 } // end namespace llvm

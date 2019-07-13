@@ -336,6 +336,7 @@ static cl::extrahelp
     HelpResponse("\nPass @FILE as argument to read options from FILE.\n");
 
 static StringSet<> DisasmFuncsSet;
+static StringSet<> FoundSectionSet;
 static StringRef ToolName;
 
 typedef std::vector<std::tuple<uint64_t, StringRef, uint8_t>> SectionSymbolsTy;
@@ -343,11 +344,15 @@ typedef std::vector<std::tuple<uint64_t, StringRef, uint8_t>> SectionSymbolsTy;
 static bool shouldKeep(object::SectionRef S) {
   if (FilterSections.empty())
     return true;
-  StringRef String;
-  std::error_code error = S.getName(String);
+  StringRef SecName;
+  std::error_code error = S.getName(SecName);
   if (error)
     return false;
-  return is_contained(FilterSections, String);
+  // StringSet does not allow empty key so avoid adding sections with
+  // no name (such as the section with index 0) here.
+  if (!SecName.empty())
+    FoundSectionSet.insert(SecName);
+  return is_contained(FilterSections, SecName);
 }
 
 SectionFilter ToolSectionFilter(object::ObjectFile const &O) {
@@ -381,8 +386,12 @@ void warn(StringRef Message) {
   errs().flush();
 }
 
-void warn(Twine Message) {
+static void warn(Twine Message) {
+  // Output order between errs() and outs() matters especially for archive
+  // files where the output is per member object.
+  outs().flush();
   WithColor::warning(errs(), ToolName) << Message << "\n";
+  errs().flush();
 }
 
 LLVM_ATTRIBUTE_NORETURN void report_error(StringRef File, Twine Message) {
@@ -432,6 +441,22 @@ LLVM_ATTRIBUTE_NORETURN void report_error(Error E, StringRef ArchiveName,
     report_error(std::move(E), ArchiveName, "???", ArchitectureName);
   } else
     report_error(std::move(E), ArchiveName, NameOrErr.get(), ArchitectureName);
+}
+
+static void warnOnNoMatchForSections() {
+  SetVector<StringRef> MissingSections;
+  for (StringRef S : FilterSections) {
+    if (FoundSectionSet.count(S))
+      return;
+    // User may specify a unnamed section. Don't warn for it.
+    if (!S.empty())
+      MissingSections.insert(S);
+  }
+
+  // Warn only if no section in FilterSections is matched.
+  for (StringRef S : MissingSections)
+    warn("section '" + S + "' mentioned in a -j/--section option, but not "
+         "found in any input file");
 }
 
 static const Target *getTarget(const ObjectFile *Obj = nullptr) {
@@ -579,8 +604,7 @@ void SourcePrinter::printSourceLine(raw_ostream &OS,
     return;
 
   DILineInfo LineInfo = DILineInfo();
-  auto ExpectedLineInfo =
-      Symbolizer->symbolizeCode(Obj->getFileName(), Address);
+  auto ExpectedLineInfo = Symbolizer->symbolizeCode(*Obj, Address);
   if (!ExpectedLineInfo)
     consumeError(ExpectedLineInfo.takeError());
   else
@@ -2156,6 +2180,8 @@ int main(int argc, char **argv) {
                         DisassembleFunctions.end());
 
   llvm::for_each(InputFilenames, dumpInput);
+
+  warnOnNoMatchForSections();
 
   return EXIT_SUCCESS;
 }

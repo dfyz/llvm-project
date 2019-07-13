@@ -353,6 +353,10 @@ class LocalAddress : CodePatPred<[{
   return cast<MemSDNode>(N)->getAddressSpace() == AMDGPUAS::LOCAL_ADDRESS;
 }]>;
 
+class RegionAddress : CodePatPred<[{
+  return cast<MemSDNode>(N)->getAddressSpace() == AMDGPUAS::REGION_ADDRESS;
+}]>;
+
 class GlobalAddress : CodePatPred<[{
   return cast<MemSDNode>(N)->getAddressSpace() == AMDGPUAS::GLOBAL_ADDRESS;
 }]>;
@@ -402,6 +406,9 @@ class PrivateStore <SDPatternOperator op> : StoreFrag <op>, PrivateAddress;
 class LocalLoad <SDPatternOperator op> : LoadFrag <op>, LocalAddress;
 class LocalStore <SDPatternOperator op> : StoreFrag <op>, LocalAddress;
 
+class RegionLoad <SDPatternOperator op> : LoadFrag <op>, RegionAddress;
+class RegionStore <SDPatternOperator op> : StoreFrag <op>, RegionAddress;
+
 class GlobalLoad <SDPatternOperator op> : LoadFrag<op>, GlobalLoadAddress;
 class GlobalStore <SDPatternOperator op> : StoreFrag<op>, GlobalAddress;
 
@@ -439,9 +446,11 @@ def truncstorei8_hi16_global : StoreHi16 <truncstorei8>, GlobalAddress;
 def truncstorei16_hi16_global : StoreHi16 <truncstorei16>, GlobalAddress;
 
 def load_local : LocalLoad <load>;
-def az_extloadi8_local : LocalLoad <az_extloadi8>;
+def extloadi8_local : LocalLoad <extloadi8>;
+def zextloadi8_local : LocalLoad <zextloadi8>;
 def sextloadi8_local : LocalLoad <sextloadi8>;
-def az_extloadi16_local : LocalLoad <az_extloadi16>;
+def extloadi16_local : LocalLoad <extloadi16>;
+def zextloadi16_local : LocalLoad <zextloadi16>;
 def sextloadi16_local : LocalLoad <sextloadi16>;
 def atomic_load_32_local : LocalLoad<atomic_load_32>;
 def atomic_load_64_local : LocalLoad<atomic_load_64>;
@@ -497,6 +506,13 @@ class local_binary_atomic_op<SDNode atomic_op> :
   return cast<MemSDNode>(N)->getAddressSpace() == AMDGPUAS::LOCAL_ADDRESS;
 }]>;
 
+class region_binary_atomic_op<SDNode atomic_op> :
+  PatFrag<(ops node:$ptr, node:$value),
+    (atomic_op node:$ptr, node:$value), [{
+  return cast<MemSDNode>(N)->getAddressSpace() == AMDGPUAS::REGION_ADDRESS;
+}]>;
+
+
 def atomic_swap_local : local_binary_atomic_op<atomic_swap>;
 def atomic_load_add_local : local_binary_atomic_op<atomic_load_add>;
 def atomic_load_sub_local : local_binary_atomic_op<atomic_load_sub>;
@@ -521,13 +537,22 @@ class AtomicCmpSwapLocal <SDNode cmp_swap_node> : PatFrag<
       return AN->getAddressSpace() == AMDGPUAS::LOCAL_ADDRESS;
 }]>;
 
+class AtomicCmpSwapRegion <SDNode cmp_swap_node> : PatFrag<
+    (ops node:$ptr, node:$cmp, node:$swap),
+    (cmp_swap_node node:$ptr, node:$cmp, node:$swap), [{
+      AtomicSDNode *AN = cast<AtomicSDNode>(N);
+      return AN->getAddressSpace() == AMDGPUAS::REGION_ADDRESS;
+}]>;
+
 def atomic_cmp_swap_local : AtomicCmpSwapLocal <atomic_cmp_swap>;
 
+class global_binary_atomic_op_frag<SDNode atomic_op> : PatFrag<
+    (ops node:$ptr, node:$value),
+    (atomic_op node:$ptr, node:$value),
+    [{return cast<MemSDNode>(N)->getAddressSpace() == AMDGPUAS::GLOBAL_ADDRESS;}]>;
+
 multiclass global_binary_atomic_op<SDNode atomic_op> {
-  def "" : PatFrag<
-        (ops node:$ptr, node:$value),
-        (atomic_op node:$ptr, node:$value),
-        [{return cast<MemSDNode>(N)->getAddressSpace() == AMDGPUAS::GLOBAL_ADDRESS;}]>;
+  def "" : global_binary_atomic_op_frag<atomic_op>;
 
   def _noret : PatFrag<
         (ops node:$ptr, node:$value),

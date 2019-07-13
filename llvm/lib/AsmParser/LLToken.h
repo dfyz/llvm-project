@@ -37,6 +37,7 @@ enum Kind {
   bar,     // |
   colon,   // :
 
+  kw_vscale,
   kw_x,
   kw_true,
   kw_false,
@@ -194,6 +195,7 @@ enum Kind {
   kw_nobuiltin,
   kw_nocapture,
   kw_noduplicate,
+  kw_nofree,
   kw_noimplicitfloat,
   kw_noinline,
   kw_norecurse,
@@ -201,6 +203,7 @@ enum Kind {
   kw_nonnull,
   kw_noredzone,
   kw_noreturn,
+  kw_nosync,
   kw_nocf_check,
   kw_nounwind,
   kw_optforfuzzing,
@@ -383,6 +386,8 @@ enum Kind {
   kw_critical,
   kw_relbf,
   kw_variable,
+  kw_vTableFuncs,
+  kw_virtFunc,
   kw_aliasee,
   kw_refs,
   kw_typeIdInfo,
@@ -395,6 +400,7 @@ enum Kind {
   kw_offset,
   kw_args,
   kw_typeid,
+  kw_typeidCompatibleVTable,
   kw_summary,
   kw_typeTestRes,
   kw_kind,

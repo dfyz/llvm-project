@@ -28,7 +28,7 @@ AlphaTargetMachine::AlphaTargetMachine(const Target &T, const Triple &TT, String
                                        StringRef FS, const TargetOptions &Options,
                                        Optional<Reloc::Model> RM, Optional<CodeModel::Model> CM,
                                        CodeGenOpt::Level OL, bool JIT)
-  : LLVMTargetMachine(T, "e-f128:128:128-n64", TT, CPU, FS, Options,
+  : LLVMTargetMachine(T, "e-m:m-f128:128:128-n64", TT, CPU, FS, Options,
                       RM.getValueOr(Reloc::Static), CM.getValueOr(CodeModel::Small), OL),
     TLOF(make_unique<TargetLoweringObjectFileELF>()),
     Subtarget(TT, CPU, FS, *this)

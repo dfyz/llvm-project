@@ -1,3 +1,2 @@
-Failing Tests (2):
+Failing Tests (1):
     LLVM :: CodeGen/Alpha/jmp_table.ll
-    LLVM :: CodeGen/Alpha/private.ll

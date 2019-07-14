@@ -36,6 +36,8 @@ class AlphaSubtarget : public AlphaGenSubtargetInfo {
   AlphaTargetLowering TLInfo;
   SelectionDAGTargetInfo TSInfo;
 
+  AlphaSubtarget &initializeSubtargetDependencies(const std::string &CPU, const std::string &FS);
+
 public:
   /// This constructor initializes the data members to match that
   /// of the specified triple.

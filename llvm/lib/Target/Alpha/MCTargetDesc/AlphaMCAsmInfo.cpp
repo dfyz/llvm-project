@@ -17,6 +17,6 @@ using namespace llvm;
 AlphaMCAsmInfo::AlphaMCAsmInfo(const Triple & /*TT*/) {
   AlignmentIsInBytes = false;
   PrivateGlobalPrefix = "$";
-  GPRel32Directive = ".gprel32";
+  GPRel32Directive = "\t.gprel32\t";
   WeakRefDirective = "\t.weak\t";
 }

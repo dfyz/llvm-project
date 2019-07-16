@@ -1,2 +1,1 @@
-Failing Tests (1):
-    LLVM :: CodeGen/Alpha/jmp_table.ll
+* create a clang target for Alpha

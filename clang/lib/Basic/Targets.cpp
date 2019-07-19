@@ -13,6 +13,7 @@
 
 #include "Targets.h"
 
+#include "Targets/Alpha.h"
 #include "Targets/AArch64.h"
 #include "Targets/AMDGPU.h"
 #include "Targets/ARC.h"
@@ -121,6 +122,14 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
 
   case llvm::Triple::lanai:
     return new LanaiTargetInfo(Triple, Opts);
+
+  case llvm::Triple::alpha:
+    switch (os) {
+    case llvm::Triple::Linux:
+      return new LinuxTargetInfo<AlphaTargetInfo>(Triple, Opts);
+    default:
+      return nullptr;
+    }
 
   case llvm::Triple::aarch64:
     if (Triple.isOSDarwin())

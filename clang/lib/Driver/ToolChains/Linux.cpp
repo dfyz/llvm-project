@@ -549,6 +549,10 @@ std::string Linux::getDynamicLinker(const ArgList &Args) const {
   default:
     llvm_unreachable("unsupported architecture");
 
+  case llvm::Triple::alpha:
+    LibDir = "lib";
+    Loader = "ld-linux.so.2";
+    break;
   case llvm::Triple::aarch64:
     LibDir = "lib";
     Loader = "ld-linux-aarch64.so.1";

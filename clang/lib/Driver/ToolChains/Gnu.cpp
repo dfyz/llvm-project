@@ -256,6 +256,8 @@ static bool isArmBigEndian(const llvm::Triple &Triple,
 
 static const char *getLDMOption(const llvm::Triple &T, const ArgList &Args) {
   switch (T.getArch()) {
+  case llvm::Triple::alpha:
+    return "elf64alpha";
   case llvm::Triple::x86:
     if (T.isOSIAMCU())
       return "elf_iamcu";

@@ -320,9 +320,8 @@ static void readConfigs(opt::InputArgList &args) {
       args.hasFlag(OPT_fatal_warnings, OPT_no_fatal_warnings, false);
   config->importMemory = args.hasArg(OPT_import_memory);
   config->sharedMemory = args.hasArg(OPT_shared_memory);
-  // TODO: Make passive segments the default with shared memory
-  config->passiveSegments =
-      args.hasFlag(OPT_passive_segments, OPT_active_segments, false);
+  config->passiveSegments = args.hasFlag(
+      OPT_passive_segments, OPT_active_segments, config->sharedMemory);
   config->importTable = args.hasArg(OPT_import_table);
   config->ltoo = args::getInteger(args, OPT_lto_O, 2);
   config->ltoPartitions = args::getInteger(args, OPT_lto_partitions, 1);
@@ -451,9 +450,20 @@ createUndefinedGlobal(StringRef name, llvm::wasm::WasmGlobalType *type) {
   return sym;
 }
 
+static GlobalSymbol *createGlobalVariable(StringRef name, bool isMutable) {
+  llvm::wasm::WasmGlobal wasmGlobal;
+  wasmGlobal.Type = {WASM_TYPE_I32, isMutable};
+  wasmGlobal.InitExpr.Value.Int32 = 0;
+  wasmGlobal.InitExpr.Opcode = WASM_OPCODE_I32_CONST;
+  wasmGlobal.SymbolName = name;
+  return symtab->addSyntheticGlobal(name, WASM_SYMBOL_VISIBILITY_HIDDEN,
+                                    make<InputGlobal>(wasmGlobal, nullptr));
+}
+
 // Create ABI-defined synthetic symbols
 static void createSyntheticSymbols() {
   static WasmSignature nullSignature = {{}, {}};
+  static WasmSignature i32ArgSignature = {{}, {ValType::I32}};
   static llvm::wasm::WasmGlobalType globalTypeI32 = {WASM_TYPE_I32, false};
   static llvm::wasm::WasmGlobalType mutableGlobalTypeI32 = {WASM_TYPE_I32,
                                                             true};
@@ -514,6 +524,15 @@ static void createSyntheticSymbols() {
         "__stack_pointer", WASM_SYMBOL_VISIBILITY_HIDDEN, stackPointer);
     WasmSym::globalBase = symtab->addOptionalDataSymbol("__global_base");
     WasmSym::heapBase = symtab->addOptionalDataSymbol("__heap_base");
+  }
+
+  if (config->sharedMemory && !config->shared) {
+    WasmSym::tlsBase = createGlobalVariable("__tls_base", true);
+    WasmSym::tlsSize = createGlobalVariable("__tls_size", false);
+    WasmSym::tlsAlign = createGlobalVariable("__tls_align", false);
+    WasmSym::initTLS = symtab->addSyntheticFunction(
+        "__wasm_init_tls", WASM_SYMBOL_VISIBILITY_HIDDEN,
+        make<SyntheticFunction>(i32ArgSignature, "__wasm_init_tls"));
   }
 
   WasmSym::dsoHandle = symtab->addSyntheticDataSymbol(

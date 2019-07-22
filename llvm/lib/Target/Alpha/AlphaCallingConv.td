@@ -35,3 +35,5 @@ def CC_Alpha : CallingConv<[
   // Stack slots are 8 bytes in size and 8-byte aligned.
   CCIfType<[i64, f32, f64], CCAssignToStack<8, 8>>
 ]>;
+
+def CSR_Alpha : CalleeSavedRegs<(add (sequence "R%u", 9, 14))>;

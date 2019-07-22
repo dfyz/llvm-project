@@ -55,18 +55,14 @@ static long getLower16(long l) {
   return l - h * Alpha::IMM_MULT;
 }
 
-const MCPhysReg* AlphaRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF)
-                                                                         const {
-  static const MCPhysReg CalleeSavedRegs[] = {
-    Alpha::R9, Alpha::R10,
-    Alpha::R11, Alpha::R12,
-    Alpha::R13, Alpha::R14,
-    Alpha::F2, Alpha::F3,
-    Alpha::F4, Alpha::F5,
-    Alpha::F6, Alpha::F7,
-    Alpha::F8, Alpha::F9,  0
-  };
-  return CalleeSavedRegs;
+const uint32_t *AlphaRegisterInfo::getCallPreservedMask(const MachineFunction &MF,
+                                                        CallingConv::ID) const {
+  return CSR_Alpha_RegMask;
+}
+
+const MCPhysReg *AlphaRegisterInfo::getCalleeSavedRegs(const MachineFunction *MF)
+const {
+  return CSR_Alpha_SaveList;
 }
 
 BitVector AlphaRegisterInfo::getReservedRegs(const MachineFunction &MF) const {

@@ -33,6 +33,7 @@ AlphaSubtarget &AlphaSubtarget::initializeSubtargetDependencies(
 
   // Initialize scheduling itinerary for the specified CPU.
   InstrItins = getInstrItineraryForCPU(CPUName);
+  return *this;
 }
 
 AlphaSubtarget::AlphaSubtarget(const Triple &TT, const std::string &CPU,

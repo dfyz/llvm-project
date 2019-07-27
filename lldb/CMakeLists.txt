@@ -52,7 +52,9 @@ if(CMAKE_CROSSCOMPILING AND LLDB_BUILT_STANDALONE)
     -DClang_DIR=${NATIVE_Clang_DIR})
 endif()
 
+# TableGen
 add_subdirectory(utils/TableGen)
+
 add_subdirectory(source)
 add_subdirectory(tools)
 add_subdirectory(docs)

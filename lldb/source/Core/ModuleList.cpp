@@ -66,23 +66,14 @@ using namespace lldb_private;
 namespace {
 
 static constexpr PropertyDefinition g_properties[] = {
-    {"enable-external-lookup", OptionValue::eTypeBoolean, true, true, nullptr,
-     {},
-     "Control the use of external tools and repositories to locate symbol "
-     "files. Directories listed in target.debug-file-search-paths and "
-     "directory of the executable are always checked first for separate debug "
-     "info files. Then depending on this setting: "
-     "On macOS, Spotlight would be also used to locate a matching .dSYM "
-     "bundle based on the UUID of the executable. "
-     "On NetBSD, directory /usr/libdata/debug would be also searched. "
-     "On platforms other than NetBSD directory /usr/lib/debug would be "
-     "also searched."
-    },
-    {"clang-modules-cache-path", OptionValue::eTypeFileSpec, true, 0, nullptr,
-     {},
-     "The path to the clang modules cache directory (-fmodules-cache-path)."}};
+#define LLDB_PROPERTIES_modulelist
+#include "Properties.inc"
+};
 
-enum { ePropertyEnableExternalLookup, ePropertyClangModulesCachePath };
+enum {
+#define LLDB_PROPERTIES_modulelist
+#include "PropertiesEnum.inc"
+};
 
 } // namespace
 
@@ -135,9 +126,9 @@ ModuleList::ModuleList(ModuleList::Notifier *notifier)
 const ModuleList &ModuleList::operator=(const ModuleList &rhs) {
   if (this != &rhs) {
     std::lock(m_modules_mutex, rhs.m_modules_mutex);
-    std::lock_guard<std::recursive_mutex> lhs_guard(m_modules_mutex, 
+    std::lock_guard<std::recursive_mutex> lhs_guard(m_modules_mutex,
                                                     std::adopt_lock);
-    std::lock_guard<std::recursive_mutex> rhs_guard(rhs.m_modules_mutex, 
+    std::lock_guard<std::recursive_mutex> rhs_guard(rhs.m_modules_mutex,
                                                     std::adopt_lock);
     m_modules = rhs.m_modules;
   }
@@ -155,8 +146,8 @@ void ModuleList::AppendImpl(const ModuleSP &module_sp, bool use_notifier) {
   }
 }
 
-void ModuleList::Append(const ModuleSP &module_sp, bool notify) { 
-  AppendImpl(module_sp, notify); 
+void ModuleList::Append(const ModuleSP &module_sp, bool notify) {
+  AppendImpl(module_sp, notify);
 }
 
 void ModuleList::ReplaceEquivalent(const ModuleSP &module_sp) {
@@ -641,11 +632,11 @@ void ModuleList::LogUUIDAndPaths(Log *log, const char *prefix_cstr) {
     for (pos = begin; pos != end; ++pos) {
       Module *module = pos->get();
       const FileSpec &module_file_spec = module->GetFileSpec();
-      log->Printf("%s[%u] %s (%s) \"%s\"", prefix_cstr ? prefix_cstr : "",
-                  (uint32_t)std::distance(begin, pos),
-                  module->GetUUID().GetAsString().c_str(),
-                  module->GetArchitecture().GetArchitectureName(),
-                  module_file_spec.GetPath().c_str());
+      LLDB_LOGF(log, "%s[%u] %s (%s) \"%s\"", prefix_cstr ? prefix_cstr : "",
+                (uint32_t)std::distance(begin, pos),
+                module->GetUUID().GetAsString().c_str(),
+                module->GetArchitecture().GetArchitectureName(),
+                module_file_spec.GetPath().c_str());
     }
   }
 }
@@ -808,8 +799,9 @@ Status ModuleList::GetSharedModule(const ModuleSpec &module_spec,
 
           Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_MODULES));
           if (log != nullptr)
-            log->Printf("module changed: %p, removing from global module list",
-                        static_cast<void *>(module_sp.get()));
+            LLDB_LOGF(log,
+                      "module changed: %p, removing from global module list",
+                      static_cast<void *>(module_sp.get()));
 
           shared_module_list.Remove(module_sp);
           module_sp.reset();

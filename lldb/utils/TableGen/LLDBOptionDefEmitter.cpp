@@ -1,4 +1,4 @@
-//===- TableGen.cpp - Top-Level TableGen implementation for Clang ---------===//
+//===- LLDBOptionDefEmitter.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -81,7 +81,13 @@ static void emitOption(Record *Option, raw_ostream &OS) {
       OS << "eRequiredArgument";
   } else
     OS << "eNoArgument";
-  OS << ", nullptr, ";
+  OS << ", ";
+
+  if (Option->getValue("Validator"))
+    OS << Option->getValueAsString("Validator");
+  else
+    OS << "nullptr";
+  OS << ", ";
 
   if (Option->getValue("ArgEnum"))
     OS << Option->getValueAsString("ArgEnum");
@@ -111,9 +117,11 @@ static void emitOption(Record *Option, raw_ostream &OS) {
   OS << ", ";
 
   // Add the description if there is any.
-  if (auto D = Option->getValue("Description"))
-    OS << D->getValue()->getAsString();
-  else
+  if (auto D = Option->getValue("Description")) {
+    OS << "\"";
+    llvm::printEscapedString(D->getValue()->getAsUnquotedString(), OS);
+    OS << "\"";
+  } else
     OS << "\"\"";
   OS << "},\n";
 }

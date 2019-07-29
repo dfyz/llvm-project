@@ -319,6 +319,10 @@ AlphaTargetLowering::LowerCall(CallLoweringInfo &CLI,
     Ops.push_back(CLI.DAG.getRegister(RegsToPass[i].first,
                                   RegsToPass[i].second.getValueType()));
 
+  const uint32_t *Mask =
+      Subtarget.getRegisterInfo()->getCallPreservedMask(CLI.DAG.getMachineFunction(), CLI.CallConv);
+  Ops.push_back(CLI.DAG.getRegisterMask(Mask));
+
   if (InFlag.getNode())
     Ops.push_back(InFlag);
 

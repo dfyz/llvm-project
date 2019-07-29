@@ -1,1 +1,3 @@
-* create a clang target for Alpha
+clang:
+  * fix a segfault when trying to use clobbered R29
+  * fix missing BB labels when compiling with -O0

@@ -208,9 +208,9 @@ defm CMOVLBS : cmov_inst<0x14, "cmovlbs", CmpOpFrag<(and   node:$R, 1)>>;
 
 //General pattern for cmov
 def : Pat<(select GPRC:$which, GPRC:$src1, GPRC:$src2),
-      (CMOVNEr GPRC:$src2, GPRC:$src1, GPRC:$which)>;
+      (CMOVNEr GPRC:$which, GPRC:$src1, GPRC:$src2)>;
 def : Pat<(select GPRC:$which, GPRC:$src1, immUExt8:$src2),
-      (CMOVEQi GPRC:$src1, immUExt8:$src2, GPRC:$which)>;
+      (CMOVEQi GPRC:$which, immUExt8:$src2, GPRC:$src1)>;
 
 //Invert sense when we can for constants:
 def : Pat<(select (setne GPRC:$RCOND, 0), GPRC:$RTRUE, immUExt8:$RFALSE),

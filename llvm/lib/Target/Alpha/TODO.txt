@@ -1,4 +1,3 @@
 clang:
-  * fix integer selects
   * fix missing BB labels when compiling with -O0
   * fix machine code verification failures

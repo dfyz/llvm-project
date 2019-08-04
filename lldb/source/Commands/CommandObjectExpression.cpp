@@ -38,19 +38,24 @@ CommandObjectExpression::CommandOptions::CommandOptions() : OptionGroup() {}
 CommandObjectExpression::CommandOptions::~CommandOptions() = default;
 
 static constexpr OptionEnumValueElement g_description_verbosity_type[] = {
-    {eLanguageRuntimeDescriptionDisplayVerbosityCompact, "compact",
-     "Only show the description string"},
-    {eLanguageRuntimeDescriptionDisplayVerbosityFull, "full",
-     "Show the full output, including persistent variable's name and type"} };
+    {
+        eLanguageRuntimeDescriptionDisplayVerbosityCompact,
+        "compact",
+        "Only show the description string",
+    },
+    {
+        eLanguageRuntimeDescriptionDisplayVerbosityFull,
+        "full",
+        "Show the full output, including persistent variable's name and type",
+    },
+};
 
 static constexpr OptionEnumValues DescriptionVerbosityTypes() {
   return OptionEnumValues(g_description_verbosity_type);
 }
 
-static constexpr OptionDefinition g_expression_options[] = {
 #define LLDB_OPTIONS_expression
 #include "CommandOptions.inc"
-};
 
 Status CommandObjectExpression::CommandOptions::SetOptionValue(
     uint32_t option_idx, llvm::StringRef option_arg,

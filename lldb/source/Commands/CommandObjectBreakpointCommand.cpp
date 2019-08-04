@@ -26,28 +26,33 @@
 using namespace lldb;
 using namespace lldb_private;
 
-// CommandObjectBreakpointCommandAdd
-
 // FIXME: "script-type" needs to have its contents determined dynamically, so
-// somebody can add a new scripting
-// language to lldb and have it pickable here without having to change this
-// enumeration by hand and rebuild lldb proper.
-
+// somebody can add a new scripting language to lldb and have it pickable here
+// without having to change this enumeration by hand and rebuild lldb proper.
 static constexpr OptionEnumValueElement g_script_option_enumeration[] = {
-    {eScriptLanguageNone, "command",
-     "Commands are in the lldb command interpreter language"},
-    {eScriptLanguagePython, "python", "Commands are in the Python language."},
-    {eSortOrderByName, "default-script",
-     "Commands are in the default scripting language."} };
+    {
+        eScriptLanguageNone,
+        "command",
+        "Commands are in the lldb command interpreter language",
+    },
+    {
+        eScriptLanguagePython,
+        "python",
+        "Commands are in the Python language.",
+    },
+    {
+        eSortOrderByName,
+        "default-script",
+        "Commands are in the default scripting language.",
+    },
+};
 
 static constexpr OptionEnumValues ScriptOptionEnum() {
   return OptionEnumValues(g_script_option_enumeration);
 }
 
-static constexpr OptionDefinition g_breakpoint_add_options[] = {
 #define LLDB_OPTIONS_breakpoint_command_add
 #include "CommandOptions.inc"
-};
 
 class CommandObjectBreakpointCommandAdd : public CommandObjectParsed,
                                           public IOHandlerDelegateMultiline {
@@ -286,7 +291,8 @@ are no syntax errors may indicate that a function was declared but never called.
 
       case 's':
         m_script_language = (lldb::ScriptLanguage)OptionArgParser::ToOptionEnum(
-            option_arg, g_breakpoint_add_options[option_idx].enum_values,
+            option_arg,
+            g_breakpoint_command_add_options[option_idx].enum_values,
             eScriptLanguageNone, error);
 
         if (m_script_language == eScriptLanguagePython ||
@@ -336,7 +342,7 @@ are no syntax errors may indicate that a function was declared but never called.
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_breakpoint_add_options);
+      return llvm::makeArrayRef(g_breakpoint_command_add_options);
     }
 
     // Instance variables to hold the values for command options.
@@ -464,10 +470,8 @@ const char *CommandObjectBreakpointCommandAdd::g_reader_instructions =
 
 // CommandObjectBreakpointCommandDelete
 
-static constexpr OptionDefinition g_breakpoint_delete_options[] = {
 #define LLDB_OPTIONS_breakpoint_command_delete
 #include "CommandOptions.inc"
-};
 
 class CommandObjectBreakpointCommandDelete : public CommandObjectParsed {
 public:
@@ -525,7 +529,7 @@ public:
     }
 
     llvm::ArrayRef<OptionDefinition> GetDefinitions() override {
-      return llvm::makeArrayRef(g_breakpoint_delete_options);
+      return llvm::makeArrayRef(g_breakpoint_command_delete_options);
     }
 
     // Instance variables to hold the values for command options.
@@ -561,7 +565,7 @@ protected:
 
     BreakpointIDList valid_bp_ids;
     CommandObjectMultiwordBreakpoint::VerifyBreakpointOrLocationIDs(
-        command, target, result, &valid_bp_ids, 
+        command, target, result, &valid_bp_ids,
         BreakpointName::Permissions::PermissionKinds::listPerm);
 
     if (result.Succeeded()) {
@@ -651,7 +655,7 @@ protected:
 
     BreakpointIDList valid_bp_ids;
     CommandObjectMultiwordBreakpoint::VerifyBreakpointOrLocationIDs(
-        command, target, result, &valid_bp_ids, 
+        command, target, result, &valid_bp_ids,
         BreakpointName::Permissions::PermissionKinds::listPerm);
 
     if (result.Succeeded()) {

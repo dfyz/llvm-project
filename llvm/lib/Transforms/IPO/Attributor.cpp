@@ -72,6 +72,9 @@ STATISTIC(NumFnArgumentDereferenceable,
           "Number of function arguments marked dereferenceable");
 STATISTIC(NumCSArgumentDereferenceable,
           "Number of call site arguments marked dereferenceable");
+STATISTIC(NumFnReturnedAlign, "Number of function return values marked align");
+STATISTIC(NumFnArgumentAlign, "Number of function arguments marked align");
+STATISTIC(NumCSArgumentAlign, "Number of call site arguments marked align");
 
 // TODO: Determine a good default value.
 //
@@ -115,6 +118,21 @@ static void bookkeeping(AbstractAttribute::ManifestPosition MP,
     return;
 
   switch (Attr.getKindAsEnum()) {
+  case Attribute::Alignment:
+    switch (MP) {
+    case AbstractAttribute::MP_RETURNED:
+      NumFnReturnedAlign++;
+      break;
+    case AbstractAttribute::MP_ARGUMENT:
+      NumFnArgumentAlign++;
+      break;
+    case AbstractAttribute::MP_CALL_SITE_ARGUMENT:
+      NumCSArgumentAlign++;
+      break;
+    default:
+      break;
+    }
+    break;
   case Attribute::Dereferenceable:
     switch (MP) {
     case AbstractAttribute::MP_RETURNED:
@@ -457,8 +475,14 @@ ChangeStatus AANoUnwindFunction::updateImpl(Attributor &A) {
       (unsigned)Instruction::Call,        (unsigned)Instruction::CleanupRet,
       (unsigned)Instruction::CatchSwitch, (unsigned)Instruction::Resume};
 
+  auto *LivenessAA = A.getAAFor<AAIsDead>(*this, F);
+
   for (unsigned Opcode : Opcodes) {
     for (Instruction *I : OpcodeInstMap[Opcode]) {
+      // Skip dead instructions.
+      if (LivenessAA && LivenessAA->isAssumedDead(I))
+        continue;
+
       if (!I->mayThrow())
         continue;
 
@@ -583,11 +607,13 @@ public:
   /// Return an assumed unique return value if a single candidate is found. If
   /// there cannot be one, return a nullptr. If it is not clear yet, return the
   /// Optional::NoneType.
-  Optional<Value *> getAssumedUniqueReturnValue() const;
+  Optional<Value *>
+  getAssumedUniqueReturnValue(const AAIsDead *LivenessAA) const;
 
   /// See AbstractState::checkForallReturnedValues(...).
-  bool
-  checkForallReturnedValues(std::function<bool(Value &)> &Pred) const override;
+  bool checkForallReturnedValues(
+      std::function<bool(Value &, const SmallPtrSetImpl<ReturnInst *> &)> &Pred)
+      const override;
 
   /// Pretty print the attribute similar to the IR representation.
   const std::string getAsStr() const override;
@@ -603,6 +629,7 @@ public:
     IsFixed = true;
     IsValidState &= true;
   }
+
   void indicatePessimisticFixpoint() override {
     IsFixed = true;
     IsValidState = false;
@@ -616,8 +643,10 @@ ChangeStatus AAReturnedValuesImpl::manifest(Attributor &A) {
   assert(isValidState());
   NumFnKnownReturns++;
 
+  auto *LivenessAA = A.getAAFor<AAIsDead>(*this, getAnchorScope());
+
   // Check if we have an assumed unique return value that we could manifest.
-  Optional<Value *> UniqueRV = getAssumedUniqueReturnValue();
+  Optional<Value *> UniqueRV = getAssumedUniqueReturnValue(LivenessAA);
 
   if (!UniqueRV.hasValue() || !UniqueRV.getValue())
     return Changed;
@@ -639,7 +668,8 @@ const std::string AAReturnedValuesImpl::getAsStr() const {
          (isValidState() ? std::to_string(getNumReturnValues()) : "?") + ")";
 }
 
-Optional<Value *> AAReturnedValuesImpl::getAssumedUniqueReturnValue() const {
+Optional<Value *> AAReturnedValuesImpl::getAssumedUniqueReturnValue(
+    const AAIsDead *LivenessAA) const {
   // If checkForallReturnedValues provides a unique value, ignoring potential
   // undef values that can also be present, it is assumed to be the actual
   // return value and forwarded to the caller of this method. If there are
@@ -647,7 +677,14 @@ Optional<Value *> AAReturnedValuesImpl::getAssumedUniqueReturnValue() const {
   // returned value.
   Optional<Value *> UniqueRV;
 
-  std::function<bool(Value &)> Pred = [&](Value &RV) -> bool {
+  std::function<bool(Value &, const SmallPtrSetImpl<ReturnInst *> &)> Pred =
+      [&](Value &RV, const SmallPtrSetImpl<ReturnInst *> &RetInsts) -> bool {
+    // If all ReturnInsts are dead, then ReturnValue is dead as well
+    // and can be ignored.
+    if (LivenessAA &&
+        !LivenessAA->isLiveInstSet(RetInsts.begin(), RetInsts.end()))
+      return true;
+
     // If we found a second returned value and neither the current nor the saved
     // one is an undef, there is no unique returned value. Undefs are special
     // since we can pretend they have any value.
@@ -671,7 +708,8 @@ Optional<Value *> AAReturnedValuesImpl::getAssumedUniqueReturnValue() const {
 }
 
 bool AAReturnedValuesImpl::checkForallReturnedValues(
-    std::function<bool(Value &)> &Pred) const {
+    std::function<bool(Value &, const SmallPtrSetImpl<ReturnInst *> &)> &Pred)
+    const {
   if (!isValidState())
     return false;
 
@@ -679,12 +717,13 @@ bool AAReturnedValuesImpl::checkForallReturnedValues(
   // encountered an overdefined one during an update.
   for (auto &It : ReturnedValues) {
     Value *RV = It.first;
+    const SmallPtrSetImpl<ReturnInst *> &RetInsts = It.second;
 
     ImmutableCallSite ICS(RV);
     if (ICS && !HasOverdefinedReturnedCalls)
       continue;
 
-    if (!Pred(*RV))
+    if (!Pred(*RV, RetInsts))
       return false;
   }
 
@@ -704,10 +743,21 @@ ChangeStatus AAReturnedValuesImpl::updateImpl(Attributor &A) {
   decltype(ReturnedValues) AddRVs;
   bool HasCallSite = false;
 
+  // Keep track of any change to trigger updates on dependent attributes.
+  ChangeStatus Changed = ChangeStatus::UNCHANGED;
+
+  auto *LivenessAA = A.getAAFor<AAIsDead>(*this, getAnchorScope());
+
   // Look at all returned call sites.
   for (auto &It : ReturnedValues) {
     SmallPtrSet<ReturnInst *, 2> &ReturnInsts = It.second;
     Value *RV = It.first;
+
+    // Ignore dead ReturnValues.
+    if (LivenessAA &&
+        !LivenessAA->isLiveInstSet(ReturnInsts.begin(), ReturnInsts.end()))
+      continue;
+
     LLVM_DEBUG(dbgs() << "[AAReturnedValues] Potentially returned value " << *RV
                       << "\n");
 
@@ -724,6 +774,8 @@ ChangeStatus AAReturnedValuesImpl::updateImpl(Attributor &A) {
     // Try to find a assumed unique return value for the called function.
     auto *RetCSAA = A.getAAFor<AAReturnedValuesImpl>(*this, *RV);
     if (!RetCSAA) {
+      if (!HasOverdefinedReturnedCalls)
+        Changed = ChangeStatus::CHANGED;
       HasOverdefinedReturnedCalls = true;
       LLVM_DEBUG(dbgs() << "[AAReturnedValues] Returned call site (" << *RV
                         << ") with " << (RetCSAA ? "invalid" : "no")
@@ -731,8 +783,11 @@ ChangeStatus AAReturnedValuesImpl::updateImpl(Attributor &A) {
       continue;
     }
 
+    auto *LivenessCSAA = A.getAAFor<AAIsDead>(*this, RetCSAA->getAnchorScope());
+
     // Try to find a assumed unique return value for the called function.
-    Optional<Value *> AssumedUniqueRV = RetCSAA->getAssumedUniqueReturnValue();
+    Optional<Value *> AssumedUniqueRV =
+        RetCSAA->getAssumedUniqueReturnValue(LivenessCSAA);
 
     // If no assumed unique return value was found due to the lack of
     // candidates, we may need to resolve more calls (through more update
@@ -745,6 +800,8 @@ ChangeStatus AAReturnedValuesImpl::updateImpl(Attributor &A) {
     // If multiple, non-refinable values were found, there cannot be a unique
     // return value for the called function. The returned call is overdefined!
     if (!AssumedUniqueRV.getValue()) {
+      if (!HasOverdefinedReturnedCalls)
+        Changed = ChangeStatus::CHANGED;
       HasOverdefinedReturnedCalls = true;
       LLVM_DEBUG(dbgs() << "[AAReturnedValues] Returned call site has multiple "
                            "potentially returned values\n");
@@ -772,9 +829,6 @@ ChangeStatus AAReturnedValuesImpl::updateImpl(Attributor &A) {
     else
       AddRVs[AssumedRetVal].insert(ReturnInsts.begin(), ReturnInsts.end());
   }
-
-  // Keep track of any change to trigger updates on dependent attributes.
-  ChangeStatus Changed = ChangeStatus::UNCHANGED;
 
   for (auto &It : AddRVs) {
     assert(!It.second.empty() && "Entry does not add anything.");
@@ -930,9 +984,15 @@ bool AANoSyncFunction::isVolatile(Instruction *I) {
 ChangeStatus AANoSyncFunction::updateImpl(Attributor &A) {
   Function &F = getAnchorScope();
 
+  auto *LivenessAA = A.getAAFor<AAIsDead>(*this, F);
+
   /// We are looking for volatile instructions or Non-Relaxed atomics.
   /// FIXME: We should ipmrove the handling of intrinsics.
   for (Instruction *I : InfoCache.getReadOrWriteInstsForFunction(F)) {
+    // Skip assumed dead instructions.
+    if (LivenessAA && LivenessAA->isAssumedDead(I))
+      continue;
+
     ImmutableCallSite ICS(I);
     auto *NoSyncAA = A.getAAFor<AANoSyncFunction>(*this, *I);
 
@@ -961,6 +1021,9 @@ ChangeStatus AANoSyncFunction::updateImpl(Attributor &A) {
 
   for (unsigned Opcode : Opcodes) {
     for (Instruction *I : OpcodeInstMap[Opcode]) {
+      // Skip assumed dead instructions.
+      if (LivenessAA && LivenessAA->isAssumedDead(I))
+        continue;
       // At this point we handled all read/write effects and they are all
       // nosync, so they can be skipped.
       if (I->mayReadOrWriteMemory())
@@ -1021,6 +1084,8 @@ struct AANoFreeFunction : AbstractAttribute, BooleanState {
 ChangeStatus AANoFreeFunction::updateImpl(Attributor &A) {
   Function &F = getAnchorScope();
 
+  auto *LivenessAA = A.getAAFor<AAIsDead>(*this, F);
+
   // The map from instruction opcodes to those instructions in the function.
   auto &OpcodeInstMap = InfoCache.getOpcodeInstMapForFunction(F);
 
@@ -1028,7 +1093,9 @@ ChangeStatus AANoFreeFunction::updateImpl(Attributor &A) {
        {(unsigned)Instruction::Invoke, (unsigned)Instruction::CallBr,
         (unsigned)Instruction::Call}) {
     for (Instruction *I : OpcodeInstMap[Opcode]) {
-
+      // Skip assumed dead instructions.
+      if (LivenessAA && LivenessAA->isAssumedDead(I))
+        continue;
       auto ICS = ImmutableCallSite(I);
       auto *NoFreeAA = A.getAAFor<AANoFreeFunction>(*this, *I);
 
@@ -1075,17 +1142,22 @@ struct AANonNullImpl : AANonNull, BooleanState {
   /// (i) A value is known nonZero(=nonnull).
   /// (ii) A value is associated with AANonNull and its isAssumedNonNull() is
   /// true.
-  std::function<bool(Value &)> generatePredicate(Attributor &);
+  std::function<bool(Value &, const SmallPtrSetImpl<ReturnInst *> &)>
+  generatePredicate(Attributor &);
 };
 
-std::function<bool(Value &)> AANonNullImpl::generatePredicate(Attributor &A) {
+std::function<bool(Value &, const SmallPtrSetImpl<ReturnInst *> &)>
+AANonNullImpl::generatePredicate(Attributor &A) {
   // FIXME: The `AAReturnedValues` should provide the predicate with the
   // `ReturnInst` vector as well such that we can use the control flow sensitive
   // version of `isKnownNonZero`. This should fix `test11` in
   // `test/Transforms/FunctionAttrs/nonnull.ll`
 
-  std::function<bool(Value &)> Pred = [&](Value &RV) -> bool {
-    if (isKnownNonZero(&RV, getAnchorScope().getParent()->getDataLayout()))
+  std::function<bool(Value &, const SmallPtrSetImpl<ReturnInst *> &)> Pred =
+      [&](Value &RV, const SmallPtrSetImpl<ReturnInst *> &RetInsts) -> bool {
+    Function &F = getAnchorScope();
+
+    if (isKnownNonZero(&RV, F.getParent()->getDataLayout()))
       return true;
 
     auto *NonNullAA = A.getAAFor<AANonNull>(*this, RV);
@@ -1136,7 +1208,9 @@ ChangeStatus AANonNullReturned::updateImpl(Attributor &A) {
     return ChangeStatus::CHANGED;
   }
 
-  std::function<bool(Value &)> Pred = this->generatePredicate(A);
+  std::function<bool(Value &, const SmallPtrSetImpl<ReturnInst *> &)> Pred =
+      this->generatePredicate(A);
+
   if (!AARetVal->checkForallReturnedValues(Pred)) {
     indicatePessimisticFixpoint();
     return ChangeStatus::CHANGED;
@@ -1226,7 +1300,7 @@ ChangeStatus AANonNullArgument::updateImpl(Attributor &A) {
 
     return false;
   };
-  if (!A.checkForAllCallSites(F, CallSiteCheck, true)) {
+  if (!A.checkForAllCallSites(F, CallSiteCheck, true, *this)) {
     indicatePessimisticFixpoint();
     return ChangeStatus::CHANGED;
   }
@@ -1326,10 +1400,16 @@ ChangeStatus AAWillReturnFunction::updateImpl(Attributor &A) {
   // The map from instruction opcodes to those instructions in the function.
   auto &OpcodeInstMap = InfoCache.getOpcodeInstMapForFunction(F);
 
+  auto *LivenessAA = A.getAAFor<AAIsDead>(*this, F);
+
   for (unsigned Opcode :
        {(unsigned)Instruction::Invoke, (unsigned)Instruction::CallBr,
         (unsigned)Instruction::Call}) {
     for (Instruction *I : OpcodeInstMap[Opcode]) {
+      // Skip assumed dead instructions.
+      if (LivenessAA && LivenessAA->isAssumedDead(I))
+        continue;
+
       auto ICS = ImmutableCallSite(I);
 
       if (ICS.hasFnAttr(Attribute::WillReturn))
@@ -1417,7 +1497,8 @@ ChangeStatus AANoAliasReturned::updateImpl(Attributor &A) {
     return ChangeStatus::CHANGED;
   }
 
-  std::function<bool(Value &)> Pred = [&](Value &RV) -> bool {
+  std::function<bool(Value &, const SmallPtrSetImpl<ReturnInst *> &)> Pred =
+      [&](Value &RV, const SmallPtrSetImpl<ReturnInst *> &RetInsts) -> bool {
     if (Constant *C = dyn_cast<Constant>(&RV))
       if (C->isNullValue() || isa<UndefValue>(C))
         return true;
@@ -1515,19 +1596,49 @@ struct AAIsDeadFunction : AAIsDead, BooleanState {
   /// See AbstractAttribute::updateImpl(...).
   ChangeStatus updateImpl(Attributor &A) override;
 
-  /// See AAIsDead::isAssumedDead().
+  /// See AAIsDead::isAssumedDead(BasicBlock *).
   bool isAssumedDead(BasicBlock *BB) const override {
+    assert(BB->getParent() == &getAnchorScope() &&
+           "BB must be in the same anchor scope function.");
+
     if (!getAssumed())
       return false;
     return !AssumedLiveBlocks.count(BB);
   }
 
-  /// See AAIsDead::isKnownDead().
+  /// See AAIsDead::isKnownDead(BasicBlock *).
   bool isKnownDead(BasicBlock *BB) const override {
-    if (!getKnown())
-      return false;
-    return !AssumedLiveBlocks.count(BB);
+    return getKnown() && isAssumedDead(BB);
   }
+
+  /// See AAIsDead::isAssumed(Instruction *I).
+  bool isAssumedDead(Instruction *I) const override {
+    assert(I->getParent()->getParent() == &getAnchorScope() &&
+           "Instruction must be in the same anchor scope function.");
+
+    if (!getAssumed())
+      return false;
+
+    // If it is not in AssumedLiveBlocks then it for sure dead.
+    // Otherwise, it can still be after noreturn call in a live block.
+    if (!AssumedLiveBlocks.count(I->getParent()))
+      return true;
+
+    // If it is not after a noreturn call, than it is live.
+    if (!isAfterNoReturn(I))
+      return false;
+
+    // Definitely dead.
+    return true;
+  }
+
+  /// See AAIsDead::isKnownDead(Instruction *I).
+  bool isKnownDead(Instruction *I) const override {
+    return getKnown() && isAssumedDead(I);
+  }
+
+  /// Check if instruction is after noreturn call, in other words, assumed dead.
+  bool isAfterNoReturn(Instruction *I) const;
 
   /// Collection of to be explored paths.
   SmallSetVector<Instruction *, 8> ToBeExploredPaths;
@@ -1538,6 +1649,16 @@ struct AAIsDeadFunction : AAIsDead, BooleanState {
   /// Collection of calls with noreturn attribute, assumed or knwon.
   SmallSetVector<Instruction *, 4> NoReturnCalls;
 };
+
+bool AAIsDeadFunction::isAfterNoReturn(Instruction *I) const {
+  Instruction *PrevI = I->getPrevNode();
+  while (PrevI) {
+    if (NoReturnCalls.count(PrevI))
+      return true;
+    PrevI = PrevI->getPrevNode();
+  }
+  return false;
+}
 
 bool AAIsDeadFunction::explorePath(Attributor &A, Instruction *I) {
   BasicBlock *BB = I->getParent();
@@ -1598,12 +1719,12 @@ ChangeStatus AAIsDeadFunction::updateImpl(Attributor &A) {
 
     NoReturnCalls.remove(I);
 
+    // At least one new path.
+    Status = ChangeStatus::CHANGED;
+
     // No new paths.
     if (Size == ToBeExploredPaths.size())
       continue;
-
-    // At least one new path.
-    Status = ChangeStatus::CHANGED;
 
     // explore new paths.
     while (Size != ToBeExploredPaths.size())
@@ -1612,7 +1733,7 @@ ChangeStatus AAIsDeadFunction::updateImpl(Attributor &A) {
 
   LLVM_DEBUG(
       dbgs() << "[AAIsDead] AssumedLiveBlocks: " << AssumedLiveBlocks.size()
-             << "Total number of blocks: " << getAnchorScope().size() << "\n");
+             << " Total number of blocks: " << getAnchorScope().size() << "\n");
 
   return Status;
 }
@@ -1844,7 +1965,8 @@ ChangeStatus AADereferenceableReturned::updateImpl(Attributor &A) {
   bool IsNonNull = isAssumedNonNull();
   bool IsGlobal = isAssumedGlobal();
 
-  std::function<bool(Value &)> Pred = [&](Value &RV) -> bool {
+  std::function<bool(Value &, const SmallPtrSetImpl<ReturnInst *> &)> Pred =
+      [&](Value &RV, const SmallPtrSetImpl<ReturnInst *> &RetInsts) -> bool {
     takeAssumedDerefBytesMinimum(
         computeAssumedDerefenceableBytes(A, RV, IsNonNull, IsGlobal));
     return isValidState();
@@ -1907,7 +2029,7 @@ ChangeStatus AADereferenceableArgument::updateImpl(Attributor &A) {
     return isValidState();
   };
 
-  if (!A.checkForAllCallSites(F, CallSiteCheck, true)) {
+  if (!A.checkForAllCallSites(F, CallSiteCheck, true, *this)) {
     indicatePessimisticFixpoint();
     return ChangeStatus::CHANGED;
   }
@@ -1932,10 +2054,12 @@ struct AADereferenceableCallSiteArgument : AADereferenceableImpl {
   void initialize(Attributor &A) override {
     CallSite CS(&getAnchoredValue());
     if (CS.paramHasAttr(ArgNo, Attribute::Dereferenceable))
-      takeKnownDerefBytesMaximum(CS.getDereferenceableBytes(ArgNo));
+      takeKnownDerefBytesMaximum(
+          CS.getDereferenceableBytes(ArgNo + AttributeList::FirstArgIndex));
 
     if (CS.paramHasAttr(ArgNo, Attribute::DereferenceableOrNull))
-      takeKnownDerefBytesMaximum(CS.getDereferenceableOrNullBytes(ArgNo));
+      takeKnownDerefBytesMaximum(CS.getDereferenceableOrNullBytes(
+          ArgNo + AttributeList::FirstArgIndex));
   }
 
   /// See AbstractAttribute::updateImpl(Attributor &A).
@@ -1974,13 +2098,221 @@ ChangeStatus AADereferenceableCallSiteArgument::updateImpl(Attributor &A) {
                                                        : ChangeStatus::CHANGED;
 }
 
+// ------------------------ Align Argument Attribute ------------------------
+
+struct AAAlignImpl : AAAlign, IntegerState {
+
+  // Max alignemnt value allowed in IR
+  static const unsigned MAX_ALIGN = 1U << 29;
+
+  AAAlignImpl(Value *AssociatedVal, Value &AnchoredValue,
+              InformationCache &InfoCache)
+      : AAAlign(AssociatedVal, AnchoredValue, InfoCache),
+        IntegerState(MAX_ALIGN) {}
+
+  AAAlignImpl(Value &V, InformationCache &InfoCache)
+      : AAAlignImpl(&V, V, InfoCache) {}
+
+  /// See AbstractAttribute::getState()
+  /// {
+  AbstractState &getState() override { return *this; }
+  const AbstractState &getState() const override { return *this; }
+  /// }
+
+  virtual const std::string getAsStr() const override {
+    return getAssumedAlign() ? ("align<" + std::to_string(getKnownAlign()) +
+                                "-" + std::to_string(getAssumedAlign()) + ">")
+                             : "unknown-align";
+  }
+
+  /// See AAAlign::getAssumedAlign().
+  unsigned getAssumedAlign() const override { return getAssumed(); }
+
+  /// See AAAlign::getKnownAlign().
+  unsigned getKnownAlign() const override { return getKnown(); }
+
+  /// See AbstractAttriubute::initialize(...).
+  void initialize(Attributor &A) override {
+    Function &F = getAnchorScope();
+
+    unsigned AttrIdx =
+        getAttrIndex(getManifestPosition(), getArgNo(getAnchoredValue()));
+
+    // Already the function has align attribute on return value or argument.
+    if (F.getAttributes().hasAttribute(AttrIdx, ID))
+      addKnownBits(F.getAttribute(AttrIdx, ID).getAlignment());
+  }
+
+  /// See AbstractAttribute::getDeducedAttributes
+  virtual void
+  getDeducedAttributes(SmallVectorImpl<Attribute> &Attrs) const override {
+    LLVMContext &Ctx = AnchoredVal.getContext();
+
+    Attrs.emplace_back(Attribute::getWithAlignment(Ctx, getAssumedAlign()));
+  }
+};
+
+/// Align attribute for function return value.
+struct AAAlignReturned : AAAlignImpl {
+
+  AAAlignReturned(Function &F, InformationCache &InfoCache)
+      : AAAlignImpl(F, InfoCache) {}
+
+  /// See AbstractAttribute::getManifestPosition().
+  virtual ManifestPosition getManifestPosition() const override {
+    return MP_RETURNED;
+  }
+
+  /// See AbstractAttribute::updateImpl(...).
+  virtual ChangeStatus updateImpl(Attributor &A) override;
+};
+
+ChangeStatus AAAlignReturned::updateImpl(Attributor &A) {
+  Function &F = getAnchorScope();
+  auto *AARetValImpl = A.getAAFor<AAReturnedValuesImpl>(*this, F);
+  if (!AARetValImpl) {
+    indicatePessimisticFixpoint();
+    return ChangeStatus::CHANGED;
+  }
+
+  // Currently, align<n> is deduced if alignments in return values are assumed
+  // as greater than n. We reach pessimistic fixpoint if any of the return value
+  // wouldn't have align. If no assumed state was used for reasoning, an
+  // optimistic fixpoint is reached earlier.
+
+  base_t BeforeState = getAssumed();
+  std::function<bool(Value &, const SmallPtrSetImpl<ReturnInst *> &)> Pred =
+      [&](Value &RV, const SmallPtrSetImpl<ReturnInst *> &RetInsts) -> bool {
+    auto *AlignAA = A.getAAFor<AAAlign>(*this, RV);
+
+    if (AlignAA)
+      takeAssumedMinimum(AlignAA->getAssumedAlign());
+    else
+      // Use IR information.
+      takeAssumedMinimum(RV.getPointerAlignment(
+          getAnchorScope().getParent()->getDataLayout()));
+
+    return isValidState();
+  };
+
+  if (!AARetValImpl->checkForallReturnedValues(Pred)) {
+    indicatePessimisticFixpoint();
+    return ChangeStatus::CHANGED;
+  }
+
+  return (getAssumed() != BeforeState) ? ChangeStatus::CHANGED
+                                       : ChangeStatus::UNCHANGED;
+}
+
+/// Align attribute for function argument.
+struct AAAlignArgument : AAAlignImpl {
+
+  AAAlignArgument(Argument &A, InformationCache &InfoCache)
+      : AAAlignImpl(A, InfoCache) {}
+
+  /// See AbstractAttribute::getManifestPosition().
+  virtual ManifestPosition getManifestPosition() const override {
+    return MP_ARGUMENT;
+  }
+
+  /// See AbstractAttribute::updateImpl(...).
+  virtual ChangeStatus updateImpl(Attributor &A) override;
+};
+
+ChangeStatus AAAlignArgument::updateImpl(Attributor &A) {
+
+  Function &F = getAnchorScope();
+  Argument &Arg = cast<Argument>(getAnchoredValue());
+
+  unsigned ArgNo = Arg.getArgNo();
+  const DataLayout &DL = F.getParent()->getDataLayout();
+
+  auto BeforeState = getAssumed();
+
+  // Callback function
+  std::function<bool(CallSite)> CallSiteCheck = [&](CallSite CS) {
+    assert(CS && "Sanity check: Call site was not initialized properly!");
+
+    auto *AlignAA = A.getAAFor<AAAlign>(*this, *CS.getInstruction(), ArgNo);
+
+    // Check that AlignAA is AAAlignCallSiteArgument.
+    if (AlignAA) {
+      ImmutableCallSite ICS(&AlignAA->getAnchoredValue());
+      if (ICS && CS.getInstruction() == ICS.getInstruction()) {
+        takeAssumedMinimum(AlignAA->getAssumedAlign());
+        return isValidState();
+      }
+    }
+
+    Value *V = CS.getArgOperand(ArgNo);
+    takeAssumedMinimum(V->getPointerAlignment(DL));
+    return isValidState();
+  };
+
+  if (!A.checkForAllCallSites(F, CallSiteCheck, true, *this))
+    indicatePessimisticFixpoint();
+
+  return BeforeState == getAssumed() ? ChangeStatus::UNCHANGED
+                                     : ChangeStatus ::CHANGED;
+}
+
+struct AAAlignCallSiteArgument : AAAlignImpl {
+
+  /// See AANonNullImpl::AANonNullImpl(...).
+  AAAlignCallSiteArgument(CallSite CS, unsigned ArgNo,
+                          InformationCache &InfoCache)
+      : AAAlignImpl(CS.getArgOperand(ArgNo), *CS.getInstruction(), InfoCache),
+        ArgNo(ArgNo) {}
+
+  /// See AbstractAttribute::initialize(...).
+  void initialize(Attributor &A) override {
+    CallSite CS(&getAnchoredValue());
+    takeKnownMaximum(getAssociatedValue()->getPointerAlignment(
+        getAnchorScope().getParent()->getDataLayout()));
+  }
+
+  /// See AbstractAttribute::updateImpl(Attributor &A).
+  ChangeStatus updateImpl(Attributor &A) override;
+
+  /// See AbstractAttribute::getManifestPosition().
+  ManifestPosition getManifestPosition() const override {
+    return MP_CALL_SITE_ARGUMENT;
+  };
+
+  // Return argument index of associated value.
+  int getArgNo() const { return ArgNo; }
+
+private:
+  unsigned ArgNo;
+};
+
+ChangeStatus AAAlignCallSiteArgument::updateImpl(Attributor &A) {
+  // NOTE: Never look at the argument of the callee in this method.
+  //       If we do this, "align" is always deduced because of the assumption.
+
+  auto BeforeState = getAssumed();
+
+  Value &V = *getAssociatedValue();
+
+  auto *AlignAA = A.getAAFor<AAAlign>(*this, V);
+
+  if (AlignAA)
+    takeAssumedMinimum(AlignAA->getAssumedAlign());
+  else
+    indicatePessimisticFixpoint();
+
+  return BeforeState == getAssumed() ? ChangeStatus::UNCHANGED
+                                     : ChangeStatus::CHANGED;
+}
+
 /// ----------------------------------------------------------------------------
 ///                               Attributor
 /// ----------------------------------------------------------------------------
 
 bool Attributor::checkForAllCallSites(Function &F,
                                       std::function<bool(CallSite)> &Pred,
-                                      bool RequireAllCallSites) {
+                                      bool RequireAllCallSites,
+                                      AbstractAttribute &AA) {
   // We can try to determine information from
   // the call sites. However, this is only possible all call sites are known,
   // hence the function has internal linkage.
@@ -1993,6 +2325,14 @@ bool Attributor::checkForAllCallSites(Function &F,
   }
 
   for (const Use &U : F.uses()) {
+    Instruction *I = cast<Instruction>(U.getUser());
+    Function *AnchorValue = I->getParent()->getParent();
+
+    auto *LivenessAA = getAAFor<AAIsDead>(AA, *AnchorValue);
+
+    // Skip dead calls.
+    if (LivenessAA && LivenessAA->isAssumedDead(I))
+      continue;
 
     CallSite CS(U.getUser());
     if (!CS || !CS.isCallee(&U) || !CS.getCaller()->hasExactDefinition()) {
@@ -2171,6 +2511,10 @@ void Attributor::identifyDefaultAbstractAttributes(
       registerAA(*new AAReturnedValuesImpl(F, InfoCache));
 
     if (ReturnType->isPointerTy()) {
+      // Every function with pointer return type might be marked align.
+      if (!Whitelist || Whitelist->count(AAAlignReturned::ID))
+        registerAA(*new AAAlignReturned(F, InfoCache));
+
       // Every function with pointer return type might be marked nonnull.
       if (!Whitelist || Whitelist->count(AANonNullReturned::ID))
         registerAA(*new AANonNullReturned(F, InfoCache));
@@ -2196,6 +2540,10 @@ void Attributor::identifyDefaultAbstractAttributes(
       // Every argument with pointer type might be marked dereferenceable.
       if (!Whitelist || Whitelist->count(AADereferenceableArgument::ID))
         registerAA(*new AADereferenceableArgument(Arg, InfoCache));
+
+      // Every argument with pointer type might be marked align.
+      if (!Whitelist || Whitelist->count(AAAlignArgument::ID))
+        registerAA(*new AAAlignArgument(Arg, InfoCache));
     }
   }
 
@@ -2254,6 +2602,10 @@ void Attributor::identifyDefaultAbstractAttributes(
             Whitelist->count(AADereferenceableCallSiteArgument::ID))
           registerAA(*new AADereferenceableCallSiteArgument(CS, i, InfoCache),
                      i);
+
+        // Call site argument attribute "align".
+        if (!Whitelist || Whitelist->count(AAAlignCallSiteArgument::ID))
+          registerAA(*new AAAlignCallSiteArgument(CS, i, InfoCache), i);
       }
     }
   }

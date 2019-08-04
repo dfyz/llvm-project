@@ -402,11 +402,11 @@ def JMP : MbrpForm< 0x1A, 0x00, (ins GPRC:$RS), "jmp $$31,($RS),0",
           [(brind GPRC:$RS)], s_jsr>; //Jump
 
 let isCall = 1, Ra = 26,
-    Defs = [R26], Uses = [R29] in {
+    Defs = [R26] in {
     def BSR : BFormD<0x34, "bsr $$26,$$$DISP..ng", [], s_jsr>; //Branch to subroutine
 }
 let isCall = 1, Ra = 26, Rb = 27, disp = 0,
-    Defs = [R26], Uses = [R27, R29] in {
+    Defs = [R26], Uses = [R27] in {
     def JSR : MbrForm< 0x1A, 0x01, (ins), "jsr $$26,($$27),0", s_jsr>; //Jump to subroutine
 }
 

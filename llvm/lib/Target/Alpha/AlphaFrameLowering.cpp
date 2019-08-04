@@ -53,6 +53,8 @@ void AlphaFrameLowering::emitPrologue(MachineFunction &MF, MachineBasicBlock &MB
   bool FP = hasFP(MF);
 
   // Handle GOP offset
+  MF.getRegInfo().addLiveIn(Alpha::R27);
+  MBB.addLiveIn(Alpha::R27);
   BuildMI(MBB, MBBI, dl, TII.get(Alpha::LDAHg), Alpha::R29)
     .addGlobalAddress(&MF.getFunction()).addReg(Alpha::R27).addImm(++curgpdist);
   BuildMI(MBB, MBBI, dl, TII.get(Alpha::LDAg), Alpha::R29)

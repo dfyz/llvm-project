@@ -453,7 +453,7 @@ AlphaTargetLowering::LowerFormalArguments(SDValue Chain,
     FuncInfo->setVarArgsOffset(Ins.size() * 8);
     std::vector<SDValue> LS;
     for (int i = 0; i < 6; ++i) {
-      if (TargetRegisterInfo::isPhysicalRegister(args_int[i]))
+      if (Register::isPhysicalRegister(args_int[i]))
         args_int[i] = AddLiveIn(MF, args_int[i], &Alpha::GPRCRegClass);
       SDValue argt = DAG.getCopyFromReg(Chain, dl, args_int[i], MVT::i64);
       int FI = MFI.CreateFixedObject(8, -8 * (6 - i), true);
@@ -461,7 +461,7 @@ AlphaTargetLowering::LowerFormalArguments(SDValue Chain,
       SDValue SDFI = DAG.getFrameIndex(FI, MVT::i64);
       LS.push_back(DAG.getStore(Chain, dl, argt, SDFI, MachinePointerInfo()));
 
-      if (TargetRegisterInfo::isPhysicalRegister(args_float[i]))
+      if (Register::isPhysicalRegister(args_float[i]))
         args_float[i] = AddLiveIn(MF, args_float[i], &Alpha::F8RCRegClass);
       argt = DAG.getCopyFromReg(Chain, dl, args_float[i], MVT::f64);
       FI = MFI.CreateFixedObject(8, - 8 * (12 - i), true);

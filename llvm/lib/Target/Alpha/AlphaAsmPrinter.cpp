@@ -71,7 +71,7 @@ void AlphaAsmPrinter::printOperand(const MachineInstr *MI, int opNum,
                                    raw_ostream &O) {
   const MachineOperand &MO = MI->getOperand(opNum);
   if (MO.isReg()) {
-    assert(TargetRegisterInfo::isPhysicalRegister(MO.getReg()) &&
+    assert(Register::isPhysicalRegister(MO.getReg()) &&
            "Not physreg??");
     O << getRegisterName(MO.getReg());
   } else if (MO.isImm()) {

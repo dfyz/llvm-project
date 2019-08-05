@@ -70,6 +70,7 @@ BitVector AlphaRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   Reserved.set(Alpha::R15);
   Reserved.set(Alpha::R30);
   Reserved.set(Alpha::R31);
+  Reserved.set(Alpha::F31);
   return Reserved;
 }
 

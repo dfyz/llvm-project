@@ -503,7 +503,7 @@ AlphaTargetLowering::LowerReturn(SDValue Chain,
     }
     Copy = DAG.getCopyToReg(Copy, dl, ArgReg, OutVals[0], Copy.getValue(1));
     RetOps.front() = Copy;
-    RetOps.push_back(DAG.getRegister(Alpha::R0, ArgVT));
+    RetOps.push_back(DAG.getRegister(ArgReg, ArgVT));
     break;
   }
   }

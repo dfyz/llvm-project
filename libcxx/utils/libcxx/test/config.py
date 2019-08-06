@@ -581,6 +581,13 @@ class Configuration(object):
         support_path = os.path.join(self.libcxx_src_root, 'test/support')
         self.cxx.compile_flags += ['-I' + support_path]
 
+        # Add includes for the PSTL headers
+        pstl_root = self.get_lit_conf('pstl_root')
+        if pstl_root is not None:
+            self.cxx.compile_flags += ['-I' + os.path.join(pstl_root, 'include')]
+            self.cxx.compile_flags += ['-I' + os.path.join(pstl_root, 'test')]
+            self.config.available_features.add('parallel-algorithms')
+
         # FIXME(EricWF): variant_size.pass.cpp requires a slightly larger
         # template depth with older Clang versions.
         self.cxx.addFlagIfSupported('-ftemplate-depth=270')
@@ -911,7 +918,6 @@ class Configuration(object):
         self.cxx.addWarningFlagIfSupported('-Wunused-variable')
         self.cxx.addWarningFlagIfSupported('-Wunused-parameter')
         self.cxx.addWarningFlagIfSupported('-Wunreachable-code')
-        self.cxx.addWarningFlagIfSupported('-Wctad-maybe-unsupported')
         std = self.get_lit_conf('std', None)
         if std in ['c++98', 'c++03']:
             # The '#define static_assert' provided by libc++ in C++03 mode

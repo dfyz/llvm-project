@@ -698,7 +698,7 @@ bool CombinerHelper::optimizeMemcpy(MachineInstr &MI, Register Dst,
     const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
     if (!TRI->needsStackRealignment(MF))
       while (NewAlign > Align &&
-             DL.exceedsNaturalStackAlignment(NewAlign))
+             DL.exceedsNaturalStackAlignment(llvm::Align(NewAlign)))
           NewAlign /= 2;
 
     if (NewAlign > Align) {
@@ -804,7 +804,7 @@ bool CombinerHelper::optimizeMemmove(MachineInstr &MI, Register Dst,
     const TargetRegisterInfo *TRI = MF.getSubtarget().getRegisterInfo();
     if (!TRI->needsStackRealignment(MF))
       while (NewAlign > Align &&
-             DL.exceedsNaturalStackAlignment(NewAlign))
+             DL.exceedsNaturalStackAlignment(llvm::Align(NewAlign)))
           NewAlign /= 2;
 
     if (NewAlign > Align) {
@@ -861,7 +861,7 @@ bool CombinerHelper::optimizeMemmove(MachineInstr &MI, Register Dst,
   return true;
 }
 
-bool CombinerHelper::tryCombineMemCpyFamily(MachineInstr &MI) {
+bool CombinerHelper::tryCombineMemCpyFamily(MachineInstr &MI, unsigned MaxLen) {
   // This combine is fairly complex so it's not written with a separate
   // matcher function.
   assert(MI.getOpcode() == TargetOpcode::G_INTRINSIC_W_SIDE_EFFECTS);
@@ -899,6 +899,9 @@ bool CombinerHelper::tryCombineMemCpyFamily(MachineInstr &MI) {
     MI.eraseFromParent();
     return true;
   }
+
+  if (MaxLen && KnownLen > MaxLen)
+    return false;
 
   if (ID == Intrinsic::memcpy)
     return optimizeMemcpy(MI, Dst, Src, KnownLen, DstAlign, SrcAlign, IsVolatile);

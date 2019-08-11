@@ -205,6 +205,9 @@ struct Location {
   Location() = default;
   Location(int LineNumber, SmallString<16> Filename)
       : LineNumber(LineNumber), Filename(std::move(Filename)) {}
+  Location(int LineNumber, SmallString<16> Filename, bool IsFileInRootDir)
+      : LineNumber(LineNumber), Filename(std::move(Filename)),
+        IsFileInRootDir(IsFileInRootDir) {}
 
   bool operator==(const Location &Other) const {
     return std::tie(LineNumber, Filename) ==
@@ -220,8 +223,9 @@ struct Location {
            std::tie(Other.LineNumber, Other.Filename);
   }
 
-  int LineNumber;           // Line number of this Location.
-  SmallString<32> Filename; // File for this Location.
+  int LineNumber;               // Line number of this Location.
+  SmallString<32> Filename;     // File for this Location.
+  bool IsFileInRootDir = false; // Indicates if file is inside root directory
 };
 
 /// A base struct for Infos.
@@ -249,7 +253,7 @@ struct Info {
   void mergeBase(Info &&I);
   bool mergeable(const Info &Other);
 
-  llvm::SmallString<16> extractName();
+  llvm::SmallString<16> extractName() const;
 
   // Returns a reference to the parent scope (that is, the immediate parent
   // namespace or class in which this decl resides).
@@ -348,6 +352,22 @@ struct EnumInfo : public SymbolInfo {
   llvm::SmallVector<SmallString<16>, 4> Members; // List of enum members.
 };
 
+struct Index : public Reference {
+  Index() = default;
+  Index(StringRef Name, StringRef JumpToSection)
+      : Reference(Name), JumpToSection(JumpToSection) {}
+  Index(SymbolID USR, StringRef Name, InfoType IT, StringRef Path)
+      : Reference(USR, Name, IT, Path) {}
+  // This is used to look for a USR in a vector of Indexes using std::find
+  bool operator==(const SymbolID &Other) const { return USR == Other; }
+  bool operator<(const Index &Other) const { return Name < Other.Name; }
+
+  llvm::Optional<SmallString<16>> JumpToSection;
+  std::vector<Index> Children;
+
+  void sort();
+};
+
 // TODO: Add functionality to include separate markdown pages.
 
 // A standalone function to call to merge a vector of infos into one.
@@ -357,10 +377,28 @@ llvm::Expected<std::unique_ptr<Info>>
 mergeInfos(std::vector<std::unique_ptr<Info>> &Values);
 
 struct ClangDocContext {
+  ClangDocContext() = default;
+  ClangDocContext(tooling::ExecutionContext *ECtx, bool PublicOnly,
+                  StringRef OutDirectory, StringRef SourceRoot,
+                  StringRef RepositoryUrl,
+                  std::vector<std::string> UserStylesheets,
+                  std::vector<std::string> JsScripts);
   tooling::ExecutionContext *ECtx;
-  bool PublicOnly;
-  std::string OutDirectory;
+  bool PublicOnly; // Indicates if only public declarations are documented.
+  std::string OutDirectory; // Directory for outputting generated files.
+  std::string SourceRoot;   // Directory where processed files are stored. Links
+                            // to definition locations will only be generated if
+                            // the file is in this dir.
+  // URL of repository that hosts code used for links to definition locations.
+  llvm::Optional<std::string> RepositoryUrl;
+  // Path of CSS stylesheets that will be copied to OutDirectory and used to
+  // style all HTML files.
   std::vector<std::string> UserStylesheets;
+  // JavaScript files that will be imported in allHTML file.
+  std::vector<std::string> JsScripts;
+  // Other files that should be copied to OutDirectory, besides UserStylesheets.
+  std::vector<std::string> FilesToCopy;
+  Index Idx;
 };
 
 } // namespace doc

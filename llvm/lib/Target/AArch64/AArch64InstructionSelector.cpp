@@ -121,6 +121,7 @@ private:
   bool selectIntrinsicRound(MachineInstr &I, MachineRegisterInfo &MRI) const;
   bool selectJumpTable(MachineInstr &I, MachineRegisterInfo &MRI) const;
   bool selectBrJT(MachineInstr &I, MachineRegisterInfo &MRI) const;
+  bool selectTLSGlobalValue(MachineInstr &I, MachineRegisterInfo &MRI) const;
 
   unsigned emitConstantPoolEntry(Constant *CPVal, MachineFunction &MF) const;
   MachineInstr *emitLoadFromConstantPool(Constant *CPVal,
@@ -544,7 +545,7 @@ static bool isValidCopy(const MachineInstr &I, const RegisterBank &DstBank,
 /// SubRegCopy (To class) = COPY CopyReg:SubReg
 /// Dst = COPY SubRegCopy
 static bool selectSubregisterCopy(MachineInstr &I, MachineRegisterInfo &MRI,
-                                  const RegisterBankInfo &RBI, unsigned SrcReg,
+                                  const RegisterBankInfo &RBI, Register SrcReg,
                                   const TargetRegisterClass *From,
                                   const TargetRegisterClass *To,
                                   unsigned SubReg) {
@@ -1284,6 +1285,31 @@ bool AArch64InstructionSelector::earlySelect(MachineInstr &I) const {
     return earlySelectSHL(I, MRI);
   case TargetOpcode::G_LOAD:
     return earlySelectLoad(I, MRI);
+  case TargetOpcode::G_CONSTANT: {
+    bool IsZero = false;
+    if (I.getOperand(1).isCImm())
+      IsZero = I.getOperand(1).getCImm()->getZExtValue() == 0;
+    else if (I.getOperand(1).isImm())
+      IsZero = I.getOperand(1).getImm() == 0;
+
+    if (!IsZero)
+      return false;
+
+    Register DefReg = I.getOperand(0).getReg();
+    LLT Ty = MRI.getType(DefReg);
+    if (Ty != LLT::scalar(64) && Ty != LLT::scalar(32))
+      return false;
+
+    if (Ty == LLT::scalar(64)) {
+      I.getOperand(1).ChangeToRegister(AArch64::XZR, false);
+      RBI.constrainGenericRegister(DefReg, AArch64::GPR64RegClass, MRI);
+    } else {
+      I.getOperand(1).ChangeToRegister(AArch64::WZR, false);
+      RBI.constrainGenericRegister(DefReg, AArch64::GPR32RegClass, MRI);
+    }
+    I.setDesc(TII.get(TargetOpcode::COPY));
+    return true;
+  }
   default:
     return false;
   }
@@ -1665,10 +1691,9 @@ bool AArch64InstructionSelector::select(MachineInstr &I,
 
   case TargetOpcode::G_GLOBAL_VALUE: {
     auto GV = I.getOperand(1).getGlobal();
-    if (GV->isThreadLocal()) {
-      // FIXME: we don't support TLS yet.
-      return false;
-    }
+    if (GV->isThreadLocal())
+      return selectTLSGlobalValue(I, MRI);
+
     unsigned OpFlags = STI.ClassifyGlobalReference(GV, TM);
     if (OpFlags & AArch64II::MO_GOT) {
       I.setDesc(TII.get(AArch64::LOADgot));
@@ -2334,6 +2359,36 @@ bool AArch64InstructionSelector::selectJumpTable(
           .addJumpTableIndex(JTI, AArch64II::MO_NC | AArch64II::MO_PAGEOFF);
   I.eraseFromParent();
   return constrainSelectedInstRegOperands(*MovMI, TII, TRI, RBI);
+}
+
+bool AArch64InstructionSelector::selectTLSGlobalValue(
+    MachineInstr &I, MachineRegisterInfo &MRI) const {
+  if (!STI.isTargetMachO())
+    return false;
+  MachineFunction &MF = *I.getParent()->getParent();
+  MF.getFrameInfo().setAdjustsStack(true);
+
+  const GlobalValue &GV = *I.getOperand(1).getGlobal();
+  MachineIRBuilder MIB(I);
+
+  MIB.buildInstr(AArch64::LOADgot, {AArch64::X0}, {})
+      .addGlobalAddress(&GV, 0, AArch64II::MO_TLS);
+
+  Register DestReg = MRI.createVirtualRegister(&AArch64::GPR64commonRegClass);
+  MIB.buildInstr(AArch64::LDRXui, {DestReg}, {Register(AArch64::X0)}).addImm(0);
+
+  // TLS calls preserve all registers except those that absolutely must be
+  // trashed: X0 (it takes an argument), LR (it's a call) and NZCV (let's not be
+  // silly).
+  MIB.buildInstr(AArch64::BLR, {}, {DestReg})
+      .addDef(AArch64::X0, RegState::Implicit)
+      .addRegMask(TRI.getTLSCallPreservedMask());
+
+  MIB.buildCopy(I.getOperand(0).getReg(), Register(AArch64::X0));
+  RBI.constrainGenericRegister(I.getOperand(0).getReg(), AArch64::GPR64RegClass,
+                               MRI);
+  I.eraseFromParent();
+  return true;
 }
 
 bool AArch64InstructionSelector::selectIntrinsicTrunc(

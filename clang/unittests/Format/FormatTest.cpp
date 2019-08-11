@@ -3087,6 +3087,15 @@ TEST_F(FormatTest, IndentPreprocessorDirectives) {
                "#endif\n"
                "#endif\n",
                Style);
+  // Don't crash if there is an #elif directive without a condition.
+  verifyFormat("#if 1\n"
+               "int x;\n"
+               "#elif\n"
+               "int y;\n"
+               "#else\n"
+               "int z;\n"
+               "#endif",
+               Style);
   // FIXME: This doesn't handle the case where there's code between the
   // #ifndef and #define but all other conditions hold. This is because when
   // the #define line is parsed, UnwrappedLineParser::Lines doesn't hold the
@@ -3683,6 +3692,11 @@ TEST_F(FormatTest, PutEmptyBlocksIntoOneLine) {
   EXPECT_EQ("{}", format("{}"));
   verifyFormat("enum E {};");
   verifyFormat("enum E {}");
+  EXPECT_EQ("void f() { }", format("void f() {}", getWebKitStyle()));
+  FormatStyle Style = getLLVMStyle();
+  Style.AllowShortBlocksOnASingleLine = true;
+  Style.SpaceInEmptyBlock = true;
+  EXPECT_EQ("while (true) { }", format("while (true) {}", Style));
 }
 
 TEST_F(FormatTest, FormatBeginBlockEndMacros) {
@@ -11756,6 +11770,7 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL(SpacesInParentheses);
   CHECK_PARSE_BOOL(SpacesInSquareBrackets);
   CHECK_PARSE_BOOL(SpacesInAngles);
+  CHECK_PARSE_BOOL(SpaceInEmptyBlock);
   CHECK_PARSE_BOOL(SpaceInEmptyParentheses);
   CHECK_PARSE_BOOL(SpacesInContainerLiterals);
   CHECK_PARSE_BOOL(SpacesInCStyleCastParentheses);

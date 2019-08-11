@@ -5258,6 +5258,20 @@ lldb::Encoding ClangASTContext::GetEncoding(lldb::opaque_compiler_type_t type,
     case clang::BuiltinType::OCLIntelSubgroupAVCImeSingleRefStreamin:
     case clang::BuiltinType::OCLIntelSubgroupAVCImeDualRefStreamin:
       break;
+
+    case clang::BuiltinType::SveBool:
+    case clang::BuiltinType::SveInt8:
+    case clang::BuiltinType::SveInt16:
+    case clang::BuiltinType::SveInt32:
+    case clang::BuiltinType::SveInt64:
+    case clang::BuiltinType::SveUint8:
+    case clang::BuiltinType::SveUint16:
+    case clang::BuiltinType::SveUint32:
+    case clang::BuiltinType::SveUint64:
+    case clang::BuiltinType::SveFloat16:
+    case clang::BuiltinType::SveFloat32:
+    case clang::BuiltinType::SveFloat64:
+      break;
     }
     break;
   // All pointer types are represented as unsigned integer encodings. We may
@@ -8330,24 +8344,6 @@ clang::CXXMethodDecl *ClangASTContext::AddMethodToCXXRecordType(
   VerifyDecl(cxx_method_decl);
 #endif
 
-  //    printf ("decl->isPolymorphic()             = %i\n",
-  //    cxx_record_decl->isPolymorphic());
-  //    printf ("decl->isAggregate()               = %i\n",
-  //    cxx_record_decl->isAggregate());
-  //    printf ("decl->isPOD()                     = %i\n",
-  //    cxx_record_decl->isPOD());
-  //    printf ("decl->isEmpty()                   = %i\n",
-  //    cxx_record_decl->isEmpty());
-  //    printf ("decl->isAbstract()                = %i\n",
-  //    cxx_record_decl->isAbstract());
-  //    printf ("decl->hasTrivialConstructor()     = %i\n",
-  //    cxx_record_decl->hasTrivialConstructor());
-  //    printf ("decl->hasTrivialCopyConstructor() = %i\n",
-  //    cxx_record_decl->hasTrivialCopyConstructor());
-  //    printf ("decl->hasTrivialCopyAssignment()  = %i\n",
-  //    cxx_record_decl->hasTrivialCopyAssignment());
-  //    printf ("decl->hasTrivialDestructor()      = %i\n",
-  //    cxx_record_decl->hasTrivialDestructor());
   return cxx_method_decl;
 }
 

@@ -636,6 +636,10 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
       D.Diag(diag::err_drv_argument_not_allowed_with)
           << "-fsanitize-cfi-cross-dso"
           << "-fsanitize-cfi-icall-generalize-pointers";
+
+    CfiCanonicalJumpTables =
+        Args.hasFlag(options::OPT_fsanitize_cfi_canonical_jump_tables,
+                     options::OPT_fno_sanitize_cfi_canonical_jump_tables, true);
   }
 
   Stats = Args.hasFlag(options::OPT_fsanitize_stats,
@@ -976,6 +980,9 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
   if (CfiICallGeneralizePointers)
     CmdArgs.push_back("-fsanitize-cfi-icall-generalize-pointers");
 
+  if (CfiCanonicalJumpTables)
+    CmdArgs.push_back("-fsanitize-cfi-canonical-jump-tables");
+
   if (Stats)
     CmdArgs.push_back("-fsanitize-stats");
 
@@ -1011,6 +1018,11 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
   if (!HwasanAbi.empty()) {
     CmdArgs.push_back("-default-function-attr");
     CmdArgs.push_back(Args.MakeArgString("hwasan-abi=" + HwasanAbi));
+  }
+
+  if (Sanitizers.has(SanitizerKind::HWAddress)) {
+    CmdArgs.push_back("-target-feature");
+    CmdArgs.push_back("+tagged-globals");
   }
 
   // MSan: Workaround for PR16386.

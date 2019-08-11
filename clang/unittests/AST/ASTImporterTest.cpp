@@ -2389,6 +2389,49 @@ TEST_P(ImportFunctions,
                 functionDecl(hasName("f"), hasDescendant(declRefExpr()))))));
 }
 
+struct ImportFunctionTemplates : ASTImporterOptionSpecificTestBase {};
+
+TEST_P(ImportFunctionTemplates, ImportFunctionTemplateInRecordDeclTwice) {
+  auto Code =
+      R"(
+      class X {
+        template <class T>
+        void f(T t);
+      };
+      )";
+  Decl *FromTU1 = getTuDecl(Code, Lang_CXX, "input1.cc");
+  auto *FromD1 = FirstDeclMatcher<FunctionTemplateDecl>().match(
+      FromTU1, functionTemplateDecl(hasName("f")));
+  auto *ToD1 = Import(FromD1, Lang_CXX);
+  Decl *FromTU2 = getTuDecl(Code, Lang_CXX, "input2.cc");
+  auto *FromD2 = FirstDeclMatcher<FunctionTemplateDecl>().match(
+      FromTU2, functionTemplateDecl(hasName("f")));
+  auto *ToD2 = Import(FromD2, Lang_CXX);
+  EXPECT_EQ(ToD1, ToD2);
+}
+
+TEST_P(ImportFunctionTemplates,
+       ImportFunctionTemplateWithDefInRecordDeclTwice) {
+  auto Code =
+      R"(
+      class X {
+        template <class T>
+        void f(T t);
+      };
+      template <class T>
+      void X::f(T t) {};
+      )";
+  Decl *FromTU1 = getTuDecl(Code, Lang_CXX, "input1.cc");
+  auto *FromD1 = FirstDeclMatcher<FunctionTemplateDecl>().match(
+      FromTU1, functionTemplateDecl(hasName("f")));
+  auto *ToD1 = Import(FromD1, Lang_CXX);
+  Decl *FromTU2 = getTuDecl(Code, Lang_CXX, "input2.cc");
+  auto *FromD2 = FirstDeclMatcher<FunctionTemplateDecl>().match(
+      FromTU2, functionTemplateDecl(hasName("f")));
+  auto *ToD2 = Import(FromD2, Lang_CXX);
+  EXPECT_EQ(ToD1, ToD2);
+}
+
 struct ImportFriendFunctions : ImportFunctions {};
 
 TEST_P(ImportFriendFunctions, ImportFriendFunctionRedeclChainProto) {
@@ -5193,6 +5236,44 @@ TEST_P(LLDBLookupTest, ImporterShouldFindInTransparentContext) {
   EXPECT_EQ(ImportedX->getCanonicalDecl(), ToX->getCanonicalDecl());
 }
 
+struct SVEBuiltins : ASTImporterOptionSpecificTestBase {};
+
+TEST_P(SVEBuiltins, ImportTypes) {
+  static const char *const TypeNames[] = {
+    "__SVInt8_t",
+    "__SVInt16_t",
+    "__SVInt32_t",
+    "__SVInt64_t",
+    "__SVUint8_t",
+    "__SVUint16_t",
+    "__SVUint32_t",
+    "__SVUint64_t",
+    "__SVFloat16_t",
+    "__SVFloat32_t",
+    "__SVFloat64_t",
+    "__SVBool_t"
+  };
+
+  TranslationUnitDecl *ToTU = getToTuDecl("", Lang_CXX);
+  TranslationUnitDecl *FromTU = getTuDecl("", Lang_CXX, "input.cc");
+  for (auto *TypeName : TypeNames) {
+    auto *ToTypedef = FirstDeclMatcher<TypedefDecl>().match(
+      ToTU, typedefDecl(hasName(TypeName)));
+    QualType ToType = ToTypedef->getUnderlyingType();
+
+    auto *FromTypedef = FirstDeclMatcher<TypedefDecl>().match(
+      FromTU, typedefDecl(hasName(TypeName)));
+    QualType FromType = FromTypedef->getUnderlyingType();
+
+    QualType ImportedType = ImportType(FromType, FromTypedef, Lang_CXX);
+    EXPECT_EQ(ImportedType, ToType);
+  }
+}
+
+INSTANTIATE_TEST_CASE_P(ParameterizedTests, SVEBuiltins,
+                        ::testing::Values(ArgVector{"-target",
+                                                    "aarch64-linux-gnu"}), );
+
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ASTImporterLookupTableTest,
                         DefaultTestValuesForRunOptions, );
 
@@ -5221,6 +5302,9 @@ INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportFriendFunctionTemplates,
                         DefaultTestValuesForRunOptions, );
 
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportClasses,
+                        DefaultTestValuesForRunOptions, );
+
+INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportFunctionTemplates,
                         DefaultTestValuesForRunOptions, );
 
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportFriendFunctions,

@@ -11,6 +11,7 @@
 #include "Protocol.h"
 #include "SourceCode.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include <algorithm>
 
@@ -51,6 +52,10 @@ public:
     if (isa<CXXDestructorDecl>(MD))
       // When calling the destructor manually like: AAA::~A(); The ~ is a
       // MemberExpr. Other methods should still be highlighted though.
+      return true;
+    if (isa<CXXConversionDecl>(MD))
+      // The MemberLoc is invalid for C++ conversion operators. We do not
+      // attempt to add tokens with invalid locations.
       return true;
     addToken(ME->getMemberLoc(), MD);
     return true;
@@ -132,11 +137,22 @@ public:
         HighlightingTokenCollector>::TraverseNestedNameSpecifierLoc(NNSLoc);
   }
 
+  bool TraverseConstructorInitializer(CXXCtorInitializer *CI) {
+    if (const FieldDecl *FD = CI->getMember())
+      addToken(CI->getSourceLocation(), FD);
+    return RecursiveASTVisitor<
+        HighlightingTokenCollector>::TraverseConstructorInitializer(CI);
+  }
+
 private:
   void addTypeLoc(SourceLocation Loc, const TypeLoc &TL) {
-    if (const Type *TP = TL.getTypePtr())
+    if (const Type *TP = TL.getTypePtr()) {
       if (const TagDecl *TD = TP->getAsTagDecl())
         addToken(Loc, TD);
+      if (TP->isBuiltinType())
+        // Builtins must be special cased as they do not have a TagDecl.
+        addToken(Loc, HighlightingKind::Primitive);
+    }
   }
 
   void addToken(SourceLocation Loc, const NamedDecl *D) {
@@ -382,6 +398,8 @@ llvm::StringRef toTextMateScope(HighlightingKind Kind) {
     return "entity.name.namespace.cpp";
   case HighlightingKind::TemplateParameter:
     return "entity.name.type.template.cpp";
+  case HighlightingKind::Primitive:
+    return "storage.type.primitive.cpp";
   case HighlightingKind::NumKinds:
     llvm_unreachable("must not pass NumKinds to the function");
   }

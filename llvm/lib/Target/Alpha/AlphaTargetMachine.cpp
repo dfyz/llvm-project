@@ -17,6 +17,7 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/TargetRegistry.h"
+#include <memory>
 using namespace llvm;
 
 extern "C" void LLVMInitializeAlphaTarget() { 
@@ -30,7 +31,7 @@ AlphaTargetMachine::AlphaTargetMachine(const Target &T, const Triple &TT, String
                                        CodeGenOpt::Level OL, bool JIT)
   : LLVMTargetMachine(T, "e-m:m-f128:128:128-n64", TT, CPU, FS, Options,
                       Reloc::PIC_, CM.getValueOr(CodeModel::Small), OL),
-    TLOF(make_unique<TargetLoweringObjectFileELF>()),
+    TLOF(std::make_unique<TargetLoweringObjectFileELF>()),
     Subtarget(TT, CPU, FS, *this)
 {
   initAsmInfo();

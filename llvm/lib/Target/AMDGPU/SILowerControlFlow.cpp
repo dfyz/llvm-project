@@ -101,7 +101,7 @@ private:
   void emitElse(MachineInstr &MI);
   void emitIfBreak(MachineInstr &MI);
   void emitLoop(MachineInstr &MI);
-  void emitEndCf(MachineInstr &MI);
+  MachineBasicBlock *emitEndCf(MachineInstr &MI);
 
   void findMaskOperands(MachineInstr &MI, unsigned OpNo,
                         SmallVectorImpl<MachineOperand> &Src) const;
@@ -149,7 +149,7 @@ char &llvm::SILowerControlFlowID = SILowerControlFlow::ID;
 
 static bool isSimpleIf(const MachineInstr &MI, const MachineRegisterInfo *MRI,
                        const SIInstrInfo *TII) {
-  unsigned SaveExecReg = MI.getOperand(0).getReg();
+  Register SaveExecReg = MI.getOperand(0).getReg();
   auto U = MRI->use_instr_nodbg_begin(SaveExecReg);
 
   if (U == MRI->use_instr_nodbg_end() ||
@@ -209,7 +209,7 @@ void SILowerControlFlow::emitIf(MachineInstr &MI) {
     .addReg(Exec)
     .addReg(Exec, RegState::ImplicitDefine);
 
-  unsigned Tmp = MRI->createVirtualRegister(BoolRC);
+  Register Tmp = MRI->createVirtualRegister(BoolRC);
 
   MachineInstr *And =
     BuildMI(MBB, I, DL, TII->get(AndOpc), Tmp)
@@ -475,7 +475,7 @@ static MachineBasicBlock *insertInstWithExecFallthrough(MachineBasicBlock &MBB,
   return SplitMBB;
 }
 
-void SILowerControlFlow::emitEndCf(MachineInstr &MI) {
+MachineBasicBlock *SILowerControlFlow::emitEndCf(MachineInstr &MI) {
   MachineBasicBlock &MBB = *MI.getParent();
   const DebugLoc &DL = MI.getDebugLoc();
 
@@ -495,7 +495,7 @@ void SILowerControlFlow::emitEndCf(MachineInstr &MI) {
     = BuildMI(*MF, DL, TII->get(OrTermOpc), Exec)
     .addReg(Exec)
     .add(MI.getOperand(0));
-  insertInstWithExecFallthrough(MBB, MI, NewMI, DT, LIS, MLI);
+  return insertInstWithExecFallthrough(MBB, MI, NewMI, DT, LIS, MLI);
 }
 
 // Returns replace operands for a logical operation, either single result
@@ -546,7 +546,7 @@ void SILowerControlFlow::combineMasks(MachineInstr &MI) {
   else if (Ops[1].isIdenticalTo(Ops[2])) UniqueOpndIdx = 1;
   else return;
 
-  unsigned Reg = MI.getOperand(OpToReplace).getReg();
+  Register Reg = MI.getOperand(OpToReplace).getReg();
   MI.RemoveOperand(OpToReplace);
   MI.addOperand(Ops[UniqueOpndIdx]);
   if (MRI->use_empty(Reg))
@@ -623,7 +623,7 @@ bool SILowerControlFlow::runOnMachineFunction(MachineFunction &MF) {
         if (Next != MBB->end())
           NextMI = &*Next;
 
-        emitEndCf(MI);
+        MBB = emitEndCf(MI);
 
         if (NextMI) {
           MBB = NextMI->getParent();

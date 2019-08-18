@@ -51,9 +51,15 @@ std::vector<HighlightingToken> getExpectedTokens(Annotations &Test) {
   return ExpectedTokens;
 }
 
-void checkHighlightings(llvm::StringRef Code) {
+void checkHighlightings(llvm::StringRef Code,
+                        std::vector<std::pair</*FileName*/ llvm::StringRef,
+                                              /*FileContent*/ llvm::StringRef>>
+                            AdditionalFiles = {}) {
   Annotations Test(Code);
-  auto AST = TestTU::withCode(Test.code()).build();
+  auto TU = TestTU::withCode(Test.code());
+  for (auto File : AdditionalFiles)
+    TU.AdditionalFiles.insert({File.first, File.second});
+  auto AST = TU.build();
   std::vector<HighlightingToken> ActualTokens = getSemanticHighlightings(AST);
   EXPECT_THAT(ActualTokens, getExpectedTokens(Test)) << Code;
 }
@@ -99,9 +105,9 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       struct {
       } $Variable[[S]];
       $Primitive[[void]] $Function[[foo]]($Primitive[[int]] $Variable[[A]], $Class[[AS]] $Variable[[As]]) {
-        auto $Variable[[VeryLongVariableName]] = 12312;
+        $Primitive[[auto]] $Variable[[VeryLongVariableName]] = 12312;
         $Class[[AS]]     $Variable[[AA]];
-        auto $Variable[[L]] = $Variable[[AA]].$Field[[SomeMember]] + $Variable[[A]];
+        $Primitive[[auto]] $Variable[[L]] = $Variable[[AA]].$Field[[SomeMember]] + $Variable[[A]];
         auto $Variable[[FN]] = [ $Variable[[AA]]]($Primitive[[int]] $Variable[[A]]) -> $Primitive[[void]] {};
         $Variable[[FN]](12312);
       }
@@ -303,10 +309,88 @@ TEST(SemanticHighlighting, GetsCorrectTokens) {
       class $Class[[Bar2]] : public $Class[[Bar]] {
         $Class[[Bar2]]() : $Class[[Bar]]($Class[[Foo]](), $EnumConstant[[EC]]) {}
       };
+    )cpp",
+    R"cpp(
+      enum $Enum[[E]] {
+        $EnumConstant[[E]],
+      };
+      class $Class[[Foo]] {};
+      $Enum[[auto]] $Variable[[AE]] = $Enum[[E]]::$EnumConstant[[E]];
+      $Class[[auto]] $Variable[[AF]] = $Class[[Foo]]();
+      $Class[[decltype]](auto) $Variable[[AF2]] = $Class[[Foo]]();
+      $Class[[auto]] *$Variable[[AFP]] = &$Variable[[AF]];
+      $Enum[[auto]] &$Variable[[AER]] = $Variable[[AE]];
+      $Primitive[[auto]] $Variable[[Form]] = 10.2 + 2 * 4;
+      $Primitive[[decltype]]($Variable[[Form]]) $Variable[[F]] = 10;
+      auto $Variable[[Fun]] = []()->$Primitive[[void]]{};
+    )cpp",
+    R"cpp(
+      class $Class[[G]] {};
+      template<$Class[[G]] *$TemplateParameter[[U]]>
+      class $Class[[GP]] {};
+      template<$Class[[G]] &$TemplateParameter[[U]]>
+      class $Class[[GR]] {};
+      template<$Primitive[[int]] *$TemplateParameter[[U]]>
+      class $Class[[IP]] {
+        $Primitive[[void]] $Method[[f]]() {
+          *$TemplateParameter[[U]] += 5;
+        }
+      };
+      template<$Primitive[[unsigned]] $TemplateParameter[[U]] = 2>
+      class $Class[[Foo]] {
+        $Primitive[[void]] $Method[[f]]() {
+          for($Primitive[[int]] $Variable[[I]] = 0;
+            $Variable[[I]] < $TemplateParameter[[U]];) {}
+        }
+      };
+
+      $Class[[G]] $Variable[[L]];
+      $Primitive[[void]] $Function[[f]]() {
+        $Class[[Foo]]<123> $Variable[[F]];
+        $Class[[GP]]<&$Variable[[L]]> $Variable[[LL]];
+        $Class[[GR]]<$Variable[[L]]> $Variable[[LLL]];
+      }
+    )cpp",
+    R"cpp(
+      template<typename $TemplateParameter[[T]], 
+        $Primitive[[void]] (T::*$TemplateParameter[[method]])($Primitive[[int]])>
+      struct $Class[[G]] {
+        $Primitive[[void]] $Method[[foo]](
+            $TemplateParameter[[T]] *$Variable[[O]]) {
+          ($Variable[[O]]->*$TemplateParameter[[method]])(10);
+        }
+      };
+      struct $Class[[F]] {
+        $Primitive[[void]] $Method[[f]]($Primitive[[int]]);
+      };
+      template<$Primitive[[void]] (*$TemplateParameter[[Func]])()>
+      struct $Class[[A]] {
+        $Primitive[[void]] $Method[[f]]() {
+          (*$TemplateParameter[[Func]])();
+        }
+      };
+
+      $Primitive[[void]] $Function[[foo]]() {
+        $Class[[F]] $Variable[[FF]];
+        $Class[[G]]<$Class[[F]], &$Class[[F]]::$Method[[f]]> $Variable[[GG]];
+        $Variable[[GG]].$Method[[foo]](&$Variable[[FF]]);
+        $Class[[A]]<$Function[[foo]]> $Variable[[AA]];
+      }
     )cpp"};
   for (const auto &TestCase : TestCases) {
     checkHighlightings(TestCase);
   }
+
+  checkHighlightings(R"cpp(
+    class $Class[[A]] {
+      #include "imp.h"
+    };
+    #endif
+  )cpp",
+                     {{"imp.h", R"cpp(
+    int someMethod();
+    void otherMethod();
+  )cpp"}});
 }
 
 TEST(SemanticHighlighting, GeneratesHighlightsWhenFileChange) {

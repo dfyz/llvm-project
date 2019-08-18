@@ -3299,6 +3299,7 @@ foldICmpWithTruncSignExtendedVal(ICmpInst &I,
 // we should move shifts to the same hand of 'and', i.e. rewrite as
 //   icmp eq/ne (and (x shift (Q+K)), y), 0  iff (Q+K) u< bitwidth(x)
 // We are only interested in opposite logical shifts here.
+// One of the shifts can be truncated. For now, it can only be 'shl'.
 // If we can, we want to end up creating 'lshr' shift.
 static Value *
 foldShiftIntoShiftInAnotherHandOfAndInICmp(ICmpInst &I, const SimplifyQuery SQ,
@@ -3308,58 +3309,96 @@ foldShiftIntoShiftInAnotherHandOfAndInICmp(ICmpInst &I, const SimplifyQuery SQ,
     return nullptr;
 
   auto m_AnyLogicalShift = m_LogicalShift(m_Value(), m_Value());
-  auto m_AnyLShr = m_LShr(m_Value(), m_Value());
 
-  // Look for an 'and' of two (opposite) logical shifts.
-  // Pick the single-use shift as XShift.
-  Value *XShift, *YShift;
-  if (!match(I.getOperand(0),
-             m_c_And(m_CombineAnd(m_AnyLogicalShift, m_Value(XShift)),
-                     m_CombineAnd(m_AnyLogicalShift, m_Value(YShift)))))
+  // Look for an 'and' of two logical shifts, one of which may be truncated.
+  // We use m_TruncOrSelf() on the RHS to correctly handle commutative case.
+  Instruction *XShift, *MaybeTruncation, *YShift;
+  if (!match(
+          I.getOperand(0),
+          m_c_And(m_CombineAnd(m_AnyLogicalShift, m_Instruction(XShift)),
+                  m_CombineAnd(m_TruncOrSelf(m_CombineAnd(
+                                   m_AnyLogicalShift, m_Instruction(YShift))),
+                               m_Instruction(MaybeTruncation)))))
     return nullptr;
 
+  // We potentially looked past 'trunc', but only when matching YShift,
+  // therefore YShift must have the widest type.
+  Instruction *WidestShift = YShift;
+  // Therefore XShift must have the shallowest type.
+  // Or they both have identical types if there was no truncation.
+  Instruction *NarrowestShift = XShift;
+
+  Type *WidestTy = WidestShift->getType();
+  assert(NarrowestShift->getType() == I.getOperand(0)->getType() &&
+         "We did not look past any shifts while matching XShift though.");
+  bool HadTrunc = WidestTy != I.getOperand(0)->getType();
+
+  if (HadTrunc) {
+    // We did indeed have a truncation. For now, let's only proceed if the 'shl'
+    // was truncated, since that does not require any extra legality checks.
+    // FIXME: trunc-of-lshr.
+    if (!match(YShift, m_Shl(m_Value(), m_Value())))
+      return nullptr;
+  }
+
   // If YShift is a 'lshr', swap the shifts around.
-  if (match(YShift, m_AnyLShr))
+  if (match(YShift, m_LShr(m_Value(), m_Value())))
     std::swap(XShift, YShift);
 
   // The shifts must be in opposite directions.
-  Instruction::BinaryOps XShiftOpcode =
-      cast<BinaryOperator>(XShift)->getOpcode();
-  if (XShiftOpcode == cast<BinaryOperator>(YShift)->getOpcode())
+  auto XShiftOpcode = XShift->getOpcode();
+  if (XShiftOpcode == YShift->getOpcode())
     return nullptr; // Do not care about same-direction shifts here.
 
   Value *X, *XShAmt, *Y, *YShAmt;
-  match(XShift, m_BinOp(m_Value(X), m_Value(XShAmt)));
-  match(YShift, m_BinOp(m_Value(Y), m_Value(YShAmt)));
+  match(XShift, m_BinOp(m_Value(X), m_ZExtOrSelf(m_Value(XShAmt))));
+  match(YShift, m_BinOp(m_Value(Y), m_ZExtOrSelf(m_Value(YShAmt))));
 
   // If one of the values being shifted is a constant, then we will end with
-  // and+icmp, and shift instr will be constant-folded. If they are not,
+  // and+icmp, and [zext+]shift instrs will be constant-folded. If they are not,
   // however, we will need to ensure that we won't increase instruction count.
   if (!isa<Constant>(X) && !isa<Constant>(Y)) {
     // At least one of the hands of the 'and' should be one-use shift.
     if (!match(I.getOperand(0),
                m_c_And(m_OneUse(m_AnyLogicalShift), m_Value())))
       return nullptr;
+    if (HadTrunc) {
+      // Due to the 'trunc', we will need to widen X. For that either the old
+      // 'trunc' or the shift amt in the non-truncated shift should be one-use.
+      if (!MaybeTruncation->hasOneUse() &&
+          !NarrowestShift->getOperand(1)->hasOneUse())
+        return nullptr;
+    }
   }
 
+  // We have two shift amounts from two different shifts. The types of those
+  // shift amounts may not match. If that's the case let's bailout now.
+  if (XShAmt->getType() != YShAmt->getType())
+    return nullptr;
+
   // Can we fold (XShAmt+YShAmt) ?
-  Value *NewShAmt = SimplifyAddInst(XShAmt, YShAmt, /*IsNSW=*/false,
-                                    /*IsNUW=*/false, SQ.getWithInstruction(&I));
+  auto *NewShAmt = dyn_cast_or_null<Constant>(
+      SimplifyAddInst(XShAmt, YShAmt, /*isNSW=*/false,
+                      /*isNUW=*/false, SQ.getWithInstruction(&I)));
   if (!NewShAmt)
     return nullptr;
   // Is the new shift amount smaller than the bit width?
   // FIXME: could also rely on ConstantRange.
-  unsigned BitWidth = X->getType()->getScalarSizeInBits();
-  if (!match(NewShAmt, m_SpecificInt_ICMP(ICmpInst::Predicate::ICMP_ULT,
-                                          APInt(BitWidth, BitWidth))))
+  if (!match(NewShAmt, m_SpecificInt_ICMP(
+                           ICmpInst::Predicate::ICMP_ULT,
+                           APInt(NewShAmt->getType()->getScalarSizeInBits(),
+                                 WidestTy->getScalarSizeInBits()))))
     return nullptr;
-  // All good, we can do this fold. The shift is the same that was for X.
+  // All good, we can do this fold.
+  NewShAmt = ConstantExpr::getZExtOrBitCast(NewShAmt, WidestTy);
+  X = Builder.CreateZExt(X, WidestTy);
+  // The shift is the same that was for X.
   Value *T0 = XShiftOpcode == Instruction::BinaryOps::LShr
                   ? Builder.CreateLShr(X, NewShAmt)
                   : Builder.CreateShl(X, NewShAmt);
   Value *T1 = Builder.CreateAnd(T0, Y);
   return Builder.CreateICmp(I.getPredicate(), T1,
-                            Constant::getNullValue(X->getType()));
+                            Constant::getNullValue(WidestTy));
 }
 
 /// Try to fold icmp (binop), X or icmp X, (binop).
@@ -4825,41 +4864,33 @@ Instruction *InstCombiner::foldICmpUsingKnownBits(ICmpInst &I) {
   return nullptr;
 }
 
-/// If we have an icmp le or icmp ge instruction with a constant operand, turn
-/// it into the appropriate icmp lt or icmp gt instruction. This transform
-/// allows them to be folded in visitICmpInst.
-static ICmpInst *canonicalizeCmpWithConstant(ICmpInst &I) {
-  ICmpInst::Predicate Pred = I.getPredicate();
-  if (Pred != ICmpInst::ICMP_SLE && Pred != ICmpInst::ICMP_SGE &&
-      Pred != ICmpInst::ICMP_ULE && Pred != ICmpInst::ICMP_UGE)
-    return nullptr;
-
-  Value *Op0 = I.getOperand(0);
-  Value *Op1 = I.getOperand(1);
-  auto *Op1C = dyn_cast<Constant>(Op1);
-  if (!Op1C)
-    return nullptr;
+llvm::Optional<std::pair<CmpInst::Predicate, Constant *>>
+llvm::getFlippedStrictnessPredicateAndConstant(CmpInst::Predicate Pred,
+                                               Constant *C) {
+  assert(ICmpInst::isRelational(Pred) && ICmpInst::isIntPredicate(Pred) &&
+         !isCanonicalPredicate(Pred) &&
+         "Only for non-canonical relational integer predicates.");
 
   // Check if the constant operand can be safely incremented/decremented without
-  // overflowing/underflowing. For scalars, SimplifyICmpInst has already handled
-  // the edge cases for us, so we just assert on them. For vectors, we must
-  // handle the edge cases.
-  Type *Op1Type = Op1->getType();
-  bool IsSigned = I.isSigned();
+  // overflowing/underflowing. For scalars, SimplifyICmpInst should have already
+  // handled the edge cases for us, so we just assert on them.
+  // For vectors, we must handle the edge cases.
+  Type *Type = C->getType();
+  bool IsSigned = ICmpInst::isSigned(Pred);
   bool IsLE = (Pred == ICmpInst::ICMP_SLE || Pred == ICmpInst::ICMP_ULE);
-  auto *CI = dyn_cast<ConstantInt>(Op1C);
+  auto *CI = dyn_cast<ConstantInt>(C);
   if (CI) {
     // A <= MAX -> TRUE ; A >= MIN -> TRUE
     assert(IsLE ? !CI->isMaxValue(IsSigned) : !CI->isMinValue(IsSigned));
-  } else if (Op1Type->isVectorTy()) {
+  } else if (Type->isVectorTy()) {
     // TODO? If the edge cases for vectors were guaranteed to be handled as they
     // are for scalar, we could remove the min/max checks. However, to do that,
     // we would have to use insertelement/shufflevector to replace edge values.
-    unsigned NumElts = Op1Type->getVectorNumElements();
+    unsigned NumElts = Type->getVectorNumElements();
     for (unsigned i = 0; i != NumElts; ++i) {
-      Constant *Elt = Op1C->getAggregateElement(i);
+      Constant *Elt = C->getAggregateElement(i);
       if (!Elt)
-        return nullptr;
+        return llvm::None;
 
       if (isa<UndefValue>(Elt))
         continue;
@@ -4868,19 +4899,42 @@ static ICmpInst *canonicalizeCmpWithConstant(ICmpInst &I) {
       // know that this constant is min/max.
       auto *CI = dyn_cast<ConstantInt>(Elt);
       if (!CI || (IsLE ? CI->isMaxValue(IsSigned) : CI->isMinValue(IsSigned)))
-        return nullptr;
+        return llvm::None;
     }
   } else {
     // ConstantExpr?
-    return nullptr;
+    return llvm::None;
   }
 
-  // Increment or decrement the constant and set the new comparison predicate:
-  // ULE -> ULT ; UGE -> UGT ; SLE -> SLT ; SGE -> SGT
-  Constant *OneOrNegOne = ConstantInt::get(Op1Type, IsLE ? 1 : -1, true);
-  CmpInst::Predicate NewPred = IsLE ? ICmpInst::ICMP_ULT: ICmpInst::ICMP_UGT;
-  NewPred = IsSigned ? ICmpInst::getSignedPredicate(NewPred) : NewPred;
-  return new ICmpInst(NewPred, Op0, ConstantExpr::getAdd(Op1C, OneOrNegOne));
+  CmpInst::Predicate NewPred = CmpInst::getFlippedStrictnessPredicate(Pred);
+
+  // Increment or decrement the constant.
+  Constant *OneOrNegOne = ConstantInt::get(Type, IsLE ? 1 : -1, true);
+  Constant *NewC = ConstantExpr::getAdd(C, OneOrNegOne);
+
+  return std::make_pair(NewPred, NewC);
+}
+
+/// If we have an icmp le or icmp ge instruction with a constant operand, turn
+/// it into the appropriate icmp lt or icmp gt instruction. This transform
+/// allows them to be folded in visitICmpInst.
+static ICmpInst *canonicalizeCmpWithConstant(ICmpInst &I) {
+  ICmpInst::Predicate Pred = I.getPredicate();
+  if (ICmpInst::isEquality(Pred) || !ICmpInst::isIntPredicate(Pred) ||
+      isCanonicalPredicate(Pred))
+    return nullptr;
+
+  Value *Op0 = I.getOperand(0);
+  Value *Op1 = I.getOperand(1);
+  auto *Op1C = dyn_cast<Constant>(Op1);
+  if (!Op1C)
+    return nullptr;
+
+  auto FlippedStrictness = getFlippedStrictnessPredicateAndConstant(Pred, Op1C);
+  if (!FlippedStrictness)
+    return nullptr;
+
+  return new ICmpInst(FlippedStrictness->first, Op0, FlippedStrictness->second);
 }
 
 /// Integer compare with boolean values can always be turned into bitwise ops.

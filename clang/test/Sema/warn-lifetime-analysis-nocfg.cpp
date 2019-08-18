@@ -119,6 +119,17 @@ void initLocalGslPtrWithTempOwner() {
   global2 = MyLongOwnerWithConversion{}; // TODO ?
 }
 
+namespace __gnu_cxx {
+template <typename T>
+struct basic_iterator {
+  basic_iterator operator++();
+  T& operator*() const;
+};
+
+template<typename T>
+bool operator!=(basic_iterator<T>, basic_iterator<T>);
+}
+
 namespace std {
 template<class T> struct remove_reference       { typedef T type; };
 template<class T> struct remove_reference<T &>  { typedef T type; };
@@ -128,20 +139,11 @@ template<class T>
 typename remove_reference<T>::type &&move(T &&t) noexcept;
 
 template <typename T>
-struct basic_iterator {
-  basic_iterator operator++();
-  T& operator*() const;
-};
-
-template<typename T>
-bool operator!=(basic_iterator<T>, basic_iterator<T>);
-
-template <typename T>
 struct vector {
-  typedef basic_iterator<T> iterator;
+  typedef __gnu_cxx::basic_iterator<T> iterator;
   iterator begin();
   iterator end();
-  T *data();
+  const T *data() const;
   T &at(int n);
 };
 
@@ -168,7 +170,15 @@ template<typename T>
 struct optional {
   optional();
   optional(const T&);
-  T &operator*();
+  T &operator*() &;
+  T &&operator*() &&;
+  T &value() &;
+  T &&value() &&;
+};
+
+template<typename T>
+struct stack {
+  T &top();
 };
 }
 
@@ -186,6 +196,16 @@ const char *danglingRawPtrFromLocal() {
   return s.c_str(); // expected-warning {{address of stack memory associated with local variable 's' returned}}
 }
 
+int &danglingRawPtrFromLocal2() {
+  std::optional<int> o;
+  return o.value(); // expected-warning {{reference to stack memory associated with local variable 'o' returned}}
+}
+
+int &danglingRawPtrFromLocal3() {
+  std::optional<int> o;
+  return *o; // expected-warning {{reference to stack memory associated with local variable 'o' returned}}
+}
+
 const char *danglingRawPtrFromTemp() {
   return std::basic_string<char>().c_str(); // expected-warning {{returning address of local temporary object}}
 }
@@ -201,13 +221,21 @@ int *danglingUniquePtrFromTemp2() {
 }
 
 void danglingReferenceFromTempOwner() {
-  int &r = *std::optional<int>(); // expected-warning {{object backing the pointer will be destroyed at the end of the full-expression}}
-  int &r2 = *std::optional<int>(5); // expected-warning {{object backing the pointer will be destroyed at the end of the full-expression}}
-  int &r3 = std::vector<int>().at(3); // expected-warning {{object backing the pointer will be destroyed at the end of the full-expression}}
+  int &&r = *std::optional<int>();          // expected-warning {{object backing the pointer will be destroyed at the end of the full-expression}}
+  int &&r2 = *std::optional<int>(5);        // expected-warning {{object backing the pointer will be destroyed at the end of the full-expression}}
+  int &&r3 = std::optional<int>(5).value(); // expected-warning {{object backing the pointer will be destroyed at the end of the full-expression}}
+  int &r4 = std::vector<int>().at(3);       // expected-warning {{object backing the pointer will be destroyed at the end of the full-expression}}
 }
 
 std::vector<int> getTempVec();
 std::optional<std::vector<int>> getTempOptVec();
+
+void testLoops() {
+  for (auto i : getTempVec()) // ok
+    ;
+  for (auto i : *getTempOptVec()) // expected-warning {{object backing the pointer will be destroyed at the end of the full-expression}}
+    ;
+}
 
 int &usedToBeFalsePositive(std::vector<int> &v) {
   std::vector<int>::iterator it = v.begin();
@@ -235,8 +263,14 @@ struct X {
 };
 
 std::vector<int>::iterator getIt();
+std::vector<int> getVec();
 
-const int &handleGslPtrInitsThroughReference(const std::vector<int> &v) {
+const int &handleGslPtrInitsThroughReference() {
   const auto &it = getIt(); // Ok, it is lifetime extended.
   return *it;
+}
+
+void handleGslPtrInitsThroughReference2() {
+  const std::vector<int> &v = getVec();
+  const int *val = v.data(); // Ok, it is lifetime extended.
 }

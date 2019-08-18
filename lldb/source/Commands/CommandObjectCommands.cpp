@@ -966,11 +966,9 @@ protected:
     if (m_regex_cmd_up) {
       StringList lines;
       if (lines.SplitIntoLines(data)) {
-        const size_t num_lines = lines.GetSize();
         bool check_only = false;
-        for (size_t i = 0; i < num_lines; ++i) {
-          llvm::StringRef bytes_strref(lines[i]);
-          Status error = AppendRegexSubstitution(bytes_strref, check_only);
+        for (const std::string &line : lines) {
+          Status error = AppendRegexSubstitution(line, check_only);
           if (error.Fail()) {
             if (!GetDebugger().GetCommandInterpreter().GetBatchCommandMode()) {
               StreamSP out_stream = GetDebugger().GetAsyncOutputStream();
@@ -997,7 +995,7 @@ protected:
 
     Status error;
     auto name = command[0].ref;
-    m_regex_cmd_up = llvm::make_unique<CommandObjectRegexCommand>(
+    m_regex_cmd_up = std::make_unique<CommandObjectRegexCommand>(
         m_interpreter, name, m_options.GetHelp(), m_options.GetSyntax(), 10, 0,
         true);
 

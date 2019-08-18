@@ -1238,7 +1238,7 @@ MemorySSA::AccessList *MemorySSA::getOrCreateAccessList(const BasicBlock *BB) {
   auto Res = PerBlockAccesses.insert(std::make_pair(BB, nullptr));
 
   if (Res.second)
-    Res.first->second = llvm::make_unique<AccessList>();
+    Res.first->second = std::make_unique<AccessList>();
   return Res.first->second.get();
 }
 
@@ -1246,7 +1246,7 @@ MemorySSA::DefsList *MemorySSA::getOrCreateDefsList(const BasicBlock *BB) {
   auto Res = PerBlockDefs.insert(std::make_pair(BB, nullptr));
 
   if (Res.second)
-    Res.first->second = llvm::make_unique<DefsList>();
+    Res.first->second = std::make_unique<DefsList>();
   return Res.first->second.get();
 }
 
@@ -1555,10 +1555,10 @@ MemorySSA::CachingWalker<AliasAnalysis> *MemorySSA::getWalkerImpl() {
 
   if (!WalkerBase)
     WalkerBase =
-        llvm::make_unique<ClobberWalkerBase<AliasAnalysis>>(this, AA, DT);
+        std::make_unique<ClobberWalkerBase<AliasAnalysis>>(this, AA, DT);
 
   Walker =
-      llvm::make_unique<CachingWalker<AliasAnalysis>>(this, WalkerBase.get());
+      std::make_unique<CachingWalker<AliasAnalysis>>(this, WalkerBase.get());
   return Walker.get();
 }
 
@@ -1568,10 +1568,10 @@ MemorySSAWalker *MemorySSA::getSkipSelfWalker() {
 
   if (!WalkerBase)
     WalkerBase =
-        llvm::make_unique<ClobberWalkerBase<AliasAnalysis>>(this, AA, DT);
+        std::make_unique<ClobberWalkerBase<AliasAnalysis>>(this, AA, DT);
 
   SkipWalker =
-      llvm::make_unique<SkipSelfWalker<AliasAnalysis>>(this, WalkerBase.get());
+      std::make_unique<SkipSelfWalker<AliasAnalysis>>(this, WalkerBase.get());
   return SkipWalker.get();
  }
 
@@ -1886,8 +1886,6 @@ void MemorySSA::verifyPrevDefInPhis(Function &F) const {
             }
             DTNode = DTNode->getIDom();
           }
-          assert((DTNode || IncAcc == getLiveOnEntryDef()) &&
-                 "Expected LoE inc");
         } else if (auto *DefList = getBlockDefs(Pred)) {
           // If Pred has unreachable predecessors, but has at least a Def, the
           // incoming access can be the last Def in Pred, or it could have been
@@ -1897,8 +1895,7 @@ void MemorySSA::verifyPrevDefInPhis(Function &F) const {
                  "Incorrect incoming access into phi.");
         } else {
           // If Pred has unreachable predecessors and no Defs, incoming access
-          // should be LoE.
-          assert(IncAcc == getLiveOnEntryDef() && "Expected LoE inc");
+          // should be LoE; In practice, after an update, it may be any access.
         }
       }
     }
@@ -2256,7 +2253,7 @@ MemorySSAAnalysis::Result MemorySSAAnalysis::run(Function &F,
                                                  FunctionAnalysisManager &AM) {
   auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
   auto &AA = AM.getResult<AAManager>(F);
-  return MemorySSAAnalysis::Result(llvm::make_unique<MemorySSA>(F, &AA, &DT));
+  return MemorySSAAnalysis::Result(std::make_unique<MemorySSA>(F, &AA, &DT));
 }
 
 bool MemorySSAAnalysis::Result::invalidate(

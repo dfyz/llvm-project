@@ -911,6 +911,39 @@ int X86TTIImpl::getShuffleCost(TTI::ShuffleKind Kind, Type *Tp, int Index,
       int NumSubElts = SubLT.second.getVectorNumElements();
       if ((Index % NumSubElts) == 0 && (NumElts % NumSubElts) == 0)
         return SubLT.first;
+      // Handle some cases for widening legalization. For now we only handle
+      // cases where the original subvector was naturally aligned and evenly
+      // fit in its legalized subvector type.
+      // FIXME: Remove some of the alignment restrictions.
+      // FIXME: We can use permq for 64-bit or larger extracts from 256-bit
+      // vectors.
+      int OrigSubElts = SubTp->getVectorNumElements();
+      if (NumSubElts > OrigSubElts &&
+          (Index % OrigSubElts) == 0 && (NumSubElts % OrigSubElts) == 0 &&
+          LT.second.getVectorElementType() ==
+            SubLT.second.getVectorElementType() &&
+          LT.second.getVectorElementType().getSizeInBits() ==
+            Tp->getVectorElementType()->getPrimitiveSizeInBits()) {
+        assert(NumElts >= NumSubElts && NumElts > OrigSubElts &&
+               "Unexpected number of elements!");
+        Type *VecTy = VectorType::get(Tp->getVectorElementType(),
+                                      LT.second.getVectorNumElements());
+        Type *SubTy = VectorType::get(Tp->getVectorElementType(),
+                                      SubLT.second.getVectorNumElements());
+        int ExtractIndex = alignDown((Index % NumElts), NumSubElts);
+        int ExtractCost = getShuffleCost(TTI::SK_ExtractSubvector, VecTy,
+                                         ExtractIndex, SubTy);
+
+        // If the original size is 32-bits or more, we can use pshufd. Otherwise
+        // if we have SSSE3 we can use pshufb.
+        if (SubTp->getPrimitiveSizeInBits() >= 32 || ST->hasSSSE3())
+          return ExtractCost + 1; // pshufd or pshufb
+
+        assert(SubTp->getPrimitiveSizeInBits() == 16 &&
+               "Unexpected vector size");
+
+        return ExtractCost + 2; // worst case pshufhw + pshufd
+      }
     }
   }
 
@@ -1314,8 +1347,10 @@ int X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
     { ISD::ZERO_EXTEND, MVT::v16i32, MVT::v16i8,  1 },
     { ISD::SIGN_EXTEND, MVT::v16i32, MVT::v16i16, 1 },
     { ISD::ZERO_EXTEND, MVT::v16i32, MVT::v16i16, 1 },
-    { ISD::ZERO_EXTEND, MVT::v8i64,  MVT::v8i16,  1 },
+    { ISD::SIGN_EXTEND, MVT::v8i64,  MVT::v8i8,   1 },
+    { ISD::ZERO_EXTEND, MVT::v8i64,  MVT::v8i8,   1 },
     { ISD::SIGN_EXTEND, MVT::v8i64,  MVT::v8i16,  1 },
+    { ISD::ZERO_EXTEND, MVT::v8i64,  MVT::v8i16,  1 },
     { ISD::SIGN_EXTEND, MVT::v8i64,  MVT::v8i32,  1 },
     { ISD::ZERO_EXTEND, MVT::v8i64,  MVT::v8i32,  1 },
 
@@ -1371,14 +1406,14 @@ int X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
     { ISD::ZERO_EXTEND, MVT::v4i64,  MVT::v4i1,   3 },
     { ISD::SIGN_EXTEND, MVT::v8i32,  MVT::v8i1,   3 },
     { ISD::ZERO_EXTEND, MVT::v8i32,  MVT::v8i1,   3 },
-    { ISD::SIGN_EXTEND, MVT::v4i64,  MVT::v4i8,   3 },
-    { ISD::ZERO_EXTEND, MVT::v4i64,  MVT::v4i8,   3 },
-    { ISD::SIGN_EXTEND, MVT::v8i32,  MVT::v8i8,   3 },
-    { ISD::ZERO_EXTEND, MVT::v8i32,  MVT::v8i8,   3 },
+    { ISD::SIGN_EXTEND, MVT::v4i64,  MVT::v4i8,   1 },
+    { ISD::ZERO_EXTEND, MVT::v4i64,  MVT::v4i8,   1 },
+    { ISD::SIGN_EXTEND, MVT::v8i32,  MVT::v8i8,   1 },
+    { ISD::ZERO_EXTEND, MVT::v8i32,  MVT::v8i8,   1 },
     { ISD::SIGN_EXTEND, MVT::v16i16, MVT::v16i8,  1 },
     { ISD::ZERO_EXTEND, MVT::v16i16, MVT::v16i8,  1 },
-    { ISD::SIGN_EXTEND, MVT::v4i64,  MVT::v4i16,  3 },
-    { ISD::ZERO_EXTEND, MVT::v4i64,  MVT::v4i16,  3 },
+    { ISD::SIGN_EXTEND, MVT::v4i64,  MVT::v4i16,  1 },
+    { ISD::ZERO_EXTEND, MVT::v4i64,  MVT::v4i16,  1 },
     { ISD::SIGN_EXTEND, MVT::v8i32,  MVT::v8i16,  1 },
     { ISD::ZERO_EXTEND, MVT::v8i32,  MVT::v8i16,  1 },
     { ISD::SIGN_EXTEND, MVT::v4i64,  MVT::v4i32,  1 },
@@ -1402,13 +1437,13 @@ int X86TTIImpl::getCastInstrCost(unsigned Opcode, Type *Dst, Type *Src,
     { ISD::ZERO_EXTEND, MVT::v4i64,  MVT::v4i1,  4 },
     { ISD::SIGN_EXTEND, MVT::v8i32,  MVT::v8i1,  7 },
     { ISD::ZERO_EXTEND, MVT::v8i32,  MVT::v8i1,  4 },
-    { ISD::SIGN_EXTEND, MVT::v4i64,  MVT::v4i8,  6 },
+    { ISD::SIGN_EXTEND, MVT::v4i64,  MVT::v4i8,  4 },
     { ISD::ZERO_EXTEND, MVT::v4i64,  MVT::v4i8,  4 },
-    { ISD::SIGN_EXTEND, MVT::v8i32,  MVT::v8i8,  7 },
+    { ISD::SIGN_EXTEND, MVT::v8i32,  MVT::v8i8,  4 },
     { ISD::ZERO_EXTEND, MVT::v8i32,  MVT::v8i8,  4 },
     { ISD::SIGN_EXTEND, MVT::v16i16, MVT::v16i8, 4 },
     { ISD::ZERO_EXTEND, MVT::v16i16, MVT::v16i8, 4 },
-    { ISD::SIGN_EXTEND, MVT::v4i64,  MVT::v4i16, 6 },
+    { ISD::SIGN_EXTEND, MVT::v4i64,  MVT::v4i16, 4 },
     { ISD::ZERO_EXTEND, MVT::v4i64,  MVT::v4i16, 3 },
     { ISD::SIGN_EXTEND, MVT::v8i32,  MVT::v8i16, 4 },
     { ISD::ZERO_EXTEND, MVT::v8i32,  MVT::v8i16, 4 },

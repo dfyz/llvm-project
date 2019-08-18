@@ -2,6 +2,104 @@ import * as fs from 'fs';
 import * as jsonc from "jsonc-parser";
 import * as path from 'path';
 import * as vscode from 'vscode';
+import * as vscodelc from 'vscode-languageclient';
+import * as vscodelct from 'vscode-languageserver-types';
+
+// Parameters for the semantic highlighting (server-side) push notification.
+// Mirrors the structure in the semantic highlighting proposal for LSP.
+interface SemanticHighlightingParams {
+  // The text document that has to be decorated with the semantic highlighting
+  // information.
+  textDocument: vscodelct.VersionedTextDocumentIdentifier;
+  // An array of semantic highlighting information.
+  lines: SemanticHighlightingInformation[];
+}
+// Contains the highlighting information for a specified line. Mirrors the
+// structure in the semantic highlighting proposal for LSP.
+interface SemanticHighlightingInformation {
+  // The zero-based line position in the text document.
+  line: number;
+  // A base64 encoded string representing every single highlighted characters
+  // with its start position, length and the "lookup table" index of of the
+  // semantic highlighting Text Mate scopes.
+  tokens?: string;
+}
+
+// A SemanticHighlightingToken decoded from the base64 data sent by clangd.
+interface SemanticHighlightingToken {
+  // Start column for this token.
+  character: number;
+  // Length of the token.
+  length: number;
+  // The TextMate scope index to the clangd scope lookup table.
+  scopeIndex: number;
+}
+
+// Language server push notification providing the semantic highlighting
+// information for a text document.
+export const NotificationType =
+    new vscodelc.NotificationType<SemanticHighlightingParams, void>(
+        'textDocument/semanticHighlighting');
+
+// The feature that should be registered in the vscode lsp for enabling
+// experimental semantic highlighting.
+export class SemanticHighlightingFeature implements vscodelc.StaticFeature {
+  // The TextMate scope lookup table. A token with scope index i has the scopes
+  // on index i in the lookup table.
+  scopeLookupTable: string[][];
+  // The rules for the current theme.
+  themeRuleMatcher: ThemeRuleMatcher;
+  fillClientCapabilities(capabilities: vscodelc.ClientCapabilities) {
+    // Extend the ClientCapabilities type and add semantic highlighting
+    // capability to the object.
+    const textDocumentCapabilities: vscodelc.TextDocumentClientCapabilities&
+        {semanticHighlightingCapabilities?: {semanticHighlighting : boolean}} =
+        capabilities.textDocument;
+    textDocumentCapabilities.semanticHighlightingCapabilities = {
+      semanticHighlighting : true,
+    };
+  }
+
+  async loadCurrentTheme() {
+    this.themeRuleMatcher = new ThemeRuleMatcher(
+        await loadTheme(vscode.workspace.getConfiguration('workbench')
+                            .get<string>('colorTheme')));
+  }
+
+  initialize(capabilities: vscodelc.ServerCapabilities,
+             documentSelector: vscodelc.DocumentSelector|undefined) {
+    // The semantic highlighting capability information is in the capabilities
+    // object but to access the data we must first extend the ServerCapabilities
+    // type.
+    const serverCapabilities: vscodelc.ServerCapabilities&
+        {semanticHighlighting?: {scopes : string[][]}} = capabilities;
+    if (!serverCapabilities.semanticHighlighting)
+      return;
+    this.scopeLookupTable = serverCapabilities.semanticHighlighting.scopes;
+    this.loadCurrentTheme();
+  }
+
+  handleNotification(params: SemanticHighlightingParams) {}
+}
+
+// Converts a string of base64 encoded tokens into the corresponding array of
+// HighlightingTokens.
+export function decodeTokens(tokens: string): SemanticHighlightingToken[] {
+  const scopeMask = 0xFFFF;
+  const lenShift = 0x10;
+  const uint32Size = 4;
+  const buf = Buffer.from(tokens, 'base64');
+  const retTokens = [];
+  for (let i = 0, end = buf.length / uint32Size; i < end; i += 2) {
+    const start = buf.readUInt32BE(i * uint32Size);
+    const lenKind = buf.readUInt32BE((i + 1) * uint32Size);
+    const scopeIndex = lenKind & scopeMask;
+    const len = lenKind >>> lenShift;
+    retTokens.push({character : start, scopeIndex : scopeIndex, length : len});
+  }
+
+  return retTokens;
+}
 
 // A rule for how to color TextMate scopes.
 interface TokenColorRule {
@@ -10,6 +108,39 @@ interface TokenColorRule {
   scope: string;
   // foreground is the color tokens of this scope should have.
   foreground: string;
+}
+
+export class ThemeRuleMatcher {
+  // The rules for the theme.
+  private themeRules: TokenColorRule[];
+  // A cache for the getBestThemeRule function.
+  private bestRuleCache: Map<string, TokenColorRule> = new Map();
+  constructor(rules: TokenColorRule[]) { this.themeRules = rules; }
+  // Returns the best rule for a scope.
+  getBestThemeRule(scope: string): TokenColorRule {
+    if (this.bestRuleCache.has(scope))
+      return this.bestRuleCache.get(scope);
+    let bestRule: TokenColorRule = {scope : '', foreground : ''};
+    this.themeRules.forEach((rule) => {
+      // The best rule for a scope is the rule that is the longest prefix of the
+      // scope (unless a perfect match exists in which case the perfect match is
+      // the best). If a rule is not a prefix and we tried to match with longest
+      // common prefix instead variables would be highlighted as `less`
+      // variables when using Light+ (as variable.other would be matched against
+      // variable.other.less in this case). Doing common prefix matching also
+      // means we could match variable.cpp to variable.css if variable.css
+      // occurs before variable in themeRules.
+      // FIXME: This is not defined in the TextMate standard (it is explicitly
+      // undefined, https://macromates.com/manual/en/scope_selectors). Might
+      // want to rank some other way.
+      if (scope.startsWith(rule.scope) &&
+          rule.scope.length > bestRule.scope.length)
+        // This rule matches and is more specific than the old rule.
+        bestRule = rule;
+    });
+    this.bestRuleCache.set(scope, bestRule);
+    return bestRule;
+  }
 }
 
 // Get all token color rules provided by the theme.

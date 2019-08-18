@@ -134,7 +134,7 @@ int main(int argc, const char **argv) {
 
   // The command options are rewritten to run Clang in preprocessor only mode.
   auto AdjustingCompilations =
-      llvm::make_unique<tooling::ArgumentsAdjustingCompilations>(
+      std::make_unique<tooling::ArgumentsAdjustingCompilations>(
           std::move(Compilations));
   AdjustingCompilations->appendArgumentsAdjuster(
       [](const tooling::CommandLineArguments &Args, StringRef /*unused*/) {
@@ -154,11 +154,15 @@ int main(int argc, const char **argv) {
   SharedStream DependencyOS(llvm::outs());
 
   DependencyScanningService Service(ScanMode);
+#if LLVM_ENABLE_THREADS
   unsigned NumWorkers =
       NumThreads == 0 ? llvm::hardware_concurrency() : NumThreads;
+#else
+  unsigned NumWorkers = 1;
+#endif
   std::vector<std::unique_ptr<DependencyScanningTool>> WorkerTools;
   for (unsigned I = 0; I < NumWorkers; ++I)
-    WorkerTools.push_back(llvm::make_unique<DependencyScanningTool>(
+    WorkerTools.push_back(std::make_unique<DependencyScanningTool>(
         Service, *AdjustingCompilations, DependencyOS, Errs));
 
   std::vector<std::thread> WorkerThreads;
@@ -169,25 +173,30 @@ int main(int argc, const char **argv) {
   llvm::outs() << "Running clang-scan-deps on " << Inputs.size()
                << " files using " << NumWorkers << " workers\n";
   for (unsigned I = 0; I < NumWorkers; ++I) {
-    WorkerThreads.emplace_back(
-        [I, &Lock, &Index, &Inputs, &HadErrors, &WorkerTools]() {
-          while (true) {
-            std::string Input;
-            StringRef CWD;
-            // Take the next input.
-            {
-              std::unique_lock<std::mutex> LockGuard(Lock);
-              if (Index >= Inputs.size())
-                return;
-              const auto &Compilation = Inputs[Index++];
-              Input = Compilation.first;
-              CWD = Compilation.second;
-            }
-            // Run the tool on it.
-            if (WorkerTools[I]->runOnFile(Input, CWD))
-              HadErrors = true;
-          }
-        });
+    auto Worker = [I, &Lock, &Index, &Inputs, &HadErrors, &WorkerTools]() {
+      while (true) {
+        std::string Input;
+        StringRef CWD;
+        // Take the next input.
+        {
+          std::unique_lock<std::mutex> LockGuard(Lock);
+          if (Index >= Inputs.size())
+            return;
+          const auto &Compilation = Inputs[Index++];
+          Input = Compilation.first;
+          CWD = Compilation.second;
+        }
+        // Run the tool on it.
+        if (WorkerTools[I]->runOnFile(Input, CWD))
+          HadErrors = true;
+      }
+    };
+#if LLVM_ENABLE_THREADS
+    WorkerThreads.emplace_back(std::move(Worker));
+#else
+    // Run the worker without spawning a thread when threads are disabled.
+    Worker();
+#endif
   }
   for (auto &W : WorkerThreads)
     W.join();

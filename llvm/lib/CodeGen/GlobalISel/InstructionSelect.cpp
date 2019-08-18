@@ -66,9 +66,10 @@ bool InstructionSelect::runOnMachineFunction(MachineFunction &MF) {
   LLVM_DEBUG(dbgs() << "Selecting function: " << MF.getName() << '\n');
 
   const TargetPassConfig &TPC = getAnalysis<TargetPassConfig>();
-  const InstructionSelector *ISel = MF.getSubtarget().getInstructionSelector();
+  InstructionSelector *ISel = MF.getSubtarget().getInstructionSelector();
   CodeGenCoverage CoverageInfo;
   assert(ISel && "Cannot work without InstructionSelector");
+  ISel->setupMF(MF, CoverageInfo);
 
   // An optimization remark emitter. Used to report failures.
   MachineOptimizationRemarkEmitter MORE(MF, /*MBFI=*/nullptr);
@@ -124,7 +125,7 @@ bool InstructionSelect::runOnMachineFunction(MachineFunction &MF) {
         continue;
       }
 
-      if (!ISel->select(MI, CoverageInfo)) {
+      if (!ISel->select(MI)) {
         // FIXME: It would be nice to dump all inserted instructions.  It's
         // not obvious how, esp. considering select() can insert after MI.
         reportGISelFailure(MF, TPC, MORE, "gisel-select", "cannot select", MI);
@@ -159,8 +160,8 @@ bool InstructionSelect::runOnMachineFunction(MachineFunction &MF) {
         --MII;
       if (MI.getOpcode() != TargetOpcode::COPY)
         continue;
-      unsigned SrcReg = MI.getOperand(1).getReg();
-      unsigned DstReg = MI.getOperand(0).getReg();
+      Register SrcReg = MI.getOperand(1).getReg();
+      Register DstReg = MI.getOperand(0).getReg();
       if (Register::isVirtualRegister(SrcReg) &&
           Register::isVirtualRegister(DstReg)) {
         auto SrcRC = MRI.getRegClass(SrcReg);

@@ -83,9 +83,9 @@ class DynamicTypePropagation:
       ID.AddPointer(Sym);
     }
 
-    std::shared_ptr<PathDiagnosticPiece> VisitNode(const ExplodedNode *N,
-                                                   BugReporterContext &BRC,
-                                                   BugReport &BR) override;
+    PathDiagnosticPieceRef VisitNode(const ExplodedNode *N,
+                                     BugReporterContext &BRC,
+                                     BugReport &BR) override;
 
   private:
     // The tracked symbol.
@@ -922,16 +922,14 @@ void DynamicTypePropagation::reportGenericsBug(
   std::unique_ptr<BugReport> R(
       new BugReport(*ObjCGenericsBugType, OS.str(), N));
   R->markInteresting(Sym);
-  R->addVisitor(llvm::make_unique<GenericsBugVisitor>(Sym));
+  R->addVisitor(std::make_unique<GenericsBugVisitor>(Sym));
   if (ReportedNode)
     R->addRange(ReportedNode->getSourceRange());
   C.emitReport(std::move(R));
 }
 
-std::shared_ptr<PathDiagnosticPiece>
-DynamicTypePropagation::GenericsBugVisitor::VisitNode(const ExplodedNode *N,
-                                                      BugReporterContext &BRC,
-                                                      BugReport &BR) {
+PathDiagnosticPieceRef DynamicTypePropagation::GenericsBugVisitor::VisitNode(
+    const ExplodedNode *N, BugReporterContext &BRC, BugReport &BR) {
   ProgramStateRef state = N->getState();
   ProgramStateRef statePrev = N->getFirstPred()->getState();
 

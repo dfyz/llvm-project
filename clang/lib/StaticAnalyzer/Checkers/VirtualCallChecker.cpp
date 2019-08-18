@@ -70,9 +70,9 @@ private:
       ID.AddPointer(ObjectRegion);
     }
 
-    std::shared_ptr<PathDiagnosticPiece> VisitNode(const ExplodedNode *N,
-                                                   BugReporterContext &BRC,
-                                                   BugReport &BR) override;
+    PathDiagnosticPieceRef VisitNode(const ExplodedNode *N,
+                                     BugReporterContext &BRC,
+                                     BugReport &BR) override;
   };
 };
 } // end namespace
@@ -80,10 +80,8 @@ private:
 // GDM (generic data map) to the memregion of this for the ctor and dtor.
 REGISTER_MAP_WITH_PROGRAMSTATE(CtorDtorMap, const MemRegion *, ObjectState)
 
-std::shared_ptr<PathDiagnosticPiece>
-VirtualCallChecker::VirtualBugVisitor::VisitNode(const ExplodedNode *N,
-                                                 BugReporterContext &BRC,
-                                                 BugReport &) {
+PathDiagnosticPieceRef VirtualCallChecker::VirtualBugVisitor::VisitNode(
+    const ExplodedNode *N, BugReporterContext &BRC, BugReport &) {
   // We need the last ctor/dtor which call the virtual function.
   // The visitor walks the ExplodedGraph backwards.
   if (Found)
@@ -270,8 +268,8 @@ void VirtualCallChecker::reportBug(StringRef Msg, bool IsSink,
         this, "Call to virtual function during construction or destruction",
         "C++ Object Lifecycle"));
 
-  auto Reporter = llvm::make_unique<BugReport>(*BT, Msg, N);
-  Reporter->addVisitor(llvm::make_unique<VirtualBugVisitor>(Reg));
+  auto Reporter = std::make_unique<BugReport>(*BT, Msg, N);
+  Reporter->addVisitor(std::make_unique<VirtualBugVisitor>(Reg));
   C.emitReport(std::move(Reporter));
 }
 

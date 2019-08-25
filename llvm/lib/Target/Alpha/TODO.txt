@@ -2,3 +2,5 @@ clang:
   * fix missing BB labels when compiling with -O0
   * fix machine code verification failures
   * fix large constant selection
+  * fix "Def isn't really dead"
+  * fix BSR and $t12 interaction

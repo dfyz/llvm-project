@@ -323,9 +323,7 @@ private:
         m_regex = true;
         break;
       default:
-        error.SetErrorStringWithFormat("unrecognized option '%c'",
-                                       short_option);
-        break;
+        llvm_unreachable("Unimplemented option");
       }
 
       return error;
@@ -436,10 +434,9 @@ protected:
                 Status error;
 
                 for (const std::string &type_name : options->m_target_types) {
-                  ConstString const_type_name(type_name);
-                  if (const_type_name) {
+                  if (!type_name.empty()) {
                     if (!CommandObjectTypeSynthAdd::AddSynth(
-                            const_type_name, synth_provider,
+                            ConstString(type_name), synth_provider,
                             options->m_regex
                                 ? CommandObjectTypeSynthAdd::eRegexSynth
                                 : CommandObjectTypeSynthAdd::eRegularSynth,
@@ -549,9 +546,7 @@ private:
         m_custom_type_name.assign(option_value);
         break;
       default:
-        error.SetErrorStringWithFormat("unrecognized option '%c'",
-                                       short_option);
-        break;
+        llvm_unreachable("Unimplemented option");
       }
 
       return error;
@@ -692,8 +687,8 @@ protected:
 
       ConstString typeCS(arg_entry.ref);
       if (m_command_options.m_regex) {
-        RegularExpressionSP typeRX(new RegularExpression());
-        if (!typeRX->Compile(arg_entry.ref)) {
+        RegularExpressionSP typeRX(new RegularExpression(arg_entry.ref));
+        if (!typeRX->IsValid()) {
           result.AppendError(
               "regex format error (maybe this is not really a regex?)");
           result.SetStatus(eReturnStatusFailed);
@@ -737,9 +732,7 @@ protected:
         m_language = Language::GetLanguageTypeFromString(option_arg);
         break;
       default:
-        error.SetErrorStringWithFormat("unrecognized option '%c'",
-                                       short_option);
-        break;
+        llvm_unreachable("Unimplemented option");
       }
 
       return error;
@@ -868,9 +861,7 @@ private:
         m_delete_all = true;
         break;
       default:
-        error.SetErrorStringWithFormat("unrecognized option '%c'",
-                                       short_option);
-        break;
+        llvm_unreachable("Unimplemented option");
       }
 
       return error;
@@ -988,9 +979,7 @@ class CommandObjectTypeFormatterList : public CommandObjectParsed {
           m_category_language.SetOptionWasSet();
         break;
       default:
-        error.SetErrorStringWithFormat("unrecognized option '%c'",
-                                       short_option);
-        break;
+        llvm_unreachable("Unimplemented option");
       }
 
       return error;
@@ -1044,9 +1033,9 @@ protected:
     std::unique_ptr<RegularExpression> formatter_regex;
 
     if (m_options.m_category_regex.OptionWasSet()) {
-      category_regex.reset(new RegularExpression());
-      if (!category_regex->Compile(
-              m_options.m_category_regex.GetCurrentValueAsRef())) {
+      category_regex.reset(new RegularExpression(
+          m_options.m_category_regex.GetCurrentValueAsRef()));
+      if (!category_regex->IsValid()) {
         result.AppendErrorWithFormat(
             "syntax error in category regular expression '%s'",
             m_options.m_category_regex.GetCurrentValueAsRef().str().c_str());
@@ -1057,8 +1046,9 @@ protected:
 
     if (argc == 1) {
       const char *arg = command.GetArgumentAtIndex(0);
-      formatter_regex.reset(new RegularExpression());
-      if (!formatter_regex->Compile(llvm::StringRef::withNullAsEmpty(arg))) {
+      formatter_regex.reset(
+          new RegularExpression(llvm::StringRef::withNullAsEmpty(arg)));
+      if (!formatter_regex->IsValid()) {
         result.AppendErrorWithFormat("syntax error in regular expression '%s'",
                                      arg);
         result.SetStatus(eReturnStatusFailed);
@@ -1240,8 +1230,7 @@ Status CommandObjectTypeSummaryAdd::CommandOptions::SetOptionValue(
     m_flags.SetHideItemNames(true);
     break;
   default:
-    error.SetErrorStringWithFormat("unrecognized option '%c'", short_option);
-    break;
+    llvm_unreachable("Unimplemented option");
   }
 
   return error;
@@ -1630,8 +1619,8 @@ bool CommandObjectTypeSummaryAdd::AddSummary(ConstString type_name,
   }
 
   if (type == eRegexSummary) {
-    RegularExpressionSP typeRX(new RegularExpression());
-    if (!typeRX->Compile(type_name.GetStringRef())) {
+    RegularExpressionSP typeRX(new RegularExpression(type_name.GetStringRef()));
+    if (!typeRX->IsValid()) {
       if (error)
         error->SetErrorString(
             "regex format error (maybe this is not really a regex?)");
@@ -1739,9 +1728,7 @@ class CommandObjectTypeCategoryDefine : public CommandObjectParsed {
         error = m_cate_language.SetValueFromString(option_arg);
         break;
       default:
-        error.SetErrorStringWithFormat("unrecognized option '%c'",
-                                       short_option);
-        break;
+        llvm_unreachable("Unimplemented option");
       }
 
       return error;
@@ -1839,9 +1826,7 @@ class CommandObjectTypeCategoryEnable : public CommandObjectParsed {
         }
         break;
       default:
-        error.SetErrorStringWithFormat("unrecognized option '%c'",
-                                       short_option);
-        break;
+        llvm_unreachable("Unimplemented option");
       }
 
       return error;
@@ -2008,9 +1993,7 @@ class CommandObjectTypeCategoryDisable : public CommandObjectParsed {
         }
         break;
       default:
-        error.SetErrorStringWithFormat("unrecognized option '%c'",
-                                       short_option);
-        break;
+        llvm_unreachable("Unimplemented option");
       }
 
       return error;
@@ -2116,9 +2099,9 @@ protected:
     std::unique_ptr<RegularExpression> regex;
 
     if (argc == 1) {
-      regex.reset(new RegularExpression());
       const char *arg = command.GetArgumentAtIndex(0);
-      if (!regex->Compile(llvm::StringRef::withNullAsEmpty(arg))) {
+      regex.reset(new RegularExpression(llvm::StringRef::withNullAsEmpty(arg)));
+      if (!regex->IsValid()) {
         result.AppendErrorWithFormat(
             "syntax error in category regular expression '%s'", arg);
         result.SetStatus(eReturnStatusFailed);
@@ -2370,8 +2353,8 @@ bool CommandObjectTypeSynthAdd::AddSynth(ConstString type_name,
   }
 
   if (type == eRegexSynth) {
-    RegularExpressionSP typeRX(new RegularExpression());
-    if (!typeRX->Compile(type_name.GetStringRef())) {
+    RegularExpressionSP typeRX(new RegularExpression(type_name.GetStringRef()));
+    if (!typeRX->IsValid()) {
       if (error)
         error->SetErrorString(
             "regex format error (maybe this is not really a regex?)");
@@ -2432,9 +2415,7 @@ private:
         m_regex = true;
         break;
       default:
-        error.SetErrorStringWithFormat("unrecognized option '%c'",
-                                       short_option);
-        break;
+        llvm_unreachable("Unimplemented option");
       }
 
       return error;
@@ -2498,8 +2479,9 @@ private:
     }
 
     if (type == eRegexFilter) {
-      RegularExpressionSP typeRX(new RegularExpression());
-      if (!typeRX->Compile(type_name.GetStringRef())) {
+      RegularExpressionSP typeRX(
+          new RegularExpression(type_name.GetStringRef()));
+      if (!typeRX->IsValid()) {
         if (error)
           error->SetErrorString(
               "regex format error (maybe this is not really a regex?)");
@@ -2686,9 +2668,7 @@ protected:
         break;
 
       default:
-        error.SetErrorStringWithFormat("invalid short option character '%c'",
-                                       short_option);
-        break;
+        llvm_unreachable("Unimplemented option");
       }
 
       return error;

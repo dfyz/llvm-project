@@ -167,9 +167,6 @@ AlphaTargetLowering::AlphaTargetLowering(const TargetMachine &TM,
 
   setStackPointerRegisterToSaveRestore(Alpha::R30);
 
-  setJumpBufSize(272);
-  setJumpBufAlignment(16);
-
   setMinFunctionAlignment(4);
 
   computeRegisterProperties(STI.getRegisterInfo());

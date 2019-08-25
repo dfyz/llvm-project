@@ -1,3 +1,4 @@
 clang:
   * fix missing BB labels when compiling with -O0
   * fix machine code verification failures
+  * fix large constant selection

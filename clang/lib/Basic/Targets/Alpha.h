@@ -11,7 +11,7 @@ class AlphaTargetInfo : public TargetInfo {
 public:
   AlphaTargetInfo(const llvm::Triple &Triple, const TargetOptions &);
 
-  void getTargetDefines(const LangOptions &Opts, MacroBuilder &Builder) const override {}
+  void getTargetDefines(const LangOptions &Opts, MacroBuilder &Builder) const override;
 
   ArrayRef<Builtin::Info> getTargetBuiltins() const override { return None; }
 

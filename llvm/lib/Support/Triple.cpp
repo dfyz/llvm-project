@@ -1526,6 +1526,7 @@ Triple Triple::getLittleEndianArchVariant() const {
 
 bool Triple::isLittleEndian() const {
   switch (getArch()) {
+  case Triple::alpha:
   case Triple::aarch64:
   case Triple::aarch64_32:
   case Triple::amdgcn:

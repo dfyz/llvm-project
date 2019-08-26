@@ -1,5 +1,7 @@
 #include "Alpha.h"
 
+#include "clang/Basic/MacroBuilder.h"
+
 using namespace clang;
 using namespace clang::targets;
 
@@ -13,6 +15,10 @@ AlphaTargetInfo::AlphaTargetInfo(const llvm::Triple &Triple, const TargetOptions
   LongWidth = LongAlign = PointerWidth = PointerAlign = 64;
   IntMaxType = Int64Type = SignedLong;
   resetDataLayout("e-m:m-f128:128:128-n64");
+}
+
+void AlphaTargetInfo::getTargetDefines(const LangOptions &Opts, MacroBuilder &Builder) const {
+  Builder.defineMacro("__alpha__");
 }
 
 ArrayRef<const char *> AlphaTargetInfo::getGCCRegNames() const {

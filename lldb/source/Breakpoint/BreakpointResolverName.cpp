@@ -126,9 +126,8 @@ BreakpointResolver *BreakpointResolverName::CreateFromStructuredData(
   success = options_dict.GetValueForKeyAsString(
       GetKey(OptionNames::RegexString), regex_text);
   if (success) {
-    RegularExpression regex(regex_text);
-    return new BreakpointResolverName(bkpt, regex, language, offset,
-                                      skip_prologue);
+    return new BreakpointResolverName(bkpt, RegularExpression(regex_text),
+                                      language, offset, skip_prologue);
   } else {
     StructuredData::Array *names_array;
     success = options_dict.GetValueForKeyAsArray(
@@ -251,8 +250,7 @@ void BreakpointResolverName::AddNameLookup(ConstString name,
 
 Searcher::CallbackReturn
 BreakpointResolverName::SearchCallback(SearchFilter &filter,
-                                       SymbolContext &context, Address *addr,
-                                       bool containing) {
+                                       SymbolContext &context, Address *addr) {
   SymbolContextList func_list;
   // SymbolContextList sym_list;
 

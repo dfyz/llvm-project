@@ -1265,6 +1265,8 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
     case Stmt::OMPCancelDirectiveClass:
     case Stmt::OMPTaskLoopDirectiveClass:
     case Stmt::OMPTaskLoopSimdDirectiveClass:
+    case Stmt::OMPMasterTaskLoopDirectiveClass:
+    case Stmt::OMPParallelMasterTaskLoopDirectiveClass:
     case Stmt::OMPDistributeDirectiveClass:
     case Stmt::OMPDistributeParallelForDirectiveClass:
     case Stmt::OMPDistributeParallelForSimdDirectiveClass:
@@ -1368,6 +1370,7 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
     case Stmt::CUDAKernelCallExprClass:
     case Stmt::OpaqueValueExprClass:
     case Stmt::AsTypeExprClass:
+    case Stmt::ConceptSpecializationExprClass:
       // Fall through.
 
     // Cases we intentionally don't evaluate, since they don't need
@@ -3004,9 +3007,13 @@ struct DOTGraphTraits<ExplodedGraph*> : public DefaultDOTGraphTraits {
         llvm::make_range(BR.EQClasses_begin(), BR.EQClasses_end());
 
     for (const auto &EQ : EQClasses) {
-      for (const BugReport &Report : EQ) {
-        if (Report.getErrorNode()->getState() == N->getState() &&
-            Report.getErrorNode()->getLocation() == N->getLocation())
+      for (const auto &I : EQ.getReports()) {
+        const auto *PR = dyn_cast<PathSensitiveBugReport>(I.get());
+        if (!PR)
+          continue;
+        const ExplodedNode *EN = PR->getErrorNode();
+        if (EN->getState() == N->getState() &&
+            EN->getLocation() == N->getLocation())
           return true;
       }
     }
@@ -3131,8 +3138,12 @@ std::string ExprEngine::DumpGraph(bool trim, StringRef Filename) {
     // Iterate through the reports and get their nodes.
     for (BugReporter::EQClasses_iterator
            EI = BR.EQClasses_begin(), EE = BR.EQClasses_end(); EI != EE; ++EI) {
-      const auto *N = const_cast<ExplodedNode *>(EI->begin()->getErrorNode());
-      if (N) Src.push_back(N);
+      const auto *R =
+          dyn_cast<PathSensitiveBugReport>(EI->getReports()[0].get());
+      if (!R)
+        continue;
+      const auto *N = const_cast<ExplodedNode *>(R->getErrorNode());
+      Src.push_back(N);
     }
     return DumpGraph(Src, Filename);
   } else {

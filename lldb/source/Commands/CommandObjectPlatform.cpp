@@ -1264,6 +1264,10 @@ protected:
         verbose = true;
         break;
 
+      case 'x':
+        match_info.SetMatchAllUsers(true);
+        break;
+
       default:
         llvm_unreachable("Unimplemented option");
       }
@@ -1336,9 +1340,9 @@ protected:
           Stream &ostrm = result.GetOutputStream();
           for (auto &entry : args.entries()) {
             lldb::pid_t pid;
-            if (entry.ref.getAsInteger(0, pid)) {
+            if (entry.ref().getAsInteger(0, pid)) {
               result.AppendErrorWithFormat("invalid process ID argument '%s'",
-                                           entry.ref.str().c_str());
+                                           entry.ref().str().c_str());
               result.SetStatus(eReturnStatusFailed);
               break;
             } else {
@@ -1467,9 +1471,7 @@ public:
         return;
 
       for (uint32_t i = 0; i < num_matches; ++i) {
-        request.AddCompletion(
-            llvm::StringRef(process_infos.GetProcessNameAtIndex(i),
-                            process_infos.GetProcessNameLengthAtIndex(i)));
+        request.AddCompletion(process_infos.GetProcessNameAtIndex(i));
       }
       return;
     }

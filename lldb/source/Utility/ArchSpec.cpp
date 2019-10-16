@@ -101,6 +101,8 @@ static const CoreDefinition g_core_definitions[] = {
      ArchSpec::eCore_arm_arm64, "arm64"},
     {eByteOrderLittle, 8, 4, 4, llvm::Triple::aarch64,
      ArchSpec::eCore_arm_armv8, "armv8"},
+    {eByteOrderLittle, 4, 4, 4, llvm::Triple::aarch64_32,
+      ArchSpec::eCore_arm_arm64_32, "arm64_32"},
     {eByteOrderLittle, 8, 4, 4, llvm::Triple::aarch64,
      ArchSpec::eCore_arm_aarch64, "aarch64"},
 
@@ -244,17 +246,8 @@ void ArchSpec::ListSupportedArchNames(StringList &list) {
 }
 
 void ArchSpec::AutoComplete(CompletionRequest &request) {
-  if (!request.GetCursorArgumentPrefix().empty()) {
-    for (uint32_t i = 0; i < llvm::array_lengthof(g_core_definitions); ++i) {
-      if (NameMatches(g_core_definitions[i].name, NameMatch::StartsWith,
-                      request.GetCursorArgumentPrefix()))
-        request.AddCompletion(g_core_definitions[i].name);
-    }
-  } else {
-    StringList matches;
-    ListSupportedArchNames(matches);
-    request.AddCompletions(matches);
-  }
+  for (uint32_t i = 0; i < llvm::array_lengthof(g_core_definitions); ++i)
+    request.TryCompleteCurrentArg(g_core_definitions[i].name);
 }
 
 #define CPU_ANY (UINT32_MAX)
@@ -305,6 +298,10 @@ static const ArchDefinitionEntry g_macho_arch_entries[] = {
      SUBTYPE_MASK},
     {ArchSpec::eCore_arm_arm64, llvm::MachO::CPU_TYPE_ARM64, 13, UINT32_MAX,
      SUBTYPE_MASK},
+    {ArchSpec::eCore_arm_arm64_32, llvm::MachO::CPU_TYPE_ARM64_32, 0,
+     UINT32_MAX, SUBTYPE_MASK},
+    {ArchSpec::eCore_arm_arm64_32, llvm::MachO::CPU_TYPE_ARM64_32, 1,
+     UINT32_MAX, SUBTYPE_MASK},
     {ArchSpec::eCore_arm_arm64, llvm::MachO::CPU_TYPE_ARM64, CPU_ANY,
      UINT32_MAX, SUBTYPE_MASK},
     {ArchSpec::eCore_thumb, llvm::MachO::CPU_TYPE_ARM, 0, UINT32_MAX,
@@ -468,7 +465,9 @@ static const ArchDefinitionEntry g_coff_arch_entries[] = {
     {ArchSpec::eCore_thumb, llvm::COFF::IMAGE_FILE_MACHINE_THUMB,
      LLDB_INVALID_CPUTYPE, 0xFFFFFFFFu, 0xFFFFFFFFu}, // ARMv7
     {ArchSpec::eCore_x86_64_x86_64, llvm::COFF::IMAGE_FILE_MACHINE_AMD64,
-     LLDB_INVALID_CPUTYPE, 0xFFFFFFFFu, 0xFFFFFFFFu} // AMD64
+     LLDB_INVALID_CPUTYPE, 0xFFFFFFFFu, 0xFFFFFFFFu}, // AMD64
+    {ArchSpec::eCore_arm_arm64, llvm::COFF::IMAGE_FILE_MACHINE_ARM64,
+     LLDB_INVALID_CPUTYPE, 0xFFFFFFFFu, 0xFFFFFFFFu} // ARM64
 };
 
 static const ArchDefinition g_coff_arch_def = {
@@ -759,6 +758,7 @@ bool ArchSpec::CharIsSignedByDefault() const {
     return true;
 
   case llvm::Triple::aarch64:
+  case llvm::Triple::aarch64_32:
   case llvm::Triple::aarch64_be:
   case llvm::Triple::arm:
   case llvm::Triple::armeb:
@@ -1241,6 +1241,14 @@ static bool cores_match(const ArchSpec::Core core1, const ArchSpec::Core core2,
       if (core2 == ArchSpec::eCore_arm_aarch64)
         return true;
       if (core2 == ArchSpec::eCore_arm_armv8)
+        return true;
+      try_inverse = false;
+    }
+    break;
+
+  case ArchSpec::eCore_arm_arm64_32:
+    if (!enforce_exact_match) {
+      if (core2 == ArchSpec::eCore_arm_generic)
         return true;
       try_inverse = false;
     }

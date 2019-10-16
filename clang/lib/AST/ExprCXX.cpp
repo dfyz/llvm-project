@@ -124,6 +124,8 @@ CXXNewExpr::CXXNewExpr(bool IsGlobalNew, FunctionDecl *OperatorNew,
 
   if (ArraySize) {
     if (Expr *SizeExpr = *ArraySize) {
+      if (SizeExpr->isValueDependent())
+        ExprBits.ValueDependent = true;
       if (SizeExpr->isInstantiationDependent())
         ExprBits.InstantiationDependent = true;
       if (SizeExpr->containsUnexpandedParameterPack())
@@ -134,6 +136,8 @@ CXXNewExpr::CXXNewExpr(bool IsGlobalNew, FunctionDecl *OperatorNew,
   }
 
   if (Initializer) {
+    if (Initializer->isValueDependent())
+      ExprBits.ValueDependent = true;
     if (Initializer->isInstantiationDependent())
       ExprBits.InstantiationDependent = true;
     if (Initializer->containsUnexpandedParameterPack())
@@ -143,6 +147,8 @@ CXXNewExpr::CXXNewExpr(bool IsGlobalNew, FunctionDecl *OperatorNew,
   }
 
   for (unsigned I = 0; I != PlacementArgs.size(); ++I) {
+    if (PlacementArgs[I]->isValueDependent())
+      ExprBits.ValueDependent = true;
     if (PlacementArgs[I]->isInstantiationDependent())
       ExprBits.InstantiationDependent = true;
     if (PlacementArgs[I]->containsUnexpandedParameterPack())
@@ -245,7 +251,7 @@ QualType CXXDeleteExpr::getDestroyedType() const {
   if (ArgType->isDependentType() && !ArgType->isPointerType())
     return QualType();
 
-  return ArgType->getAs<PointerType>()->getPointeeType();
+  return ArgType->castAs<PointerType>()->getPointeeType();
 }
 
 // CXXPseudoDestructorExpr
@@ -1212,6 +1218,11 @@ CXXMethodDecl *LambdaExpr::getCallOperator() const {
   return Record->getLambdaCallOperator();
 }
 
+FunctionTemplateDecl *LambdaExpr::getDependentCallOperator() const {
+  CXXRecordDecl *Record = getLambdaClass();
+  return Record->getDependentLambdaCallOperator();
+}
+
 TemplateParameterList *LambdaExpr::getTemplateParameterList() const {
   CXXRecordDecl *Record = getLambdaClass();
   return Record->getGenericLambdaTemplateParameterList();
@@ -1501,11 +1512,8 @@ CXXRecordDecl *UnresolvedMemberExpr::getNamingClass() {
   // Otherwise the naming class must have been the base class.
   else {
     QualType BaseType = getBaseType().getNonReferenceType();
-    if (isArrow()) {
-      const auto *PT = BaseType->getAs<PointerType>();
-      assert(PT && "base of arrow member access is not pointer");
-      BaseType = PT->getPointeeType();
-    }
+    if (isArrow())
+      BaseType = BaseType->castAs<PointerType>()->getPointeeType();
 
     Record = BaseType->getAsCXXRecordDecl();
     assert(Record && "base of member expression does not name record");
@@ -1671,4 +1679,83 @@ CUDAKernelCallExpr *CUDAKernelCallExpr::CreateEmpty(const ASTContext &Ctx,
   void *Mem = Ctx.Allocate(sizeof(CUDAKernelCallExpr) + SizeOfTrailingObjects,
                            alignof(CUDAKernelCallExpr));
   return new (Mem) CUDAKernelCallExpr(NumArgs, Empty);
+}
+
+ConceptSpecializationExpr::ConceptSpecializationExpr(ASTContext &C,
+    NestedNameSpecifierLoc NNS, SourceLocation TemplateKWLoc,
+    SourceLocation ConceptNameLoc, NamedDecl *FoundDecl,
+    ConceptDecl *NamedConcept, const ASTTemplateArgumentListInfo *ArgsAsWritten,
+    ArrayRef<TemplateArgument> ConvertedArgs, Optional<bool> IsSatisfied)
+    : Expr(ConceptSpecializationExprClass, C.BoolTy, VK_RValue, OK_Ordinary,
+           /*TypeDependent=*/false,
+           // All the flags below are set in setTemplateArguments.
+           /*ValueDependent=*/!IsSatisfied.hasValue(),
+           /*InstantiationDependent=*/false,
+           /*ContainsUnexpandedParameterPacks=*/false),
+      NestedNameSpec(NNS), TemplateKWLoc(TemplateKWLoc),
+      ConceptNameLoc(ConceptNameLoc), FoundDecl(FoundDecl),
+      NamedConcept(NamedConcept, IsSatisfied ? *IsSatisfied : true),
+      NumTemplateArgs(ConvertedArgs.size()) {
+
+  setTemplateArguments(ArgsAsWritten, ConvertedArgs);
+}
+
+ConceptSpecializationExpr::ConceptSpecializationExpr(EmptyShell Empty,
+    unsigned NumTemplateArgs)
+    : Expr(ConceptSpecializationExprClass, Empty),
+      NumTemplateArgs(NumTemplateArgs) { }
+
+void ConceptSpecializationExpr::setTemplateArguments(
+    const ASTTemplateArgumentListInfo *ArgsAsWritten,
+    ArrayRef<TemplateArgument> Converted) {
+  assert(Converted.size() == NumTemplateArgs);
+  assert(!this->ArgsAsWritten && "setTemplateArguments can only be used once");
+  this->ArgsAsWritten = ArgsAsWritten;
+  std::uninitialized_copy(Converted.begin(), Converted.end(),
+                          getTrailingObjects<TemplateArgument>());
+  bool IsInstantiationDependent = false;
+  bool ContainsUnexpandedParameterPack = false;
+  for (const TemplateArgumentLoc& LocInfo : ArgsAsWritten->arguments()) {
+    if (LocInfo.getArgument().isInstantiationDependent())
+      IsInstantiationDependent = true;
+    if (LocInfo.getArgument().containsUnexpandedParameterPack())
+      ContainsUnexpandedParameterPack = true;
+    if (ContainsUnexpandedParameterPack && IsInstantiationDependent)
+      break;
+  }
+
+  // Currently guaranteed by the fact concepts can only be at namespace-scope.
+  assert(!NestedNameSpec ||
+         (!NestedNameSpec.getNestedNameSpecifier()->isInstantiationDependent() &&
+          !NestedNameSpec.getNestedNameSpecifier()
+              ->containsUnexpandedParameterPack()));
+  setInstantiationDependent(IsInstantiationDependent);
+  setContainsUnexpandedParameterPack(ContainsUnexpandedParameterPack);
+  assert((!isValueDependent() || isInstantiationDependent()) &&
+         "should not be value-dependent");
+}
+
+ConceptSpecializationExpr *
+ConceptSpecializationExpr::Create(ASTContext &C, NestedNameSpecifierLoc NNS,
+                                  SourceLocation TemplateKWLoc,
+                                  SourceLocation ConceptNameLoc,
+                                  NamedDecl *FoundDecl,
+                                  ConceptDecl *NamedConcept,
+                               const ASTTemplateArgumentListInfo *ArgsAsWritten,
+                                  ArrayRef<TemplateArgument> ConvertedArgs,
+                                  Optional<bool> IsSatisfied) {
+  void *Buffer = C.Allocate(totalSizeToAlloc<TemplateArgument>(
+                                ConvertedArgs.size()));
+  return new (Buffer) ConceptSpecializationExpr(C, NNS, TemplateKWLoc,
+                                                ConceptNameLoc, FoundDecl,
+                                                NamedConcept, ArgsAsWritten,
+                                                ConvertedArgs, IsSatisfied);
+}
+
+ConceptSpecializationExpr *
+ConceptSpecializationExpr::Create(ASTContext &C, EmptyShell Empty,
+                                  unsigned NumTemplateArgs) {
+  void *Buffer = C.Allocate(totalSizeToAlloc<TemplateArgument>(
+                                NumTemplateArgs));
+  return new (Buffer) ConceptSpecializationExpr(Empty, NumTemplateArgs);
 }

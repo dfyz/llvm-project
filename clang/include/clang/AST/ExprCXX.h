@@ -17,6 +17,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/NestedNameSpecifier.h"
@@ -1907,6 +1908,10 @@ public:
   /// lambda expression.
   CXXMethodDecl *getCallOperator() const;
 
+  /// Retrieve the function template call operator associated with this
+  /// lambda expression.
+  FunctionTemplateDecl *getDependentCallOperator() const;
+
   /// If this is a generic lambda expression, retrieve the template
   /// parameter list associated with it, or else return null.
   TemplateParameterList *getTemplateParameterList() const;
@@ -2096,8 +2101,7 @@ public:
                                  bool IsParenTypeId);
 
   QualType getAllocatedType() const {
-    assert(getType()->isPointerType());
-    return getType()->getAs<PointerType>()->getPointeeType();
+    return getType()->castAs<PointerType>()->getPointeeType();
   }
 
   TypeSourceInfo *getAllocatedTypeSourceInfo() const {
@@ -2275,8 +2279,8 @@ public:
   CXXDeleteExpr(QualType Ty, bool GlobalDelete, bool ArrayForm,
                 bool ArrayFormAsWritten, bool UsualArrayDeleteWantsSize,
                 FunctionDecl *OperatorDelete, Expr *Arg, SourceLocation Loc)
-      : Expr(CXXDeleteExprClass, Ty, VK_RValue, OK_Ordinary, false, false,
-             Arg->isInstantiationDependent(),
+      : Expr(CXXDeleteExprClass, Ty, VK_RValue, OK_Ordinary, false,
+             Arg->isValueDependent(), Arg->isInstantiationDependent(),
              Arg->containsUnexpandedParameterPack()),
         OperatorDelete(OperatorDelete), Argument(Arg) {
     CXXDeleteExprBits.GlobalDelete = GlobalDelete;
@@ -4340,9 +4344,6 @@ private:
   };
   llvm::PointerUnion<Stmt *, ExtraState *> State;
 
-  void initializeExtraState(const ValueDecl *ExtendedBy,
-                            unsigned ManglingNumber);
-
 public:
   MaterializeTemporaryExpr(QualType T, Expr *Temporary,
                            bool BoundToLvalueReference)
@@ -4747,6 +4748,125 @@ public:
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == BuiltinBitCastExprClass;
+  }
+};
+
+/// \brief Represents the specialization of a concept - evaluates to a prvalue
+/// of type bool.
+///
+/// According to C++2a [expr.prim.id]p3 an id-expression that denotes the
+/// specialization of a concept results in a prvalue of type bool.
+class ConceptSpecializationExpr final : public Expr,
+      private llvm::TrailingObjects<ConceptSpecializationExpr,
+                                    TemplateArgument> {
+  friend class ASTStmtReader;
+  friend TrailingObjects;
+
+  // \brief The optional nested name specifier used when naming the concept.
+  NestedNameSpecifierLoc NestedNameSpec;
+
+  /// \brief The location of the template keyword, if specified when naming the
+  /// concept.
+  SourceLocation TemplateKWLoc;
+
+  /// \brief The location of the concept name in the expression.
+  SourceLocation ConceptNameLoc;
+
+  /// \brief The declaration found by name lookup when the expression was
+  /// created.
+  /// Can differ from NamedConcept when, for example, the concept was found
+  /// through a UsingShadowDecl.
+  NamedDecl *FoundDecl;
+
+  /// \brief The concept named, and whether or not the concept with the given
+  /// arguments was satisfied when the expression was created.
+  /// If any of the template arguments are dependent (this expr would then be
+  /// isValueDependent()), this bit is to be ignored.
+  llvm::PointerIntPair<ConceptDecl *, 1, bool> NamedConcept;
+
+  /// \brief The template argument list source info used to specialize the
+  /// concept.
+  const ASTTemplateArgumentListInfo *ArgsAsWritten = nullptr;
+
+  /// \brief The number of template arguments in the tail-allocated list of
+  /// converted template arguments.
+  unsigned NumTemplateArgs;
+
+  ConceptSpecializationExpr(ASTContext &C, NestedNameSpecifierLoc NNS,
+                            SourceLocation TemplateKWLoc,
+                            SourceLocation ConceptNameLoc, NamedDecl *FoundDecl,
+                            ConceptDecl *NamedConcept,
+                            const ASTTemplateArgumentListInfo *ArgsAsWritten,
+                            ArrayRef<TemplateArgument> ConvertedArgs,
+                            Optional<bool> IsSatisfied);
+
+  ConceptSpecializationExpr(EmptyShell Empty, unsigned NumTemplateArgs);
+
+public:
+
+  static ConceptSpecializationExpr *
+  Create(ASTContext &C, NestedNameSpecifierLoc NNS,
+         SourceLocation TemplateKWLoc, SourceLocation ConceptNameLoc,
+         NamedDecl *FoundDecl, ConceptDecl *NamedConcept,
+         const ASTTemplateArgumentListInfo *ArgsAsWritten,
+         ArrayRef<TemplateArgument> ConvertedArgs, Optional<bool> IsSatisfied);
+
+  static ConceptSpecializationExpr *
+  Create(ASTContext &C, EmptyShell Empty, unsigned NumTemplateArgs);
+
+  const NestedNameSpecifierLoc &getNestedNameSpecifierLoc() const {
+    return NestedNameSpec;
+  }
+
+  NamedDecl *getFoundDecl() const {
+    return FoundDecl;
+  }
+
+  ConceptDecl *getNamedConcept() const {
+    return NamedConcept.getPointer();
+  }
+
+  ArrayRef<TemplateArgument> getTemplateArguments() const {
+    return ArrayRef<TemplateArgument>(getTrailingObjects<TemplateArgument>(),
+                                      NumTemplateArgs);
+  }
+
+  const ASTTemplateArgumentListInfo *getTemplateArgsAsWritten() const {
+    return ArgsAsWritten;
+  }
+
+  /// \brief Set new template arguments for this concept specialization.
+  void setTemplateArguments(const ASTTemplateArgumentListInfo *ArgsAsWritten,
+                            ArrayRef<TemplateArgument> Converted);
+
+  /// \brief Whether or not the concept with the given arguments was satisfied
+  /// when the expression was created. This method assumes that the expression
+  /// is not dependent!
+  bool isSatisfied() const {
+    assert(!isValueDependent()
+           && "isSatisfied called on a dependent ConceptSpecializationExpr");
+    return NamedConcept.getInt();
+  }
+
+  SourceLocation getConceptNameLoc() const { return ConceptNameLoc; }
+
+  SourceLocation getTemplateKWLoc() const { return TemplateKWLoc; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == ConceptSpecializationExprClass;
+  }
+
+  SourceLocation getBeginLoc() const LLVM_READONLY { return ConceptNameLoc; }
+  SourceLocation getEndLoc() const LLVM_READONLY {
+    return ArgsAsWritten->RAngleLoc;
+  }
+
+  // Iterators
+  child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+  const_child_range children() const {
+    return const_child_range(const_child_iterator(), const_child_iterator());
   }
 };
 

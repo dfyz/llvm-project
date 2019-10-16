@@ -87,10 +87,9 @@ void CommandCompletions::SourceFiles(CommandInterpreter &interpreter,
 }
 
 static void DiskFilesOrDirectories(const llvm::Twine &partial_name,
-                                   bool only_directories, StringList &matches,
+                                   bool only_directories,
+                                   CompletionRequest &request,
                                    TildeExpressionResolver &Resolver) {
-  matches.Clear();
-
   llvm::SmallString<256> CompletionBuffer;
   llvm::SmallString<256> Storage;
   partial_name.toVector(CompletionBuffer);
@@ -124,7 +123,7 @@ static void DiskFilesOrDirectories(const llvm::Twine &partial_name,
         for (const auto &S : MatchSet) {
           Resolved = S.getKey();
           path::append(Resolved, path::get_separator());
-          matches.AppendString(Resolved);
+          request.AddCompletion(Resolved, "", CompletionMode::Partial);
         }
       }
       return;
@@ -136,7 +135,7 @@ static void DiskFilesOrDirectories(const llvm::Twine &partial_name,
     if (FirstSep == llvm::StringRef::npos) {
       // Make sure it ends with a separator.
       path::append(CompletionBuffer, path::get_separator());
-      matches.AppendString(CompletionBuffer);
+      request.AddCompletion(CompletionBuffer, "", CompletionMode::Partial);
       return;
     }
 
@@ -217,17 +216,27 @@ static void DiskFilesOrDirectories(const llvm::Twine &partial_name,
       path::append(CompletionBuffer, path::get_separator());
     }
 
-    matches.AppendString(CompletionBuffer);
+    CompletionMode mode =
+        is_dir ? CompletionMode::Partial : CompletionMode::Normal;
+    request.AddCompletion(CompletionBuffer, "", mode);
   }
+}
+
+static void DiskFilesOrDirectories(const llvm::Twine &partial_name,
+                                   bool only_directories, StringList &matches,
+                                   TildeExpressionResolver &Resolver) {
+  CompletionResult result;
+  std::string partial_name_str = partial_name.str();
+  CompletionRequest request(partial_name_str, partial_name_str.size(), result);
+  DiskFilesOrDirectories(partial_name, only_directories, request, Resolver);
+  result.GetMatches(matches);
 }
 
 static void DiskFilesOrDirectories(CompletionRequest &request,
                                    bool only_directories) {
   StandardTildeExpressionResolver resolver;
-  StringList matches;
   DiskFilesOrDirectories(request.GetCursorArgumentPrefix(), only_directories,
-                         matches, resolver);
-  request.AddCompletions(matches);
+                         request, resolver);
 }
 
 void CommandCompletions::DiskFiles(CommandInterpreter &interpreter,
@@ -299,10 +308,8 @@ void CommandCompletions::SettingsNames(CommandInterpreter &interpreter,
     }
   }
 
-  for (const std::string &s : g_property_names) {
-    if (llvm::StringRef(s).startswith(request.GetCursorArgumentPrefix()))
-      request.AddCompletion(s);
-  }
+  for (const std::string &s : g_property_names)
+    request.TryCompleteCurrentArg(s);
 }
 
 void CommandCompletions::PlatformPluginNames(CommandInterpreter &interpreter,
@@ -349,8 +356,7 @@ lldb::SearchDepth CommandCompletions::SourceFileCompleter::GetDepth() {
 Searcher::CallbackReturn
 CommandCompletions::SourceFileCompleter::SearchCallback(SearchFilter &filter,
                                                         SymbolContext &context,
-                                                        Address *addr,
-                                                        bool complete) {
+                                                        Address *addr) {
   if (context.comp_unit != nullptr) {
     if (m_include_support_files) {
       FileSpecList supporting_files = context.comp_unit->GetSupportFiles();
@@ -436,8 +442,7 @@ lldb::SearchDepth CommandCompletions::SymbolCompleter::GetDepth() {
 }
 
 Searcher::CallbackReturn CommandCompletions::SymbolCompleter::SearchCallback(
-    SearchFilter &filter, SymbolContext &context, Address *addr,
-    bool complete) {
+    SearchFilter &filter, SymbolContext &context, Address *addr) {
   if (context.module_sp) {
     SymbolContextList sc_list;
     const bool include_symbols = true;
@@ -484,8 +489,7 @@ lldb::SearchDepth CommandCompletions::ModuleCompleter::GetDepth() {
 }
 
 Searcher::CallbackReturn CommandCompletions::ModuleCompleter::SearchCallback(
-    SearchFilter &filter, SymbolContext &context, Address *addr,
-    bool complete) {
+    SearchFilter &filter, SymbolContext &context, Address *addr) {
   if (context.module_sp) {
     const char *cur_file_name =
         context.module_sp->GetFileSpec().GetFilename().GetCString();

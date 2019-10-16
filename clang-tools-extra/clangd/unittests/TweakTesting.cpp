@@ -9,8 +9,8 @@
 #include "TweakTesting.h"
 
 #include "Annotations.h"
-#include "refactor/Tweak.h"
 #include "SourceCode.h"
+#include "refactor/Tweak.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/Support/Error.h"
 
@@ -82,9 +82,11 @@ std::string TweakTest::apply(llvm::StringRef MarkedCode) const {
   std::string WrappedCode = wrap(Context, MarkedCode);
   Annotations Input(WrappedCode);
   auto Selection = rangeOrPoint(Input);
+
   TestTU TU;
   TU.HeaderCode = Header;
   TU.Code = Input.code();
+  TU.ExtraArgs = ExtraArgs;
   ParsedAST AST = TU.build();
   Tweak::Selection S(AST, Selection.first, Selection.second);
 
@@ -98,14 +100,16 @@ std::string TweakTest::apply(llvm::StringRef MarkedCode) const {
     return "fail: " + llvm::toString(Result.takeError());
   if (Result->ShowMessage)
     return "message:\n" + *Result->ShowMessage;
-  if (Result->ApplyEdit) {
-    if (auto NewText =
-            tooling::applyAllReplacements(Input.code(), *Result->ApplyEdit))
-      return unwrap(Context, *NewText);
-    else
-      return "bad edits: " + llvm::toString(NewText.takeError());
-  }
-  return "no effect";
+  if (Result->ApplyEdits.empty())
+    return "no effect";
+  if (Result->ApplyEdits.size() > 1)
+    return "received multi-file edits";
+
+  auto ApplyEdit = Result->ApplyEdits.begin()->second;
+  if (auto NewText = ApplyEdit.apply())
+    return unwrap(Context, *NewText);
+  else
+    return "bad edits: " + llvm::toString(NewText.takeError());
 }
 
 ::testing::Matcher<llvm::StringRef> TweakTest::isAvailable() const {

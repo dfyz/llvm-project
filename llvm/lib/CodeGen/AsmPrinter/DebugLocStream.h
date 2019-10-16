@@ -38,21 +38,17 @@ public:
         : CU(CU), EntryOffset(EntryOffset) {}
   };
   struct Entry {
-    const MCSymbol *BeginSym;
-    const MCSymbol *EndSym;
+    const MCSymbol *Begin;
+    const MCSymbol *End;
     size_t ByteOffset;
     size_t CommentOffset;
-    Entry(const MCSymbol *BeginSym, const MCSymbol *EndSym, size_t ByteOffset,
-          size_t CommentOffset)
-        : BeginSym(BeginSym), EndSym(EndSym), ByteOffset(ByteOffset),
-          CommentOffset(CommentOffset) {}
   };
 
 private:
   SmallVector<List, 4> Lists;
   SmallVector<Entry, 32> Entries;
   SmallString<256> DWARFBytes;
-  SmallVector<std::string, 32> Comments;
+  std::vector<std::string> Comments;
 
   /// Only verbose textual output needs comments.  This will be set to
   /// true for that case, and false otherwise.
@@ -93,7 +89,7 @@ private:
   /// Until the next call, bytes added to the stream will be added to this
   /// entry.
   void startEntry(const MCSymbol *BeginSym, const MCSymbol *EndSym) {
-    Entries.emplace_back(BeginSym, EndSym, DWARFBytes.size(), Comments.size());
+    Entries.push_back({BeginSym, EndSym, DWARFBytes.size(), Comments.size()});
   }
 
   /// Finalize a .debug_loc entry, deleting if it's empty.

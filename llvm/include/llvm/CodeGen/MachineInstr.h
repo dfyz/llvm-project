@@ -618,6 +618,12 @@ public:
     return hasPropertyInBundle(1ULL << MCFlag, Type);
   }
 
+  /// Return true if this is an instruction that should go through the usual
+  /// legalization steps.
+  bool isPreISelOpcode(QueryType Type = IgnoreBundle) const {
+    return hasProperty(MCID::PreISelOpcode, Type);
+  }
+
   /// Return true if this instruction can have a variable number of operands.
   /// In this case, the variable operands will be after the normal
   /// operands but before the implicit definitions and uses (if any are
@@ -1036,7 +1042,7 @@ public:
   }
 
   /// A DBG_VALUE is an entry value iff its debug expression contains the
-  /// DW_OP_entry_value DWARF operation.
+  /// DW_OP_LLVM_entry_value operation.
   bool isDebugEntryValue() const {
     return isDebugValue() && getDebugExpression()->isEntryValue();
   }
@@ -1619,8 +1625,8 @@ public:
   /// Scan instructions following MI and collect any matching DBG_VALUEs.
   void collectDebugValues(SmallVectorImpl<MachineInstr *> &DbgValues);
 
-  /// Find all DBG_VALUEs immediately following this instruction that point
-  /// to a register def in this instruction and point them to \p Reg instead.
+  /// Find all DBG_VALUEs that point to the register def in this instruction
+  /// and point them to \p Reg instead.
   void changeDebugValuesDefReg(Register Reg);
 
   /// Returns the Intrinsic::ID for this instruction.

@@ -54,7 +54,7 @@ struct SampleProfTest : ::testing::Test {
     auto ReaderOrErr = SampleProfileReader::create(Profile, Context);
     ASSERT_TRUE(NoError(ReaderOrErr.getError()));
     Reader = std::move(ReaderOrErr.get());
-    Reader->collectFuncsToUse(M);
+    Reader->collectFuncsFrom(M);
   }
 
   void testRoundTrip(SampleProfileFormat Format, bool Remap) {
@@ -86,6 +86,13 @@ struct SampleProfTest : ::testing::Test {
     BarSamples.addCalledTargetSamples(1, 0, MconstructName, 1000);
     BarSamples.addCalledTargetSamples(1, 0, StringviewName, 437);
 
+    StringRef BazName("_Z3bazi");
+    FunctionSamples BazSamples;
+    BazSamples.setName(BazName);
+    BazSamples.addTotalSamples(12557);
+    BazSamples.addHeadSamples(1257);
+    BazSamples.addBodySamples(1, 0, 12557);
+
     Module M("my_module", Context);
     FunctionType *fn_type =
         FunctionType::get(Type::getVoidTy(Context), {}, false);
@@ -95,6 +102,14 @@ struct SampleProfTest : ::testing::Test {
     StringMap<FunctionSamples> Profiles;
     Profiles[FooName] = std::move(FooSamples);
     Profiles[BarName] = std::move(BarSamples);
+    Profiles[BazName] = std::move(BazSamples);
+
+    ProfileSymbolList List;
+    if (Format == SampleProfileFormat::SPF_Ext_Binary) {
+      List.add("zoo", true);
+      List.add("moo", true);
+    }
+    Writer->setProfileSymbolList(&List);
 
     std::error_code EC;
     EC = Writer->write(Profiles);
@@ -106,6 +121,13 @@ struct SampleProfTest : ::testing::Test {
 
     EC = Reader->read();
     ASSERT_TRUE(NoError(EC));
+
+    if (Format == SampleProfileFormat::SPF_Ext_Binary) {
+      std::unique_ptr<ProfileSymbolList> ReaderList =
+          Reader->getProfileSymbolList();
+      ReaderList->contains("zoo");
+      ReaderList->contains("moo");
+    }
 
     if (Remap) {
       auto MemBuffer = llvm::MemoryBuffer::getMemBuffer(R"(
@@ -122,8 +144,6 @@ struct SampleProfTest : ::testing::Test {
       EC = Reader->read();
       ASSERT_TRUE(NoError(EC));
     }
-
-    ASSERT_EQ(2u, Reader->getProfiles().size());
 
     FunctionSamples *ReadFooSamples = Reader->getSamplesFor(FooName);
     ASSERT_TRUE(ReadFooSamples != nullptr);
@@ -144,6 +164,20 @@ struct SampleProfTest : ::testing::Test {
         ReadBarSamples->findCallTargetMapAt(1, 0);
     ASSERT_FALSE(CTMap.getError());
 
+    // Because _Z3bazi is not defined in module M, expect _Z3bazi's profile
+    // is not loaded when the profile is ExtBinary or Compact format because
+    // these formats support loading function profiles on demand.
+    FunctionSamples *ReadBazSamples = Reader->getSamplesFor(BazName);
+    if (Format == SampleProfileFormat::SPF_Ext_Binary ||
+        Format == SampleProfileFormat::SPF_Compact_Binary) {
+      ASSERT_TRUE(ReadBazSamples == nullptr);
+      ASSERT_EQ(2u, Reader->getProfiles().size());
+    } else {
+      ASSERT_TRUE(ReadBazSamples != nullptr);
+      ASSERT_EQ(12557u, ReadBazSamples->getTotalSamples());
+      ASSERT_EQ(3u, Reader->getProfiles().size());
+    }
+
     std::string MconstructGUID;
     StringRef MconstructRep =
         getRepInFormat(MconstructName, Format, MconstructGUID);
@@ -155,9 +189,9 @@ struct SampleProfTest : ::testing::Test {
 
     auto VerifySummary = [](ProfileSummary &Summary) mutable {
       ASSERT_EQ(ProfileSummary::PSK_Sample, Summary.getKind());
-      ASSERT_EQ(123603u, Summary.getTotalCount());
-      ASSERT_EQ(6u, Summary.getNumCounts());
-      ASSERT_EQ(2u, Summary.getNumFunctions());
+      ASSERT_EQ(136160u, Summary.getTotalCount());
+      ASSERT_EQ(7u, Summary.getNumCounts());
+      ASSERT_EQ(3u, Summary.getNumFunctions());
       ASSERT_EQ(1437u, Summary.getMaxFunctionCount());
       ASSERT_EQ(60351u, Summary.getMaxCount());
 
@@ -174,8 +208,8 @@ struct SampleProfTest : ::testing::Test {
       Cutoff = 990000;
       auto NinetyNinePerc = find_if(Details, Predicate);
       ASSERT_EQ(60000u, EightyPerc->MinCount);
-      ASSERT_EQ(60000u, NinetyPerc->MinCount);
-      ASSERT_EQ(60000u, NinetyFivePerc->MinCount);
+      ASSERT_EQ(12557u, NinetyPerc->MinCount);
+      ASSERT_EQ(12557u, NinetyFivePerc->MinCount);
       ASSERT_EQ(610u, NinetyNinePerc->MinCount);
     };
 
@@ -305,7 +339,6 @@ TEST_F(SampleProfTest, sample_overflow_saturation) {
   const uint64_t Max = std::numeric_limits<uint64_t>::max();
   sampleprof_error Result;
 
-  StringRef FooName("_Z3fooi");
   FunctionSamples FooSamples;
   Result = FooSamples.addTotalSamples(1);
   ASSERT_EQ(Result, sampleprof_error::success);

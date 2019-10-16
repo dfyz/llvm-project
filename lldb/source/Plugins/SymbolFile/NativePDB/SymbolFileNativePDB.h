@@ -9,7 +9,6 @@
 #ifndef LLDB_PLUGINS_SYMBOLFILE_NATIVEPDB_SYMBOLFILENATIVEPDB_H
 #define LLDB_PLUGINS_SYMBOLFILE_NATIVEPDB_SYMBOLFILENATIVEPDB_H
 
-#include "lldb/Symbol/ClangASTImporter.h"
 #include "lldb/Symbol/SymbolFile.h"
 
 #include "llvm/ADT/DenseMap.h"
@@ -35,7 +34,6 @@ struct UnionRecord;
 } // namespace llvm
 
 namespace lldb_private {
-class ClangASTImporter;
 
 namespace npdb {
 class PdbAstBuilder;
@@ -116,8 +114,8 @@ public:
                                 lldb::SymbolContextItem resolve_scope,
                                 SymbolContextList &sc_list) override;
 
-  size_t GetTypes(SymbolContextScope *sc_scope, lldb::TypeClass type_mask,
-                  TypeList &type_list) override;
+  void GetTypes(SymbolContextScope *sc_scope, lldb::TypeClass type_mask,
+                TypeList &type_list) override;
 
   uint32_t FindFunctions(ConstString name,
                          const CompilerDeclContext *parent_decl_ctx,
@@ -128,14 +126,13 @@ public:
   uint32_t FindFunctions(const RegularExpression &regex, bool include_inlines,
                          bool append, SymbolContextList &sc_list) override;
 
-  uint32_t FindTypes(ConstString name,
-                     const CompilerDeclContext *parent_decl_ctx, bool append,
-                     uint32_t max_matches,
-                     llvm::DenseSet<SymbolFile *> &searched_symbol_files,
-                     TypeMap &types) override;
+  void FindTypes(ConstString name, const CompilerDeclContext *parent_decl_ctx,
+                 uint32_t max_matches,
+                 llvm::DenseSet<SymbolFile *> &searched_symbol_files,
+                 TypeMap &types) override;
 
-  size_t FindTypes(llvm::ArrayRef<CompilerContext> pattern,
-                   LanguageSet languages, bool append, TypeMap &types) override;
+  void FindTypes(llvm::ArrayRef<CompilerContext> pattern, LanguageSet languages,
+                 TypeMap &types) override;
 
   llvm::Expected<TypeSystem &>
   GetTypeSystemForLanguage(lldb::LanguageType language) override;
@@ -158,8 +155,8 @@ private:
 
   lldb::CompUnitSP ParseCompileUnitAtIndex(uint32_t index) override;
 
-  size_t FindTypesByName(llvm::StringRef name, uint32_t max_matches,
-                         TypeMap &types);
+  void FindTypesByName(llvm::StringRef name, uint32_t max_matches,
+                       TypeMap &types);
 
   lldb::TypeSP CreateModifierType(PdbTypeSymId type_id,
                                   const llvm::codeview::ModifierRecord &mr,

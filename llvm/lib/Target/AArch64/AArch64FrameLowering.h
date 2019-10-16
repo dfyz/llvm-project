@@ -45,8 +45,8 @@ public:
                                          bool ForSimm) const;
   StackOffset resolveFrameOffsetReference(const MachineFunction &MF,
                                           int ObjectOffset, bool isFixed,
-                                          unsigned &FrameReg, bool PreferFP,
-                                          bool ForSimm) const;
+                                          bool isSVE, unsigned &FrameReg,
+                                          bool PreferFP, bool ForSimm) const;
   bool spillCalleeSavedRegisters(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MI,
                                  const std::vector<CalleeSavedInfo> &CSI,
@@ -87,9 +87,21 @@ public:
                                int FI) const override;
   int getSEHFrameIndexOffset(const MachineFunction &MF, int FI) const;
 
+  bool isSupportedStackID(TargetStackID::Value ID) const override {
+    switch (ID) {
+    default:
+      return false;
+    case TargetStackID::Default:
+    case TargetStackID::SVEVector:
+    case TargetStackID::NoAlloc:
+      return true;
+    }
+  }
+
 private:
   bool shouldCombineCSRLocalStackBump(MachineFunction &MF,
                                       unsigned StackBumpBytes) const;
+  int64_t determineSVEStackSize(MachineFrameInfo &MF, unsigned &MaxAlign) const;
 };
 
 } // End llvm namespace

@@ -353,9 +353,7 @@ public:
       if (num_matches == 0)
         return;
       for (size_t i = 0; i < num_matches; ++i) {
-        request.AddCompletion(
-            llvm::StringRef(process_infos.GetProcessNameAtIndex(i),
-                            process_infos.GetProcessNameLengthAtIndex(i)));
+        request.AddCompletion(process_infos.GetProcessNameAtIndex(i));
       }
     }
 
@@ -431,7 +429,6 @@ protected:
         result.AppendMessage(stream.GetString());
         result.SetStatus(eReturnStatusSuccessFinishNoResult);
         result.SetDidChangeProcessState(true);
-        result.SetAbnormalStopWasExpected(true);
       } else {
         result.AppendError(
             "no error returned from Target::Attach, and target has no process");
@@ -925,7 +922,7 @@ protected:
     for (auto &entry : command.entries()) {
       Status error;
       PlatformSP platform = process->GetTarget().GetPlatform();
-      llvm::StringRef image_path = entry.ref;
+      llvm::StringRef image_path = entry.ref();
       uint32_t image_token = LLDB_INVALID_IMAGE_TOKEN;
 
       if (!m_options.do_install) {
@@ -987,9 +984,9 @@ protected:
 
     for (auto &entry : command.entries()) {
       uint32_t image_token;
-      if (entry.ref.getAsInteger(0, image_token)) {
+      if (entry.ref().getAsInteger(0, image_token)) {
         result.AppendErrorWithFormat("invalid image index argument '%s'",
-                                     entry.ref.str().c_str());
+                                     entry.ref().str().c_str());
         result.SetStatus(eReturnStatusFailed);
         break;
       } else {
@@ -1292,7 +1289,7 @@ public:
                             "Manage LLDB handling of OS signals for the "
                             "current target process.  Defaults to showing "
                             "current policy.",
-                            nullptr),
+                            nullptr, eCommandRequiresTarget),
         m_options() {
     SetHelpLong("\nIf no signals are specified, update them all.  If no update "
                 "option is specified, list the current values.");
@@ -1377,15 +1374,7 @@ public:
 
 protected:
   bool DoExecute(Args &signal_args, CommandReturnObject &result) override {
-    TargetSP target_sp = GetDebugger().GetSelectedTarget();
-
-    if (!target_sp) {
-      result.AppendError("No current target;"
-                         " cannot handle signals until you have a valid target "
-                         "and process.\n");
-      result.SetStatus(eReturnStatusFailed);
-      return false;
-    }
+    Target *target_sp = &GetSelectedTarget();
 
     ProcessSP process_sp = target_sp->GetProcessSP();
 

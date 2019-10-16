@@ -158,6 +158,14 @@ static Directory layout(BlobAllocator &File, Stream &S) {
   Result.Location.RVA = File.tell();
   Optional<size_t> DataEnd;
   switch (S.Kind) {
+  case Stream::StreamKind::MemoryInfoList: {
+    MemoryInfoListStream &InfoList = cast<MemoryInfoListStream>(S);
+    File.allocateNewObject<minidump::MemoryInfoListHeader>(
+        sizeof(minidump::MemoryInfoListHeader), sizeof(minidump::MemoryInfo),
+        InfoList.Infos.size());
+    File.allocateArray(makeArrayRef(InfoList.Infos));
+    break;
+  }
   case Stream::StreamKind::MemoryList:
     DataEnd = layout(File, cast<MemoryListStream>(S));
     break;
@@ -198,7 +206,8 @@ static Directory layout(BlobAllocator &File, Stream &S) {
 namespace llvm {
 namespace yaml {
 
-int yaml2minidump(MinidumpYAML::Object &Obj, raw_ostream &Out) {
+bool yaml2minidump(MinidumpYAML::Object &Obj, raw_ostream &Out,
+                   ErrorHandler /*EH*/) {
   BlobAllocator File;
   File.allocateObject(Obj.Header);
 
@@ -211,7 +220,7 @@ int yaml2minidump(MinidumpYAML::Object &Obj, raw_ostream &Out) {
     StreamDirectory[Stream.index()] = layout(File, *Stream.value());
 
   File.writeTo(Out);
-  return 0;
+  return true;
 }
 
 } // namespace yaml

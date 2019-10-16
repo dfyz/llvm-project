@@ -75,12 +75,10 @@ entry:
   ret i1 %cnd
 }
 
-;; TODO: vectors not yet handled
 define <2 x i1> @test_vector_base(<2 x i8*> %base, i64 %idx) {
 ; CHECK-LABEL: @test_vector_base(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[GEP:%.*]] = getelementptr inbounds i8, <2 x i8*> [[BASE:%.*]], i64 [[IDX:%.*]]
-; CHECK-NEXT:    [[CND:%.*]] = icmp eq <2 x i8*> [[GEP]], zeroinitializer
+; CHECK-NEXT:    [[CND:%.*]] = icmp eq <2 x i8*> [[BASE:%.*]], zeroinitializer
 ; CHECK-NEXT:    ret <2 x i1> [[CND]]
 ;
 entry:
@@ -92,8 +90,9 @@ entry:
 define <2 x i1> @test_vector_index(i8* %base, <2 x i64> %idx) {
 ; CHECK-LABEL: @test_vector_index(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[GEP:%.*]] = getelementptr inbounds i8, i8* [[BASE:%.*]], <2 x i64> [[IDX:%.*]]
-; CHECK-NEXT:    [[CND:%.*]] = icmp eq <2 x i8*> [[GEP]], zeroinitializer
+; CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <2 x i8*> undef, i8* [[BASE:%.*]], i32 0
+; CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <2 x i8*> [[DOTSPLATINSERT]], <2 x i8*> undef, <2 x i32> zeroinitializer
+; CHECK-NEXT:    [[CND:%.*]] = icmp eq <2 x i8*> [[DOTSPLAT]], zeroinitializer
 ; CHECK-NEXT:    ret <2 x i1> [[CND]]
 ;
 entry:
@@ -105,8 +104,7 @@ entry:
 define <2 x i1> @test_vector_both(<2 x i8*> %base, <2 x i64> %idx) {
 ; CHECK-LABEL: @test_vector_both(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[GEP:%.*]] = getelementptr inbounds i8, <2 x i8*> [[BASE:%.*]], <2 x i64> [[IDX:%.*]]
-; CHECK-NEXT:    [[CND:%.*]] = icmp eq <2 x i8*> [[GEP]], zeroinitializer
+; CHECK-NEXT:    [[CND:%.*]] = icmp eq <2 x i8*> [[BASE:%.*]], zeroinitializer
 ; CHECK-NEXT:    ret <2 x i1> [[CND]]
 ;
 entry:
@@ -207,4 +205,32 @@ entry:
   %gep = getelementptr inbounds i8, i8 addrspace(2)* %base, i64 %idx
   %cnd = icmp eq i8 addrspace(2)* %gep, null
   ret i1 %cnd
+}
+
+; Test for an assert from trying to create an invalid constantexpr
+; bitcast between different address spaces. The addrspacecast is
+; stripped off and the addrspace(0) null can be treated as invalid.
+; FIXME: This should be able to fold to ret i1 false
+define i1 @invalid_bitcast_icmp_addrspacecast_as0_null(i32 addrspace(5)* %ptr) {
+; CHECK-LABEL: @invalid_bitcast_icmp_addrspacecast_as0_null(
+; CHECK-NEXT:  bb:
+; CHECK-NEXT:    [[TMP2:%.*]] = icmp eq i32 addrspace(5)* [[PTR:%.*]], addrspacecast (i32* null to i32 addrspace(5)*)
+; CHECK-NEXT:    ret i1 [[TMP2]]
+;
+bb:
+  %tmp1 = getelementptr inbounds i32, i32 addrspace(5)* %ptr, i32 1
+  %tmp2 = icmp eq i32 addrspace(5)* %tmp1, addrspacecast (i32* null to i32 addrspace(5)*)
+  ret i1 %tmp2
+}
+
+define i1 @invalid_bitcast_icmp_addrspacecast_as0_null_var(i32 addrspace(5)* %ptr, i32 %idx) {
+; CHECK-LABEL: @invalid_bitcast_icmp_addrspacecast_as0_null_var(
+; CHECK-NEXT:  bb:
+; CHECK-NEXT:    [[TMP2:%.*]] = icmp eq i32 addrspace(5)* [[PTR:%.*]], addrspacecast (i32* null to i32 addrspace(5)*)
+; CHECK-NEXT:    ret i1 [[TMP2]]
+;
+bb:
+  %tmp1 = getelementptr inbounds i32, i32 addrspace(5)* %ptr, i32 %idx
+  %tmp2 = icmp eq i32 addrspace(5)* %tmp1, addrspacecast (i32* null to i32 addrspace(5)*)
+  ret i1 %tmp2
 }

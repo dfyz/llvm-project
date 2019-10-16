@@ -21,10 +21,10 @@
 using namespace llvm;
 using namespace llvm::wasm;
 using namespace llvm::object;
-using namespace lld;
-using namespace lld::wasm;
 
-SymbolTable *lld::wasm::symtab;
+namespace lld {
+namespace wasm {
+SymbolTable *symtab;
 
 void SymbolTable::addFile(InputFile *file) {
   log("Processing: " + toString(file));
@@ -401,6 +401,7 @@ Symbol *SymbolTable::addUndefinedFunction(StringRef name, StringRef importName,
   LLVM_DEBUG(dbgs() << "addUndefinedFunction: " << name << " ["
                     << (sig ? toString(*sig) : "none")
                     << "] IsCalledDirectly:" << isCalledDirectly << "\n");
+  assert(flags & WASM_SYMBOL_UNDEFINED);
 
   Symbol *s;
   bool wasInserted;
@@ -425,9 +426,16 @@ Symbol *SymbolTable::addUndefinedFunction(StringRef name, StringRef importName,
     }
     if (!existingFunction->signature && sig)
       existingFunction->signature = sig;
-    if (isCalledDirectly && !signatureMatches(existingFunction, sig))
-      if (getFunctionVariant(s, sig, file, &s))
+    if (isCalledDirectly && !signatureMatches(existingFunction, sig)) {
+      auto* existingUndefined = dyn_cast<UndefinedFunction>(existingFunction);
+      // If the existing undefined functions is not called direcltly then let
+      // this one take precedence.  Otherwise the existing function is either
+      // direclty called or defined, in which case we need a function variant.
+      if (existingUndefined && !existingUndefined->isCalledDirectly)
         replaceSym();
+      else if (getFunctionVariant(s, sig, file, &s))
+        replaceSym();
+    }
   }
 
   return s;
@@ -436,6 +444,7 @@ Symbol *SymbolTable::addUndefinedFunction(StringRef name, StringRef importName,
 Symbol *SymbolTable::addUndefinedData(StringRef name, uint32_t flags,
                                       InputFile *file) {
   LLVM_DEBUG(dbgs() << "addUndefinedData: " << name << "\n");
+  assert(flags & WASM_SYMBOL_UNDEFINED);
 
   Symbol *s;
   bool wasInserted;
@@ -457,6 +466,7 @@ Symbol *SymbolTable::addUndefinedGlobal(StringRef name, StringRef importName,
                                         InputFile *file,
                                         const WasmGlobalType *type) {
   LLVM_DEBUG(dbgs() << "addUndefinedGlobal: " << name << "\n");
+  assert(flags & WASM_SYMBOL_UNDEFINED);
 
   Symbol *s;
   bool wasInserted;
@@ -682,3 +692,6 @@ void SymbolTable::handleSymbolVariants() {
     }
   }
 }
+
+} // namespace wasm
+} // namespace lld

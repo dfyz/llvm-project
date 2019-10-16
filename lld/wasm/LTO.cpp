@@ -36,9 +36,9 @@
 #include <vector>
 
 using namespace llvm;
-using namespace lld;
-using namespace lld::wasm;
 
+namespace lld {
+namespace wasm {
 static std::unique_ptr<lto::LTO> createLTO() {
   lto::Config c;
   c.Options = initTargetOptionsFromCodeGenFlags();
@@ -105,6 +105,7 @@ void BitcodeCompiler::add(BitcodeFile &f) {
     // be removed.
     r.Prevailing = !objSym.isUndefined() && sym->getFile() == &f;
     r.VisibleToRegularObj = config->relocatable || sym->isUsedInRegularObj ||
+                            sym->isNoStrip() ||
                             (r.Prevailing && sym->isExported());
     if (r.Prevailing)
       undefine(sym);
@@ -164,3 +165,6 @@ std::vector<StringRef> BitcodeCompiler::compile() {
 
   return ret;
 }
+
+} // namespace wasm
+} // namespace lld

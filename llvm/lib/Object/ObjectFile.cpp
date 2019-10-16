@@ -67,8 +67,10 @@ Error ObjectFile::printSymbolName(raw_ostream &OS, DataRefImpl Symb) const {
 uint32_t ObjectFile::getSymbolAlignment(DataRefImpl DRI) const { return 0; }
 
 bool ObjectFile::isSectionBitcode(DataRefImpl Sec) const {
-  if (Expected<StringRef> NameOrErr = getSectionName(Sec))
+  Expected<StringRef> NameOrErr = getSectionName(Sec);
+  if (NameOrErr)
     return *NameOrErr == ".llvmbc";
+  consumeError(NameOrErr.takeError());
   return false;
 }
 
@@ -103,7 +105,7 @@ Triple ObjectFile::makeTriple() const {
     TheTriple.setObjectFormat(Triple::MachO);
 
   if (isCOFF()) {
-    const auto COFFObj = dyn_cast<COFFObjectFile>(this);
+    const auto COFFObj = cast<COFFObjectFile>(this);
     if (COFFObj->getArch() == Triple::thumb)
       TheTriple.setTriple("thumbv7-windows");
   }

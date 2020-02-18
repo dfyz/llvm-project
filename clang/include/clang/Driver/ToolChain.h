@@ -16,7 +16,9 @@
 #include "clang/Driver/Action.h"
 #include "clang/Driver/Multilib.h"
 #include "clang/Driver/Types.h"
+#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
@@ -134,6 +136,7 @@ private:
   path_list ProgramPaths;
 
   mutable std::unique_ptr<Tool> Clang;
+  mutable std::unique_ptr<Tool> Flang;
   mutable std::unique_ptr<Tool> Assemble;
   mutable std::unique_ptr<Tool> Link;
   mutable std::unique_ptr<Tool> IfsMerge;
@@ -141,6 +144,7 @@ private:
   mutable std::unique_ptr<Tool> OffloadWrapper;
 
   Tool *getClang() const;
+  Tool *getFlang() const;
   Tool *getAssemble() const;
   Tool *getLink() const;
   Tool *getIfsMerge() const;
@@ -569,12 +573,19 @@ public:
   virtual void AddCCKextLibArgs(const llvm::opt::ArgList &Args,
                                 llvm::opt::ArgStringList &CmdArgs) const;
 
+  /// If a runtime library exists that sets global flags for unsafe floating
+  /// point math, return true.
+  ///
+  /// This checks for presence of the -Ofast, -ffast-math or -funsafe-math flags.
+  virtual bool isFastMathRuntimeAvailable(
+    const llvm::opt::ArgList &Args, std::string &Path) const;
+
   /// AddFastMathRuntimeIfAvailable - If a runtime library exists that sets
   /// global flags for unsafe floating point math, add it and return true.
   ///
   /// This checks for presence of the -Ofast, -ffast-math or -funsafe-math flags.
-  virtual bool AddFastMathRuntimeIfAvailable(
-      const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CmdArgs) const;
+  bool addFastMathRuntimeIfAvailable(
+    const llvm::opt::ArgList &Args, llvm::opt::ArgStringList &CmdArgs) const;
 
   /// addProfileRTLibs - When -fprofile-instr-profile is specified, try to pass
   /// a suitable profile runtime library to the linker.
@@ -599,6 +610,21 @@ public:
   /// Return sanitizers which are enabled by default.
   virtual SanitizerMask getDefaultSanitizers() const {
     return SanitizerMask();
+  }
+
+  /// Returns true when it's possible to split LTO unit to use whole
+  /// program devirtualization and CFI santiizers.
+  virtual bool canSplitThinLTOUnit() const { return true; }
+
+  /// Returns the output denormal handling type in the default floating point
+  /// environment for the given \p FPType if given. Otherwise, the default
+  /// assumed mode for any floating point type.
+  virtual llvm::DenormalMode getDefaultDenormalModeForType(
+      const llvm::opt::ArgList &DriverArgs,
+      Action::OffloadKind DeviceOffloadKind,
+      const llvm::fltSemantics *FPType = nullptr) const {
+    // FIXME: This should be IEEE when default handling is fixed.
+    return llvm::DenormalMode::getInvalid();
   }
 };
 

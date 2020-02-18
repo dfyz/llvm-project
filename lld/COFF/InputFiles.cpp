@@ -13,6 +13,7 @@
 #include "Driver.h"
 #include "SymbolTable.h"
 #include "Symbols.h"
+#include "lld/Common/DWARF.h"
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Memory.h"
 #include "llvm-c/lto.h"
@@ -24,6 +25,7 @@
 #include "llvm/DebugInfo/CodeView/SymbolDeserializer.h"
 #include "llvm/DebugInfo/CodeView/SymbolRecord.h"
 #include "llvm/DebugInfo/CodeView/TypeDeserializer.h"
+#include "llvm/LTO/LTO.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/COFF.h"
 #include "llvm/Support/Casting.h"
@@ -58,7 +60,7 @@ std::string toString(const coff::InputFile *file) {
   if (!file)
     return "<internal>";
   if (file->parentName.empty() || file->kind() == coff::InputFile::ImportKind)
-    return file->getName();
+    return std::string(file->getName());
 
   return (getBasename(file->parentName) + "(" + getBasename(file->getName()) +
           ")")
@@ -122,10 +124,7 @@ void ArchiveFile::addMember(const Archive::Symbol &sym) {
 std::vector<MemoryBufferRef> getArchiveMembers(Archive *file) {
   std::vector<MemoryBufferRef> v;
   Error err = Error::success();
-  for (const ErrorOr<Archive::Child> &cOrErr : file->children(err)) {
-    Archive::Child c =
-        CHECK(cOrErr,
-              file->getFileName() + ": could not get the child of the archive");
+  for (const Archive::Child &c : file->children(err)) {
     MemoryBufferRef mbref =
         CHECK(c.getMemoryBufferRef(),
               file->getFileName() +
@@ -382,7 +381,8 @@ Symbol *ObjFile::createRegular(COFFSymbolRef sym) {
     StringRef name;
     coffObj->getSymbolName(sym, name);
     if (sc)
-      return symtab->addRegular(this, name, sym.getGeneric(), sc);
+      return symtab->addRegular(this, name, sym.getGeneric(), sc,
+                                sym.getValue());
     // For MinGW symbols named .weak.* that point to a discarded section,
     // don't create an Undefined symbol. If nothing ever refers to the symbol,
     // everything should be fine. If something actually refers to the symbol
@@ -500,6 +500,17 @@ void ObjFile::handleComdatSelection(COFFSymbolRef sym, COMDATType &selection,
     leaderSelection = selection = IMAGE_COMDAT_SELECT_LARGEST;
   }
 
+  // GCCs __declspec(selectany) doesn't actually pick "any" but "same size as".
+  // Clang on the other hand picks "any". To be able to link two object files
+  // with a __declspec(selectany) declaration, one compiled with gcc and the
+  // other with clang, we merge them as proper "same size as"
+  if (config->mingw && ((selection == IMAGE_COMDAT_SELECT_ANY &&
+                         leaderSelection == IMAGE_COMDAT_SELECT_SAME_SIZE) ||
+                        (selection == IMAGE_COMDAT_SELECT_SAME_SIZE &&
+                         leaderSelection == IMAGE_COMDAT_SELECT_ANY))) {
+    leaderSelection = selection = IMAGE_COMDAT_SELECT_SAME_SIZE;
+  }
+
   // Other than that, comdat selections must match.  This is a bit more
   // strict than link.exe which allows merging "any" and "largest" if "any"
   // is the first symbol the linker sees, and it allows merging "largest"
@@ -536,7 +547,7 @@ void ObjFile::handleComdatSelection(COFFSymbolRef sym, COMDATType &selection,
     // if the two comdat sections have e.g. different alignment.
     // Match that.
     if (leaderChunk->getContents() != newChunk.getContents())
-      symtab->reportDuplicate(leader, this);
+      symtab->reportDuplicate(leader, this, &newChunk, sym.getValue());
     break;
   }
 
@@ -764,7 +775,8 @@ void ObjFile::initializeDependencies() {
   if (firstType == types.end())
     return;
 
-  debugTypes.emplace(types);
+  // Remember the .debug$T or .debug$P section.
+  debugTypes = data;
 
   if (isPCH) {
     debugTypesObj = makePrecompSource(this);
@@ -788,6 +800,37 @@ void ObjFile::initializeDependencies() {
   debugTypesObj = makeTpiSource(this);
 }
 
+// Used only for DWARF debug info, which is not common (except in MinGW
+// environments). This returns an optional pair of file name and line
+// number for where the variable was defined.
+Optional<std::pair<StringRef, uint32_t>>
+ObjFile::getVariableLocation(StringRef var) {
+  if (!dwarf) {
+    dwarf = make<DWARFCache>(DWARFContext::create(*getCOFFObj()));
+    if (!dwarf)
+      return None;
+  }
+  if (config->machine == I386)
+    var.consume_front("_");
+  Optional<std::pair<std::string, unsigned>> ret = dwarf->getVariableLoc(var);
+  if (!ret)
+    return None;
+  return std::make_pair(saver.save(ret->first), ret->second);
+}
+
+// Used only for DWARF debug info, which is not common (except in MinGW
+// environments).
+Optional<DILineInfo> ObjFile::getDILineInfo(uint32_t offset,
+                                            uint32_t sectionIndex) {
+  if (!dwarf) {
+    dwarf = make<DWARFCache>(DWARFContext::create(*getCOFFObj()));
+    if (!dwarf)
+      return None;
+  }
+
+  return dwarf->getDILineInfo(offset, sectionIndex);
+}
+
 StringRef ltrim1(StringRef s, const char *chars) {
   if (!s.empty() && strchr(chars, s[0]))
     return s.substr(1);
@@ -806,7 +849,7 @@ void ImportFile::parse() {
   StringRef name = saver.save(StringRef(buf + sizeof(*hdr)));
   StringRef impName = saver.save("__imp_" + name);
   const char *nameStart = buf + sizeof(coff_import_header) + name.size() + 1;
-  dllName = StringRef(nameStart);
+  dllName = std::string(StringRef(nameStart));
   StringRef extName;
   switch (hdr->getNameType()) {
   case IMPORT_ORDINAL:
@@ -845,6 +888,10 @@ void ImportFile::parse() {
 }
 
 BitcodeFile::BitcodeFile(MemoryBufferRef mb, StringRef archiveName,
+                         uint64_t offsetInArchive)
+    : BitcodeFile(mb, archiveName, offsetInArchive, {}) {}
+
+BitcodeFile::BitcodeFile(MemoryBufferRef mb, StringRef archiveName,
                          uint64_t offsetInArchive,
                          std::vector<Symbol *> &&symbols)
     : InputFile(BitcodeKind, mb), symbols(std::move(symbols)) {
@@ -866,6 +913,8 @@ BitcodeFile::BitcodeFile(MemoryBufferRef mb, StringRef archiveName,
   obj = check(lto::InputFile::create(mbref));
 }
 
+BitcodeFile::~BitcodeFile() = default;
+
 void BitcodeFile::parse() {
   std::vector<std::pair<Symbol *, bool>> comdat(obj->getComdatTable().size());
   for (size_t i = 0; i != obj->getComdatTable().size(); ++i)
@@ -883,7 +932,7 @@ void BitcodeFile::parse() {
     } else if (objSym.isWeak() && objSym.isIndirect()) {
       // Weak external.
       sym = symtab->addUndefined(symName, this, true);
-      std::string fallback = objSym.getCOFFWeakExternalFallback();
+      std::string fallback = std::string(objSym.getCOFFWeakExternalFallback());
       Symbol *alias = symtab->addUndefined(saver.save(fallback));
       checkAndSetWeakAlias(symtab, this, sym, alias);
     } else if (comdatIndex != -1) {
@@ -924,7 +973,7 @@ std::string replaceThinLTOSuffix(StringRef path) {
 
   if (path.consume_back(suffix))
     return (path + repl).str();
-  return path;
+  return std::string(path);
 }
 
 } // namespace coff

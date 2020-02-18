@@ -427,7 +427,6 @@ template <class _T1, class _T2> struct _LIBCPP_TEMPLATE_VIS pair;
 template <class _Tp> class _LIBCPP_TEMPLATE_VIS reference_wrapper;
 template <class _Tp> struct _LIBCPP_TEMPLATE_VIS hash;
 
-
 template <class _Tp, _Tp __v>
 struct _LIBCPP_TEMPLATE_VIS integral_constant
 {
@@ -526,6 +525,7 @@ struct __identity { typedef _Tp type; };
 template <class _Tp, bool>
 struct _LIBCPP_TEMPLATE_VIS __dependent_type : public _Tp {};
 
+
 template <bool _Bp, class _If, class _Then>
     struct _LIBCPP_TEMPLATE_VIS conditional {typedef _If type;};
 template <class _If, class _Then>
@@ -570,6 +570,17 @@ using _IsNotSame = _BoolConstant<
     !_VSTD::is_same<_Tp, _Up>::value
 #endif
 >;
+
+
+template <class _Tp>
+using __test_for_primary_template = _EnableIf<
+    _IsSame<_Tp, typename _Tp::__primary_template>::value
+  >;
+template <class _Tp>
+using __is_primary_template = _IsValidExpansion<
+    __test_for_primary_template, _Tp
+  >;
+
 // addressof
 #ifndef _LIBCPP_HAS_NO_BUILTIN_ADDRESSOF
 
@@ -720,38 +731,12 @@ template <class _Tp>
 _LIBCPP_INLINE_VAR _LIBCPP_CONSTEXPR bool is_null_pointer_v
     = is_null_pointer<_Tp>::value;
 #endif
-#endif
+#endif // _LIBCPP_STD_VER > 11
 
 // is_integral
 
-template <class _Tp> struct __libcpp_is_integral                     : public false_type {};
-template <>          struct __libcpp_is_integral<bool>               : public true_type {};
-template <>          struct __libcpp_is_integral<char>               : public true_type {};
-template <>          struct __libcpp_is_integral<signed char>        : public true_type {};
-template <>          struct __libcpp_is_integral<unsigned char>      : public true_type {};
-template <>          struct __libcpp_is_integral<wchar_t>            : public true_type {};
-#ifndef _LIBCPP_NO_HAS_CHAR8_T
-template <>          struct __libcpp_is_integral<char8_t>            : public true_type {};
-#endif
-#ifndef _LIBCPP_HAS_NO_UNICODE_CHARS
-template <>          struct __libcpp_is_integral<char16_t>           : public true_type {};
-template <>          struct __libcpp_is_integral<char32_t>           : public true_type {};
-#endif  // _LIBCPP_HAS_NO_UNICODE_CHARS
-template <>          struct __libcpp_is_integral<short>              : public true_type {};
-template <>          struct __libcpp_is_integral<unsigned short>     : public true_type {};
-template <>          struct __libcpp_is_integral<int>                : public true_type {};
-template <>          struct __libcpp_is_integral<unsigned int>       : public true_type {};
-template <>          struct __libcpp_is_integral<long>               : public true_type {};
-template <>          struct __libcpp_is_integral<unsigned long>      : public true_type {};
-template <>          struct __libcpp_is_integral<long long>          : public true_type {};
-template <>          struct __libcpp_is_integral<unsigned long long> : public true_type {};
-#ifndef _LIBCPP_HAS_NO_INT128
-template <>          struct __libcpp_is_integral<__int128_t>         : public true_type {};
-template <>          struct __libcpp_is_integral<__uint128_t>        : public true_type {};
-#endif
-
 template <class _Tp> struct _LIBCPP_TEMPLATE_VIS is_integral
-    : public __libcpp_is_integral<typename remove_cv<_Tp>::type> {};
+    : public _BoolConstant<__libcpp_is_integral<typename remove_cv<_Tp>::type>::value> {};
 
 #if _LIBCPP_STD_VER > 14 && !defined(_LIBCPP_HAS_NO_VARIABLE_TEMPLATES)
 template <class _Tp>
@@ -1005,11 +990,17 @@ _LIBCPP_INLINE_VAR _LIBCPP_CONSTEXPR bool is_fundamental_v
 
 // is_scalar
 
+template <class _Tp> struct __is_block : false_type {};
+#if defined(_LIBCPP_HAS_EXTENSION_BLOCKS)
+template <class _Rp, class ..._Args> struct __is_block<_Rp (^)(_Args...)> : true_type {};
+#endif
+
 template <class _Tp> struct _LIBCPP_TEMPLATE_VIS is_scalar
     : public integral_constant<bool, is_arithmetic<_Tp>::value     ||
                                      is_member_pointer<_Tp>::value ||
                                      is_pointer<_Tp>::value        ||
                                      __is_nullptr_t<_Tp>::value    ||
+                                     __is_block<_Tp>::value        ||
                                      is_enum<_Tp>::value           > {};
 
 template <> struct _LIBCPP_TEMPLATE_VIS is_scalar<nullptr_t> : public true_type {};
@@ -1119,8 +1110,12 @@ template <class _Tp> struct _LIBCPP_TEMPLATE_VIS add_rvalue_reference
 template <class _Tp> using add_rvalue_reference_t = typename add_rvalue_reference<_Tp>::type;
 #endif
 
+// Suppress deprecation notice for volatile-qualified return type resulting
+// from volatile-qualified types _Tp.
+_LIBCPP_SUPPRESS_DEPRECATED_PUSH
 template <class _Tp> _Tp&& __declval(int);
 template <class _Tp> _Tp   __declval(long);
+_LIBCPP_SUPPRESS_DEPRECATED_POP
 
 template <class _Tp>
 decltype(_VSTD::__declval<_Tp>(0))
@@ -1414,8 +1409,7 @@ _LIBCPP_INLINE_VAR _LIBCPP_CONSTEXPR bool is_base_of_v
 #if __has_feature(is_convertible_to) && !defined(_LIBCPP_USE_IS_CONVERTIBLE_FALLBACK)
 
 template <class _T1, class _T2> struct _LIBCPP_TEMPLATE_VIS is_convertible
-    : public integral_constant<bool, __is_convertible_to(_T1, _T2) &&
-                                     !is_abstract<_T2>::value> {};
+    : public integral_constant<bool, __is_convertible_to(_T1, _T2)> {};
 
 #else  // __has_feature(is_convertible_to)
 
@@ -4026,29 +4020,7 @@ _LIBCPP_END_NAMESPACE_STD
 // std::byte
 namespace std  // purposefully not versioned
 {
-template <class _Integer>
-  constexpr typename enable_if<is_integral_v<_Integer>, byte>::type &
-  operator<<=(byte& __lhs, _Integer __shift) noexcept
-  { return __lhs = __lhs << __shift; }
 
-template <class _Integer>
-  constexpr typename enable_if<is_integral_v<_Integer>, byte>::type
-  operator<< (byte  __lhs, _Integer __shift) noexcept
-  { return static_cast<byte>(static_cast<unsigned char>(static_cast<unsigned int>(__lhs) << __shift)); }
-
-template <class _Integer>
-  constexpr typename enable_if<is_integral_v<_Integer>, byte>::type &
-  operator>>=(byte& __lhs, _Integer __shift) noexcept
-  { return __lhs = __lhs >> __shift; }
-
-template <class _Integer>
-  constexpr typename enable_if<is_integral_v<_Integer>, byte>::type
-  operator>> (byte  __lhs, _Integer __shift) noexcept
-  { return static_cast<byte>(static_cast<unsigned char>(static_cast<unsigned int>(__lhs) >> __shift)); }
-
-template <class _Integer>
-  constexpr typename enable_if<is_integral_v<_Integer>, _Integer>::type
-  to_integer(byte __b) noexcept { return static_cast<_Integer>(__b); }
 
 }
 #endif

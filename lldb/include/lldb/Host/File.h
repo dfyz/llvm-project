@@ -76,9 +76,7 @@ public:
   /// that takes an "off_t &offset" to ensure correct operation in multi-
   /// threaded environments.
   ///
-  /// \param[out] buf
-  ///
-  /// \param[in,out] num_bytes.
+  /// \param[in,out] num_bytes
   ///    Pass in the size of buf.  Read will pass out the number
   ///    of bytes read.   Zero bytes read with no error indicates
   ///    EOF.
@@ -92,8 +90,6 @@ public:
   /// NOTE: This function is NOT thread safe. Use the write function
   /// that takes an "off_t &offset" to ensure correct operation in multi-
   /// threaded environments.
-  ///
-  /// \param[in] buf
   ///
   /// \param[in,out] num_bytes
   ///    Pass in the size of buf.  Write will pass out the number
@@ -135,20 +131,6 @@ public:
   /// \return
   ///     ENOTSUP, success, or another error.
   virtual Status GetFileSpec(FileSpec &file_spec) const;
-
-  /// DEPRECATED! Extract the underlying FILE* and reset this File without closing it.
-  ///
-  /// This is only here to support legacy SB interfaces that need to convert scripting
-  /// language objects into FILE* streams.   That conversion is inherently sketchy and
-  /// doing so may cause the stream to be leaked.
-  ///
-  /// After calling this the File will be reset to its original state.  It will be
-  /// invalid and it will not hold on to any resources.
-  ///
-  /// \return
-  ///     The underlying FILE* stream from this File, if one exists and can be extracted,
-  ///     nullptr otherwise.
-  virtual FILE *TakeStreamAndClear();
 
   /// Get underlying OS file descriptor for this file, or kInvalidDescriptor.
   /// If the descriptor is valid, then it may be used directly for I/O
@@ -413,7 +395,6 @@ public:
   Status Close() override;
   WaitableHandle GetWaitableHandle() override;
   Status GetFileSpec(FileSpec &file_spec) const override;
-  FILE *TakeStreamAndClear() override;
   int GetDescriptor() const override;
   FILE *GetStream() override;
   off_t SeekFromStart(off_t offset, Status *error_ptr = nullptr) override;

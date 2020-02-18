@@ -1,4 +1,4 @@
-//===-- File.cpp ------------------------------------------------*- C++ -*-===//
+//===-- File.cpp ----------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -116,8 +116,6 @@ Status File::GetFileSpec(FileSpec &file_spec) const {
   file_spec.Clear();
   return std::error_code(ENOTSUP, std::system_category());
 }
-
-FILE *File::TakeStreamAndClear() { return nullptr; }
 
 int File::GetDescriptor() const { return kInvalidDescriptor; }
 
@@ -312,7 +310,7 @@ Status NativeFile::Close() {
     if (m_own_stream) {
       if (::fclose(m_stream) == EOF)
         error.SetErrorToErrno();
-    } else {
+    } else if (m_options & eOpenOptionWrite) {
       if (::fflush(m_stream) == EOF)
         error.SetErrorToErrno();
     }
@@ -329,18 +327,6 @@ Status NativeFile::Close() {
   m_is_interactive = eLazyBoolCalculate;
   m_is_real_terminal = eLazyBoolCalculate;
   return error;
-}
-
-FILE *NativeFile::TakeStreamAndClear() {
-  FILE *stream = GetStream();
-  m_stream = NULL;
-  m_descriptor = kInvalidDescriptor;
-  m_options = OpenOptions();
-  m_own_stream = false;
-  m_own_descriptor = false;
-  m_is_interactive = m_supports_colors = m_is_real_terminal =
-      eLazyBoolCalculate;
-  return stream;
 }
 
 Status NativeFile::GetFileSpec(FileSpec &file_spec) const {

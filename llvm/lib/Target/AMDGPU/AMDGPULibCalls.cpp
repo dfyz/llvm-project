@@ -11,31 +11,32 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "amdgpu-simplifylib"
-
 #include "AMDGPU.h"
 #include "AMDGPULibFunc.h"
 #include "AMDGPUSubtarget.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/Loads.h"
-#include "llvm/ADT/StringSet.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ValueSymbolTable.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
-#include <vector>
 #include <cmath>
+#include <vector>
+
+#define DEBUG_TYPE "amdgpu-simplifylib"
 
 using namespace llvm;
 
@@ -584,7 +585,7 @@ bool AMDGPULibCalls::fold_read_write_pipe(CallInst *CI, IRBuilder<> &B,
   assert(Callee->hasName() && "Invalid read_pipe/write_pipe function");
   auto *M = Callee->getParent();
   auto &Ctx = M->getContext();
-  std::string Name = Callee->getName();
+  std::string Name = std::string(Callee->getName());
   auto NumArg = CI->getNumArgOperands();
   if (NumArg != 4 && NumArg != 6)
     return false;
@@ -1167,8 +1168,6 @@ bool AMDGPULibCalls::fold_rootn(CallInst *CI, IRBuilder<> &B,
     return true;
   }
   if (ci_opr1 == 2) {  // rootn(x, 2) = sqrt(x)
-    std::vector<const Type*> ParamsTys;
-    ParamsTys.push_back(opr0->getType());
     Module *M = CI->getModule();
     if (FunctionCallee FPExpr =
             getFunction(M, AMDGPULibFunc(AMDGPULibFunc::EI_SQRT, FInfo))) {
@@ -1194,8 +1193,6 @@ bool AMDGPULibCalls::fold_rootn(CallInst *CI, IRBuilder<> &B,
     replaceCall(nval);
     return true;
   } else if (ci_opr1 == -2) {  // rootn(x, -2) = rsqrt(x)
-    std::vector<const Type*> ParamsTys;
-    ParamsTys.push_back(opr0->getType());
     Module *M = CI->getModule();
     if (FunctionCallee FPExpr =
             getFunction(M, AMDGPULibFunc(AMDGPULibFunc::EI_RSQRT, FInfo))) {

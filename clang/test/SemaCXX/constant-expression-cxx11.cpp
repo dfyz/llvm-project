@@ -283,10 +283,10 @@ static_assert(&x == &y, "false"); // expected-error {{false}}
 static_assert(&x != &y, "");
 constexpr bool g1 = &x == &y;
 constexpr bool g2 = &x != &y;
-constexpr bool g3 = &x <= &y; // expected-error {{must be initialized by a constant expression}}
-constexpr bool g4 = &x >= &y; // expected-error {{must be initialized by a constant expression}}
-constexpr bool g5 = &x < &y; // expected-error {{must be initialized by a constant expression}}
-constexpr bool g6 = &x > &y; // expected-error {{must be initialized by a constant expression}}
+constexpr bool g3 = &x <= &y; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
+constexpr bool g4 = &x >= &y; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
+constexpr bool g5 = &x < &y; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
+constexpr bool g6 = &x > &y; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
 
 struct S { int x, y; } s;
 static_assert(&s.x == &s.y, "false"); // expected-error {{false}}
@@ -298,17 +298,17 @@ static_assert(&s.x > &s.y, "false"); // expected-error {{false}}
 
 static_assert(0 == &y, "false"); // expected-error {{false}}
 static_assert(0 != &y, "");
-constexpr bool n3 = (int*)0 <= &y; // expected-error {{must be initialized by a constant expression}}
-constexpr bool n4 = (int*)0 >= &y; // expected-error {{must be initialized by a constant expression}}
-constexpr bool n5 = (int*)0 < &y; // expected-error {{must be initialized by a constant expression}}
-constexpr bool n6 = (int*)0 > &y; // expected-error {{must be initialized by a constant expression}}
+constexpr bool n3 = (int*)0 <= &y; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
+constexpr bool n4 = (int*)0 >= &y; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
+constexpr bool n5 = (int*)0 < &y; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
+constexpr bool n6 = (int*)0 > &y; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
 
 static_assert(&x == 0, "false"); // expected-error {{false}}
 static_assert(&x != 0, "");
-constexpr bool n9 = &x <= (int*)0; // expected-error {{must be initialized by a constant expression}}
-constexpr bool n10 = &x >= (int*)0; // expected-error {{must be initialized by a constant expression}}
-constexpr bool n11 = &x < (int*)0; // expected-error {{must be initialized by a constant expression}}
-constexpr bool n12 = &x > (int*)0; // expected-error {{must be initialized by a constant expression}}
+constexpr bool n9 = &x <= (int*)0; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
+constexpr bool n10 = &x >= (int*)0; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
+constexpr bool n11 = &x < (int*)0; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
+constexpr bool n12 = &x > (int*)0; // expected-error {{must be initialized by a constant expression}} expected-note {{unspecified}}
 
 static_assert(&x == &x, "");
 static_assert(&x != &x, "false"); // expected-error {{false}}
@@ -603,9 +603,9 @@ namespace CopyCtor {
 }
 
 constexpr int selfref[2][2][2] = {
-  selfref[1][1][1] + 1, selfref[0][0][0] + 1,
-  selfref[1][0][1] + 1, selfref[0][1][0] + 1,
-  selfref[1][0][0] + 1, selfref[0][1][1] + 1 };
+  1, selfref[0][0][0] + 1,
+  1, selfref[0][1][0] + 1,
+  1, selfref[0][1][1] + 1 };
 static_assert(selfref[0][0][0] == 1, "");
 static_assert(selfref[0][0][1] == 2, "");
 static_assert(selfref[0][1][0] == 1, "");
@@ -614,6 +614,10 @@ static_assert(selfref[1][0][0] == 1, "");
 static_assert(selfref[1][0][1] == 3, "");
 static_assert(selfref[1][1][0] == 0, "");
 static_assert(selfref[1][1][1] == 0, "");
+
+constexpr int badselfref[2][2][2] = { // expected-error {{constant expression}}
+  badselfref[1][0][0] // expected-note {{outside its lifetime}}
+};
 
 struct TrivialDefCtor { int n; };
 typedef TrivialDefCtor TDCArray[2][2];
@@ -1277,18 +1281,16 @@ namespace ExternConstexpr {
   }
 
   extern const int q;
-  constexpr int g() { return q; }
-  constexpr int q = g();
-  static_assert(q == 0, "zero-initialization should precede static initialization");
+  constexpr int g() { return q; } // expected-note {{outside its lifetime}}
+  constexpr int q = g(); // expected-error {{constant expression}} expected-note {{in call}}
 
   extern int r; // expected-note {{here}}
   constexpr int h() { return r; } // expected-error {{never produces a constant}} expected-note {{read of non-const}}
 
   struct S { int n; };
   extern const S s;
-  constexpr int x() { return s.n; }
-  constexpr S s = {x()};
-  static_assert(s.n == 0, "zero-initialization should precede static initialization");
+  constexpr int x() { return s.n; } // expected-note {{outside its lifetime}}
+  constexpr S s = {x()}; // expected-error {{constant expression}} expected-note {{in call}}
 }
 
 namespace ComplexConstexpr {
@@ -1955,11 +1957,10 @@ namespace Lifetime {
 
   struct R { // expected-note {{field init}}
     struct Inner { constexpr int f() const { return 0; } };
-    int a = b.f(); // expected-warning {{uninitialized}} expected-note {{member call on object outside its lifetime}}
+    int a = b.f(); // expected-warning {{uninitialized}} expected-note 2{{member call on object outside its lifetime}}
     Inner b;
   };
-  // FIXME: This should be rejected under DR2026.
-  constexpr R r; // expected-note {{default constructor}}
+  constexpr R r; // expected-error {{constant expression}} expected-note {{in call}} expected-note {{implicit default constructor for 'Lifetime::R' first required here}}
   void rf() {
     constexpr R r; // expected-error {{constant expression}} expected-note {{in call}}
   }

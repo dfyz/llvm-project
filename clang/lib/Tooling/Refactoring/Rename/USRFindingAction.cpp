@@ -39,6 +39,8 @@ namespace clang {
 namespace tooling {
 
 const NamedDecl *getCanonicalSymbolDeclaration(const NamedDecl *FoundDecl) {
+  if (!FoundDecl)
+    return nullptr;
   // If FoundDecl is a constructor or destructor, we want to instead take
   // the Decl of the corresponding class.
   if (const auto *CtorDecl = dyn_cast<CXXConstructorDecl>(FoundDecl))
@@ -65,7 +67,7 @@ public:
 
   std::vector<std::string> Find() {
     // Fill OverriddenMethods and PartialSpecs storages.
-    TraverseDecl(Context.getTranslationUnitDecl());
+    TraverseAST(Context);
     if (const auto *MethodDecl = dyn_cast<CXXMethodDecl>(FoundDecl)) {
       addUSRsOfOverridenFunctions(MethodDecl);
       for (const auto &OverriddenMethod : OverriddenMethods) {
@@ -133,6 +135,13 @@ private:
 
     for (const auto *CtorDecl : RecordDecl->ctors())
       USRSet.insert(getUSRForDecl(CtorDecl));
+    // Add template constructor decls, they are not in ctors() unfortunately.
+    if (RecordDecl->hasUserDeclaredConstructor())
+      for (const auto *D : RecordDecl->decls())
+        if (const auto *FTD = dyn_cast<FunctionTemplateDecl>(D))
+          if (const auto *Ctor =
+                  dyn_cast<CXXConstructorDecl>(FTD->getTemplatedDecl()))
+            USRSet.insert(getUSRForDecl(Ctor));
 
     USRSet.insert(getUSRForDecl(RecordDecl->getDestructor()));
     USRSet.insert(getUSRForDecl(RecordDecl));

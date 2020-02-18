@@ -27,8 +27,8 @@ class ARCInstrInfo;
 class ARCFrameLowering : public TargetFrameLowering {
 public:
   ARCFrameLowering(const ARCSubtarget &st)
-      : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, 4, 0), ST(st) {
-  }
+      : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, Align(4), 0),
+        ST(st) {}
 
   /// Insert Prologue into the function.
   void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
@@ -42,7 +42,7 @@ public:
 
   bool spillCalleeSavedRegisters(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MI,
-                                 const std::vector<CalleeSavedInfo> &CSI,
+                                 ArrayRef<CalleeSavedInfo> CSI,
                                  const TargetRegisterInfo *TRI) const override;
 
   bool

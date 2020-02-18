@@ -33,7 +33,7 @@ public:
 
   bool spillCalleeSavedRegisters(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MI,
-                                 const std::vector<CalleeSavedInfo> &CSI,
+                                 ArrayRef<CalleeSavedInfo> CSI,
                                  const TargetRegisterInfo *TRI) const override;
 
   bool restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
@@ -53,6 +53,8 @@ public:
   int ResolveFrameIndexReference(const MachineFunction &MF, int FI,
                                  unsigned &FrameReg, int SPAdj) const;
 
+  void getCalleeSaves(const MachineFunction &MF,
+                      BitVector &SavedRegs) const override;
   void determineCalleeSaves(MachineFunction &MF, BitVector &SavedRegs,
                             RegScavenger *RS) const override;
 
@@ -71,10 +73,9 @@ public:
 
 private:
   void emitPushInst(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
-                    const std::vector<CalleeSavedInfo> &CSI, unsigned StmOpc,
-                    unsigned StrOpc, bool NoGap,
-                    bool(*Func)(unsigned, bool), unsigned NumAlignedDPRCS2Regs,
-                    unsigned MIFlags = 0) const;
+                    ArrayRef<CalleeSavedInfo> CSI, unsigned StmOpc,
+                    unsigned StrOpc, bool NoGap, bool (*Func)(unsigned, bool),
+                    unsigned NumAlignedDPRCS2Regs, unsigned MIFlags = 0) const;
   void emitPopInst(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
                    std::vector<CalleeSavedInfo> &CSI, unsigned LdmOpc,
                    unsigned LdrOpc, bool isVarArg, bool NoGap,

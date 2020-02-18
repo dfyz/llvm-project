@@ -12,7 +12,7 @@
 # RUN:   %t.o 2>&1 -verbose  -error-limit=0 | FileCheck %s --check-prefix=DEFAULT
 
 ## Check --orphan-handling=error reports errors about orphans.
-# RUN: not ld.lld -shared --orphan-handling=error -o %t.out --script %t.script \
+# RUN: not ld.lld -shared --orphan-handling=error -o /dev/null --script %t.script \
 # RUN:   %t.o 2>&1 -verbose  -error-limit=0 | FileCheck %s --check-prefix=REPORT
 # REPORT:      {{.*}}.o:(.text) is being placed in '.text'
 # REPORT-NEXT: {{.*}}.o:(.text.2) is being placed in '.text'
@@ -34,7 +34,7 @@
 # REPORT-NEXT: <internal>:(.rela.plt) is being placed in '.rela.plt'
 # REPORT-NEXT: <internal>:(.rela.dyn) is being placed in '.rela.dyn'
 # REPORT-NEXT: <internal>:(.plt) is being placed in '.plt'
-# REPORT-NEXT: <internal>:(.plt) is being placed in '.plt'
+# REPORT-NEXT: <internal>:(.iplt) is being placed in '.iplt'
 # REPORT-NEXT: <internal>:(.symtab) is being placed in '.symtab'
 # REPORT-NEXT: <internal>:(.symtab_shndx) is being placed in '.symtab_shndx'
 # REPORT-NEXT: <internal>:(.shstrtab) is being placed in '.shstrtab'
@@ -44,7 +44,7 @@
 # RUN: ld.lld -shared --orphan-handling=warn -o %t.out --script %t.script \
 # RUN:   %t.o 2>&1 -verbose | FileCheck %s --check-prefix=REPORT
 
-# RUN: not ld.lld --orphan-handling=foo -o %t.out --script %t.script %t.o 2>&1 \
+# RUN: not ld.lld --orphan-handling=foo -o /dev/null --script %t.script %t.o 2>&1 \
 # RUN:   | FileCheck %s --check-prefix=UNKNOWN
 # UNKNOWN: unknown --orphan-handling mode: foo
 

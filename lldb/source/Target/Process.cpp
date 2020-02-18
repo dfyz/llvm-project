@@ -1,4 +1,4 @@
-//===-- Process.cpp ---------------------------------------------*- C++ -*-===//
+//===-- Process.cpp -------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -38,6 +38,7 @@
 #include "lldb/Symbol/Function.h"
 #include "lldb/Symbol/Symbol.h"
 #include "lldb/Target/ABI.h"
+#include "lldb/Target/AssertFrameRecognizer.h"
 #include "lldb/Target/DynamicLoader.h"
 #include "lldb/Target/InstrumentationRuntime.h"
 #include "lldb/Target/JITLoader.h"
@@ -137,18 +138,11 @@ ProcessProperties::ProcessProperties(lldb_private::Process *process)
         Process::GetGlobalProperties().get());
     m_collection_sp->SetValueChangedCallback(
         ePropertyPythonOSPluginPath,
-        ProcessProperties::OptionValueChangedCallback, this);
+        [this] { m_process->LoadOperatingSystemPlugin(true); });
   }
 }
 
 ProcessProperties::~ProcessProperties() = default;
-
-void ProcessProperties::OptionValueChangedCallback(void *baton,
-                                                   OptionValue *option_value) {
-  ProcessProperties *properties = (ProcessProperties *)baton;
-  if (properties->m_process)
-    properties->m_process->LoadOperatingSystemPlugin(true);
-}
 
 bool ProcessProperties::GetDisableMemoryCache() const {
   const uint32_t idx = ePropertyDisableMemCache;
@@ -545,6 +539,8 @@ Process::Process(lldb::TargetSP target_sp, ListenerSP listener_sp,
       target_sp->GetPlatform()->GetDefaultMemoryCacheLineSize();
   if (!value_sp->OptionWasSet() && platform_cache_line_size != 0)
     value_sp->SetUInt64Value(platform_cache_line_size);
+
+  RegisterAssertFrameRecognizer(this);
 }
 
 Process::~Process() {
@@ -941,11 +937,17 @@ bool Process::HandleProcessStateChangedEvent(const EventSP &event_sp,
         Debugger &debugger = process_sp->GetTarget().GetDebugger();
         if (debugger.GetTargetList().GetSelectedTarget().get() ==
             &process_sp->GetTarget()) {
+          ThreadSP thread_sp = process_sp->GetThreadList().GetSelectedThread();
+
+          if (!thread_sp || !thread_sp->IsValid())
+            return false;
+
           const bool only_threads_with_stop_reason = true;
-          const uint32_t start_frame = 0;
+          const uint32_t start_frame = thread_sp->GetSelectedFrameIndex();
           const uint32_t num_frames = 1;
           const uint32_t num_frames_with_source = 1;
           const bool stop_format = true;
+
           process_sp->GetStatus(*stream);
           process_sp->GetThreadStatus(*stream, only_threads_with_stop_reason,
                                       start_frame, num_frames,
@@ -956,14 +958,11 @@ bool Process::HandleProcessStateChangedEvent(const EventSP &event_sp,
             ValueObjectSP valobj_sp = StopInfo::GetCrashingDereference(
                 curr_thread_stop_info_sp, &crashing_address);
             if (valobj_sp) {
-              const bool qualify_cxx_base_classes = false;
-
               const ValueObject::GetExpressionPathFormat format =
                   ValueObject::GetExpressionPathFormat::
                       eGetExpressionPathFormatHonorPointers;
               stream->PutCString("Likely cause: ");
-              valobj_sp->GetExpressionPath(*stream, qualify_cxx_base_classes,
-                                           format);
+              valobj_sp->GetExpressionPath(*stream, format);
               stream->Printf(" accessed 0x%" PRIx64 "\n", crashing_address);
             }
           }
@@ -1486,8 +1485,7 @@ const lldb::ABISP &Process::GetABI() {
   return m_abi_sp;
 }
 
-std::vector<LanguageRuntime *>
-Process::GetLanguageRuntimes(bool retry_if_null) {
+std::vector<LanguageRuntime *> Process::GetLanguageRuntimes() {
   std::vector<LanguageRuntime *> language_runtimes;
 
   if (m_finalizing)
@@ -1500,15 +1498,14 @@ Process::GetLanguageRuntimes(bool retry_if_null) {
   // yet or the proper condition for loading wasn't yet met (e.g. libc++.so
   // hadn't been loaded).
   for (const lldb::LanguageType lang_type : Language::GetSupportedLanguages()) {
-    if (LanguageRuntime *runtime = GetLanguageRuntime(lang_type, retry_if_null))
+    if (LanguageRuntime *runtime = GetLanguageRuntime(lang_type))
       language_runtimes.emplace_back(runtime);
   }
 
   return language_runtimes;
 }
 
-LanguageRuntime *Process::GetLanguageRuntime(lldb::LanguageType language,
-                                             bool retry_if_null) {
+LanguageRuntime *Process::GetLanguageRuntime(lldb::LanguageType language) {
   if (m_finalizing)
     return nullptr;
 
@@ -1517,7 +1514,7 @@ LanguageRuntime *Process::GetLanguageRuntime(lldb::LanguageType language,
   std::lock_guard<std::recursive_mutex> guard(m_language_runtimes_mutex);
   LanguageRuntimeCollection::iterator pos;
   pos = m_language_runtimes.find(language);
-  if (pos == m_language_runtimes.end() || (retry_if_null && !pos->second)) {
+  if (pos == m_language_runtimes.end() || !pos->second) {
     lldb::LanguageRuntimeSP runtime_sp(
         LanguageRuntime::FindPlugin(this, language));
 
@@ -4469,7 +4466,8 @@ bool Process::PushProcessIOHandler() {
     // existing IOHandler that potentially provides the user interface (e.g.
     // the IOHandler for Editline).
     bool cancel_top_handler = !m_mod_id.IsRunningUtilityFunction();
-    GetTarget().GetDebugger().PushIOHandler(io_handler_sp, cancel_top_handler);
+    GetTarget().GetDebugger().RunIOHandlerAsync(io_handler_sp,
+                                                cancel_top_handler);
     return true;
   }
   return false;
@@ -4478,7 +4476,7 @@ bool Process::PushProcessIOHandler() {
 bool Process::PopProcessIOHandler() {
   IOHandlerSP io_handler_sp(m_process_input_reader);
   if (io_handler_sp)
-    return GetTarget().GetDebugger().PopIOHandler(io_handler_sp);
+    return GetTarget().GetDebugger().RemoveIOHandler(io_handler_sp);
   return false;
 }
 
@@ -5802,7 +5800,8 @@ Process::AdvanceAddressToNextBranchInstruction(Address default_stop_addr,
 
   uint32_t branch_index =
       insn_list->GetIndexOfNextBranchInstruction(insn_offset, target,
-                                                 false /* ignore_calls*/);
+                                                 false /* ignore_calls*/,
+                                                 nullptr);
   if (branch_index == UINT32_MAX) {
     return retval;
   }

@@ -26,7 +26,7 @@ class MCStreamer;
 class MCSymbol;
 
 class LLVM_LIBRARY_VISIBILITY X86AsmPrinter : public AsmPrinter {
-  const X86Subtarget *Subtarget;
+  const X86Subtarget *Subtarget = nullptr;
   StackMaps SM;
   FaultMaps FM;
   std::unique_ptr<MCCodeEmitter> CodeEmitter;
@@ -60,7 +60,7 @@ class LLVM_LIBRARY_VISIBILITY X86AsmPrinter : public AsmPrinter {
     // to emit any necessary padding-NOPs.
     void emitShadowPadding(MCStreamer &OutStreamer, const MCSubtargetInfo &STI);
   private:
-    const MachineFunction *MF;
+    const MachineFunction *MF = nullptr;
     bool InShadow = false;
 
     // RequiredShadowSize holds the length of the shadow specified in the most
@@ -112,7 +112,7 @@ class LLVM_LIBRARY_VISIBILITY X86AsmPrinter : public AsmPrinter {
   void PrintMemReference(const MachineInstr *MI, unsigned OpNo, raw_ostream &O,
                          const char *Modifier);
   void PrintIntelMemReference(const MachineInstr *MI, unsigned OpNo,
-                              raw_ostream &O);
+                              raw_ostream &O, const char *Modifier);
 
 public:
   X86AsmPrinter(TargetMachine &TM, std::unique_ptr<MCStreamer> Streamer);
@@ -123,14 +123,14 @@ public:
 
   const X86Subtarget &getSubtarget() const { return *Subtarget; }
 
-  void EmitStartOfAsmFile(Module &M) override;
+  void emitStartOfAsmFile(Module &M) override;
 
-  void EmitEndOfAsmFile(Module &M) override;
+  void emitEndOfAsmFile(Module &M) override;
 
-  void EmitInstruction(const MachineInstr *MI) override;
+  void emitInstruction(const MachineInstr *MI) override;
 
-  void EmitBasicBlockEnd(const MachineBasicBlock &MBB) override {
-    AsmPrinter::EmitBasicBlockEnd(MBB);
+  void emitBasicBlockEnd(const MachineBasicBlock &MBB) override {
+    AsmPrinter::emitBasicBlockEnd(MBB);
     SMShadowTracker.emitShadowPadding(*OutStreamer, getSubtargetInfo());
   }
 
@@ -147,8 +147,8 @@ public:
   }
 
   bool runOnMachineFunction(MachineFunction &F) override;
-  void EmitFunctionBodyStart() override;
-  void EmitFunctionBodyEnd() override;
+  void emitFunctionBodyStart() override;
+  void emitFunctionBodyEnd() override;
 };
 
 } // end namespace llvm

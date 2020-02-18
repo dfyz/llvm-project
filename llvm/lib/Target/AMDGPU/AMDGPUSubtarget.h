@@ -148,7 +148,12 @@ public:
     return HasMadMixInsts;
   }
 
-  bool hasFP32Denormals() const {
+  bool hasFP32Denormals(const Function &F) const {
+    // FIXME: This should not be a property of the subtarget. This should be a
+    // property with a default set by the calling convention which can be
+    // overridden by attributes. For now, use the subtarget feature as a
+    // placeholder attribute. The function arguments only purpose is to
+    // discourage use without a function context until this is removed.
     return FP32Denormals;
   }
 
@@ -337,6 +342,7 @@ protected:
   bool HasDPP;
   bool HasDPP8;
   bool HasR128A16;
+  bool HasGFX10A16;
   bool HasNSAEncoding;
   bool HasDLInsts;
   bool HasDot1Insts;
@@ -501,6 +507,10 @@ public:
     return getGeneration() >= VOLCANIC_ISLANDS;
   }
 
+  bool hasFractBug() const {
+    return getGeneration() == SOUTHERN_ISLANDS;
+  }
+
   bool hasBFE() const {
     return true;
   }
@@ -582,6 +592,11 @@ public:
     return getGeneration() <= SEA_ISLANDS;
   }
 
+  /// Writes to VCC_LO/VCC_HI update the VCCZ flag.
+  bool partialVCCWritesUpdateVCCZ() const {
+    return getGeneration() >= GFX10;
+  }
+
   /// A read of an SGPR by SMRD instruction requires 4 wait states when the SGPR
   /// was written by a VALU instruction.
   bool hasSMRDReadVALUDefHazard() const {
@@ -612,11 +627,17 @@ public:
   unsigned getMaxLocalMemSizeWithWaveCount(unsigned WaveCount,
                                            const Function &) const;
 
-  bool hasFP16Denormals() const {
+  /// Alias for hasFP64FP16Denormals
+  bool hasFP16Denormals(const Function &F) const {
     return FP64FP16Denormals;
   }
 
-  bool hasFP64Denormals() const {
+  /// Alias for hasFP64FP16Denormals
+  bool hasFP64Denormals(const Function &F) const {
+    return FP64FP16Denormals;
+  }
+
+  bool hasFP64FP16Denormals(const Function &F) const {
     return FP64FP16Denormals;
   }
 
@@ -711,6 +732,10 @@ public:
 
   bool hasScalarFlatScratchInsts() const {
     return ScalarFlatScratchInsts;
+  }
+
+  bool hasMultiDwordFlatScratchAddressing() const {
+    return getGeneration() >= GFX9;
   }
 
   bool hasFlatSegmentOffsetBug() const {
@@ -866,9 +891,7 @@ public:
   // on the pointer value itself may rely on the alignment / known low bits of
   // the pointer. Set this to something above the minimum to avoid needing
   // dynamic realignment in common cases.
-  unsigned getStackAlignment() const {
-    return 16;
-  }
+  Align getStackAlignment() const { return Align(16); }
 
   bool enableMachineScheduler() const override {
     return true;
@@ -932,9 +955,7 @@ public:
     return HasVGPRIndexMode;
   }
 
-  bool useVGPRIndexMode(bool UserEnable) const {
-    return !hasMovrel() || (UserEnable && hasVGPRIndexMode());
-  }
+  bool useVGPRIndexMode() const;
 
   bool hasScalarCompareEq64() const {
     return getGeneration() >= VOLCANIC_ISLANDS;
@@ -970,6 +991,10 @@ public:
 
   bool hasR128A16() const {
     return HasR128A16;
+  }
+
+  bool hasGFX10A16() const {
+    return HasGFX10A16;
   }
 
   bool hasOffset3fBug() const {
@@ -1205,6 +1230,8 @@ public:
   unsigned getMinWavesPerEU() const override {
     return AMDGPU::IsaInfo::getMinWavesPerEU(this);
   }
+
+  void adjustSchedDependency(SUnit *Src, SUnit *Dst, SDep &Dep) const override;
 };
 
 class R600Subtarget final : public R600GenSubtargetInfo,
@@ -1257,9 +1284,7 @@ public:
     return Gen;
   }
 
-  unsigned getStackAlignment() const {
-    return 4;
-  }
+  Align getStackAlignment() const { return Align(4); }
 
   R600Subtarget &initializeSubtargetDependencies(const Triple &TT,
                                                  StringRef GPU, StringRef FS);

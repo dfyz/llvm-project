@@ -19,21 +19,22 @@
 [common]
 subdirectories =
  Alpha
+ AArch64
  AMDGPU
  ARC
  ARM
- AArch64
  AVR
  BPF
- Lanai
  Hexagon
+ Lanai
  MSP430
- NVPTX
  Mips
+ NVPTX
  PowerPC
  RISCV
  Sparc
  SystemZ
+ VE
  WebAssembly
  X86
  XCore

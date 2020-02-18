@@ -1,4 +1,9 @@
-add_llvm_library(LLVMDebugInfoGSYM
+set(LLVM_LINK_COMPONENTS
+  DebugInfoDWARF
+  )
+
+add_llvm_component_library(LLVMDebugInfoGSYM
+  DwarfTransformer.cpp
   Header.cpp
   FileWriter.cpp
   FunctionInfo.cpp
@@ -6,6 +11,7 @@ add_llvm_library(LLVMDebugInfoGSYM
   GsymReader.cpp
   InlineInfo.cpp
   LineTable.cpp
+  LookupResult.cpp
   Range.cpp
 
   ADDITIONAL_HEADER_DIRS

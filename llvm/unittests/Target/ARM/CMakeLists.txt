@@ -8,12 +8,13 @@ set(LLVM_LINK_COMPONENTS
   ARMDesc
   ARMInfo
   CodeGen
+  GlobalISel
   MC
   SelectionDAG
   Support
   Target
 )
 
-add_llvm_unittest(ARMTests
+add_llvm_target_unittest(ARMTests
   MachineInstrTest.cpp
   )

@@ -66,9 +66,9 @@
 
 #include "AMDGPU.h"
 #include "AMDGPUSubtarget.h"
+#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "SIInstrInfo.h"
 #include "SIRegisterInfo.h"
-#include "MCTargetDesc/AMDGPUMCTargetDesc.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
@@ -82,6 +82,7 @@
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/CommandLine.h"
@@ -757,6 +758,7 @@ bool SIFixSGPRCopies::runOnMachineFunction(MachineFunction &MF) {
 
 void SIFixSGPRCopies::processPHINode(MachineInstr &MI) {
   unsigned numVGPRUses = 0;
+  bool AllAGPRUses = true;
   SetVector<const MachineInstr *> worklist;
   SmallSet<const MachineInstr *, 4> Visited;
   worklist.insert(&MI);
@@ -766,6 +768,9 @@ void SIFixSGPRCopies::processPHINode(MachineInstr &MI) {
     unsigned Reg = Instr->getOperand(0).getReg();
     for (const auto &Use : MRI->use_operands(Reg)) {
       const MachineInstr *UseMI = Use.getParent();
+      AllAGPRUses &= (UseMI->isCopy() &&
+                      TRI->isAGPR(*MRI, UseMI->getOperand(0).getReg())) ||
+                     TRI->isAGPR(*MRI, Use.getReg());
       if (UseMI->isCopy() || UseMI->isRegSequence()) {
         if (UseMI->isCopy() &&
           UseMI->getOperand(0).getReg().isPhysical() &&
@@ -794,11 +799,19 @@ void SIFixSGPRCopies::processPHINode(MachineInstr &MI) {
       }
     }
   }
+
+  Register PHIRes = MI.getOperand(0).getReg();
+  const TargetRegisterClass *RC0 = MRI->getRegClass(PHIRes);
+  if (AllAGPRUses && numVGPRUses && !TRI->hasAGPRs(RC0)) {
+    LLVM_DEBUG(dbgs() << "Moving PHI to AGPR: " << MI);
+    MRI->setRegClass(PHIRes, TRI->getEquivalentAGPRClass(RC0));
+  }
+
   bool hasVGPRInput = false;
   for (unsigned i = 1; i < MI.getNumOperands(); i += 2) {
     unsigned InputReg = MI.getOperand(i).getReg();
     MachineInstr *Def = MRI->getVRegDef(InputReg);
-    if (TRI->isVGPR(*MRI, InputReg)) {
+    if (TRI->isVectorRegister(*MRI, InputReg)) {
       if (Def->isCopy()) {
         unsigned SrcReg = Def->getOperand(1).getReg();
         const TargetRegisterClass *RC =
@@ -810,15 +823,14 @@ void SIFixSGPRCopies::processPHINode(MachineInstr &MI) {
       break;
     }
     else if (Def->isCopy() &&
-      TRI->isVGPR(*MRI, Def->getOperand(1).getReg())) {
+      TRI->isVectorRegister(*MRI, Def->getOperand(1).getReg())) {
       hasVGPRInput = true;
       break;
     }
   }
-  unsigned PHIRes = MI.getOperand(0).getReg();
-  const TargetRegisterClass *RC0 = MRI->getRegClass(PHIRes);
 
-  if ((!TRI->isVGPR(*MRI, PHIRes) && RC0 != &AMDGPU::VReg_1RegClass) &&
+  if ((!TRI->isVectorRegister(*MRI, PHIRes) &&
+       RC0 != &AMDGPU::VReg_1RegClass) &&
     (hasVGPRInput || numVGPRUses > 1)) {
     LLVM_DEBUG(dbgs() << "Fixing PHI: " << MI);
     TII->moveToVALU(MI);

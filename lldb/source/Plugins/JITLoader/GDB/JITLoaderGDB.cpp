@@ -1,4 +1,4 @@
-//===-- JITLoaderGDB.cpp ----------------------------------------*- C++ -*-===//
+//===-- JITLoaderGDB.cpp --------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -31,6 +31,8 @@
 
 using namespace lldb;
 using namespace lldb_private;
+
+LLDB_PLUGIN_DEFINE(JITLoaderGDB)
 
 // Debug Interface Structures
 enum jit_actions_t { JIT_NOACTION = 0, JIT_REGISTER_FN, JIT_UNREGISTER_FN };
@@ -458,8 +460,8 @@ addr_t JITLoaderGDB::GetSymbolAddress(ModuleList &module_list,
   SymbolContextList target_symbols;
   Target &target = m_process->GetTarget();
 
-  if (!module_list.FindSymbolsWithNameAndType(name, symbol_type,
-                                              target_symbols))
+  module_list.FindSymbolsWithNameAndType(name, symbol_type, target_symbols);
+  if (target_symbols.IsEmpty())
     return LLDB_INVALID_ADDRESS;
 
   SymbolContext sym_ctx;

@@ -1,4 +1,4 @@
-//===-- SymbolFileDWARFDwo.cpp ----------------------------------*- C++ -*-===//
+//===-- SymbolFileDWARFDwo.cpp --------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -21,12 +21,14 @@
 using namespace lldb;
 using namespace lldb_private;
 
-SymbolFileDWARFDwo::SymbolFileDWARFDwo(ObjectFileSP objfile,
-                                       DWARFCompileUnit &dwarf_cu)
+char SymbolFileDWARFDwo::ID;
+
+SymbolFileDWARFDwo::SymbolFileDWARFDwo(SymbolFileDWARF &base_symbol_file,
+                                       ObjectFileSP objfile, uint32_t id)
     : SymbolFileDWARF(objfile, objfile->GetSectionList(
                                    /*update_module_section_list*/ false)),
-      m_base_dwarf_cu(dwarf_cu) {
-  SetID(((lldb::user_id_t)dwarf_cu.GetID()) << 32);
+      m_base_symbol_file(base_symbol_file) {
+  SetID(user_id_t(id) << 32);
 }
 
 void SymbolFileDWARFDwo::LoadSectionData(lldb::SectionType sect_type,
@@ -47,21 +49,17 @@ void SymbolFileDWARFDwo::LoadSectionData(lldb::SectionType sect_type,
   SymbolFileDWARF::LoadSectionData(sect_type, data);
 }
 
-lldb::CompUnitSP
-SymbolFileDWARFDwo::ParseCompileUnit(DWARFCompileUnit &dwarf_cu) {
-  assert(GetCompileUnit() == &dwarf_cu &&
-         "SymbolFileDWARFDwo::ParseCompileUnit called with incompatible "
-         "compile unit");
-  return GetBaseSymbolFile().ParseCompileUnit(m_base_dwarf_cu);
+DWARFCompileUnit *SymbolFileDWARFDwo::GetDWOCompileUnitForHash(uint64_t hash) {
+  DWARFCompileUnit *cu = FindSingleCompileUnit();
+  if (!cu)
+    return nullptr;
+  if (hash !=
+      cu->GetUnitDIEOnly().GetAttributeValueAsUnsigned(DW_AT_GNU_dwo_id, 0))
+    return nullptr;
+  return cu;
 }
 
-DWARFCompileUnit *SymbolFileDWARFDwo::GetCompileUnit() {
-  if (!m_cu)
-    m_cu = ComputeCompileUnit();
-  return m_cu;
-}
-
-DWARFCompileUnit *SymbolFileDWARFDwo::ComputeCompileUnit() {
+DWARFCompileUnit *SymbolFileDWARFDwo::FindSingleCompileUnit() {
   DWARFDebugInfo *debug_info = DebugInfo();
   if (!debug_info)
     return nullptr;
@@ -83,11 +81,6 @@ DWARFCompileUnit *SymbolFileDWARFDwo::ComputeCompileUnit() {
     }
   }
   return cu;
-}
-
-DWARFUnit *
-SymbolFileDWARFDwo::GetDWARFCompileUnit(lldb_private::CompileUnit *comp_unit) {
-  return GetCompileUnit();
 }
 
 SymbolFileDWARF::DIEToTypePtr &SymbolFileDWARFDwo::GetDIEToType() {
@@ -129,15 +122,6 @@ lldb::TypeSP SymbolFileDWARFDwo::FindCompleteObjCDefinitionTypeForDIE(
     bool must_be_implementation) {
   return GetBaseSymbolFile().FindCompleteObjCDefinitionTypeForDIE(
       die, type_name, must_be_implementation);
-}
-
-SymbolFileDWARF &SymbolFileDWARFDwo::GetBaseSymbolFile() {
-  return m_base_dwarf_cu.GetSymbolFileDWARF();
-}
-
-DWARFExpression::LocationListFormat
-SymbolFileDWARFDwo::GetLocationListFormat() const {
-  return DWARFExpression::SplitDwarfLocationList;
 }
 
 llvm::Expected<TypeSystem &>

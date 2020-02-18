@@ -26,9 +26,10 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/OptBisect.h"
-#include "llvm/Pass.h"
+#include "llvm/InitializePasses.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Utils/CallGraphUpdater.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
@@ -38,7 +39,6 @@ namespace llvm {
   void initializeFPassPass(PassRegistry&);
   void initializeCGPassPass(PassRegistry&);
   void initializeLPassPass(PassRegistry&);
-  void initializeBPassPass(PassRegistry&);
 
   namespace {
     // ND = no deps
@@ -219,47 +219,6 @@ namespace llvm {
     int LPass::initcount=0;
     int LPass::fincount=0;
 
-    struct BPass : public PassTestBase<BasicBlockPass> {
-    private:
-      static int inited;
-      static int fin;
-    public:
-      static void finishedOK(int run, int N) {
-        PassTestBase<BasicBlockPass>::finishedOK(run);
-        EXPECT_EQ(inited, N);
-        EXPECT_EQ(fin, N);
-      }
-      BPass() {
-        inited = 0;
-        fin = 0;
-      }
-      bool doInitialization(Module &M) override {
-        EXPECT_FALSE(initialized);
-        initialized = true;
-        return false;
-      }
-      bool doInitialization(Function &F) override {
-        inited++;
-        return false;
-      }
-      bool runOnBasicBlock(BasicBlock &BB) override {
-        run();
-        return false;
-      }
-      bool doFinalization(Function &F) override {
-        fin++;
-        return false;
-      }
-      bool doFinalization(Module &M) override {
-        EXPECT_FALSE(finalized);
-        finalized = true;
-        EXPECT_EQ(0, allocated);
-        return false;
-      }
-    };
-    int BPass::inited=0;
-    int BPass::fin=0;
-
     struct OnTheFlyTest: public ModulePass {
     public:
       static char ID;
@@ -373,10 +332,6 @@ namespace llvm {
       {
         SCOPED_TRACE("Loop pass");
         MemoryTestHelper<LPass>(2, 1); //2 loops, 1 function
-      }
-      {
-        SCOPED_TRACE("Basic block pass");
-        MemoryTestHelper<BPass>(7, 4); //9 basic blocks
       }
 
     }
@@ -605,6 +560,72 @@ namespace llvm {
       return mod;
     }
 
+    struct CGModifierPass : public CGPass {
+      unsigned NumSCCs = 0;
+      unsigned NumFns = 0;
+      bool SetupWorked = true;
+
+      CallGraphUpdater CGU;
+
+      bool runOnSCC(CallGraphSCC &SCMM) override {
+        ++NumSCCs;
+        for (CallGraphNode *N : SCMM)
+          if (N->getFunction())
+            ++NumFns;
+
+        CGPass::run();
+
+        if (SCMM.size() <= 1)
+          return false;
+
+        CallGraphNode *N = *(SCMM.begin());
+        Function *F = N->getFunction();
+        Module *M = F->getParent();
+        Function *Test1F = M->getFunction("test1");
+        Function *Test2F = M->getFunction("test2");
+        Function *Test3F = M->getFunction("test3");
+        auto InSCC = [&](Function *Fn) {
+          return llvm::any_of(SCMM, [Fn](CallGraphNode *CGN) {
+            return CGN->getFunction() == Fn;
+          });
+        };
+
+        if (!Test1F || !Test2F || !Test3F || !InSCC(Test1F) || !InSCC(Test2F) ||
+            !InSCC(Test3F))
+          return SetupWorked = false;
+
+        CallInst *CI = dyn_cast<CallInst>(&Test1F->getEntryBlock().front());
+        if (!CI || CI->getCalledFunction() != Test2F)
+          return SetupWorked = false;
+
+        CI->setCalledFunction(Test3F);
+
+        CGU.initialize(const_cast<CallGraph &>(SCMM.getCallGraph()), SCMM);
+        CGU.removeFunction(*Test2F);
+        CGU.reanalyzeFunction(*Test1F);
+        return true;
+      }
+
+      bool doFinalization(CallGraph &CG) override { return CGU.finalize(); }
+    };
+
+    TEST(PassManager, CallGraphUpdater0) {
+      // SCC#1: test1->test2->test3->test1
+      // SCC#2: test4
+      // SCC#3: indirect call node
+
+      LLVMContext Context;
+      std::unique_ptr<Module> M(makeLLVMModule(Context));
+      ASSERT_EQ(M->getFunctionList().size(), 4U);
+      CGModifierPass *P = new CGModifierPass();
+      legacy::PassManager Passes;
+      Passes.add(P);
+      Passes.run(*M);
+      ASSERT_TRUE(P->SetupWorked);
+      ASSERT_EQ(P->NumSCCs, 3U);
+      ASSERT_EQ(P->NumFns, 4U);
+      ASSERT_EQ(M->getFunctionList().size(), 3U);
+    }
   }
 }
 
@@ -616,4 +637,3 @@ INITIALIZE_PASS(FPass, "fp","fp", false, false)
 INITIALIZE_PASS_BEGIN(LPass, "lp","lp", false, false)
 INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
 INITIALIZE_PASS_END(LPass, "lp","lp", false, false)
-INITIALIZE_PASS(BPass, "bp","bp", false, false)

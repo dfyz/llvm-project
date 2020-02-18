@@ -14,7 +14,9 @@
 #ifndef LLVM_LIB_TARGET_AMDGPU_SIREGISTERINFO_H
 #define LLVM_LIB_TARGET_AMDGPU_SIREGISTERINFO_H
 
-#include "AMDGPURegisterInfo.h"
+#define GET_REGINFO_HEADER
+#include "AMDGPUGenRegisterInfo.inc"
+
 #include "SIDefines.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 
@@ -25,7 +27,7 @@ class LiveIntervals;
 class MachineRegisterInfo;
 class SIMachineFunctionInfo;
 
-class SIRegisterInfo final : public AMDGPURegisterInfo {
+class SIRegisterInfo final : public AMDGPUGenRegisterInfo {
 private:
   const GCNSubtarget &ST;
   unsigned SGPRSetID;
@@ -35,20 +37,21 @@ private:
   BitVector VGPRPressureSets;
   BitVector AGPRPressureSets;
   bool SpillSGPRToVGPR;
-  bool SpillSGPRToSMEM;
   bool isWave32;
+
+  void reserveRegisterTuples(BitVector &, unsigned Reg) const;
 
   void classifyPressureSet(unsigned PSetID, unsigned Reg,
                            BitVector &PressureSets) const;
 public:
   SIRegisterInfo(const GCNSubtarget &ST);
 
+  /// \returns the sub reg enum value for the given \p Channel
+  /// (e.g. getSubRegFromChannel(0) -> AMDGPU::sub0)
+  static unsigned getSubRegFromChannel(unsigned Channel, unsigned NumRegs = 1);
+
   bool spillSGPRToVGPR() const {
     return SpillSGPRToVGPR;
-  }
-
-  bool spillSGPRToSMEM() const {
-    return SpillSGPRToSMEM;
   }
 
   /// Return the end register initially reserved for the scratch buffer in case
@@ -82,7 +85,6 @@ public:
   bool requiresFrameIndexReplacementScavenging(
     const MachineFunction &MF) const override;
   bool requiresVirtualBaseRegisters(const MachineFunction &Fn) const override;
-  bool trackLivenessAfterRegAlloc(const MachineFunction &MF) const override;
 
   int64_t getMUBUFInstrOffset(const MachineInstr *MI) const;
 
@@ -147,6 +149,11 @@ public:
     else
       RC = getPhysRegClass(Reg);
     return isSGPRClass(RC);
+  }
+
+  /// \returns true if this class contains only AGPR registers
+  bool isAGPRClass(const TargetRegisterClass *RC) const {
+    return hasAGPRs(RC) && !hasVGPRs(RC);
   }
 
   /// \returns true if this class contains VGPR registers.
@@ -268,7 +275,7 @@ public:
                                  const MachineRegisterInfo &MRI) const override;
 
   const TargetRegisterClass *getBoolRC() const {
-    return isWave32 ? &AMDGPU::SReg_32_XM0RegClass
+    return isWave32 ? &AMDGPU::SReg_32RegClass
                     : &AMDGPU::SReg_64RegClass;
   }
 
@@ -289,6 +296,21 @@ public:
 
   const uint32_t *getAllVGPRRegMask() const;
   const uint32_t *getAllAllocatableSRegMask() const;
+
+  // \returns number of 32 bit registers covered by a \p LM
+  static unsigned getNumCoveredRegs(LaneBitmask LM) {
+    return LM.getNumLanes();
+  }
+
+  // \returns a DWORD offset of a \p SubReg
+  unsigned getChannelFromSubReg(unsigned SubReg) const {
+    return SubReg ? alignTo(getSubRegIdxOffset(SubReg), 32) / 32 : 0;
+  }
+
+  // \returns a DWORD size of a \p SubReg
+  unsigned getNumChannelsFromSubReg(unsigned SubReg) const {
+    return getNumCoveredRegs(getSubRegIndexLaneMask(SubReg));
+  }
 
 private:
   void buildSpillLoadStore(MachineBasicBlock::iterator MI,

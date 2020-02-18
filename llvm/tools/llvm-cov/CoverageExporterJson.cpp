@@ -48,6 +48,7 @@
 #include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/Threading.h"
 #include <algorithm>
+#include <limits>
 #include <mutex>
 #include <utility>
 
@@ -61,14 +62,23 @@ using namespace llvm;
 
 namespace {
 
+// The JSON library accepts int64_t, but profiling counts are stored as uint64_t.
+// Therefore we need to explicitly convert from unsigned to signed, since a naive
+// cast is implementation-defined behavior when the unsigned value cannot be
+// represented as a signed value. We choose to clamp the values to preserve the
+// invariant that counts are always >= 0.
+int64_t clamp_uint64_to_int64(uint64_t u) {
+  return std::min(u, static_cast<uint64_t>(std::numeric_limits<int64_t>::max()));
+}
+
 json::Array renderSegment(const coverage::CoverageSegment &Segment) {
-  return json::Array({Segment.Line, Segment.Col, int64_t(Segment.Count),
+  return json::Array({Segment.Line, Segment.Col, clamp_uint64_to_int64(Segment.Count),
                       Segment.HasCount, Segment.IsRegionEntry});
 }
 
 json::Array renderRegion(const coverage::CountedRegion &Region) {
   return json::Array({Region.LineStart, Region.ColumnStart, Region.LineEnd,
-                      Region.ColumnEnd, int64_t(Region.ExecutionCount),
+                      Region.ColumnEnd, clamp_uint64_to_int64(Region.ExecutionCount),
                       Region.FileID, Region.ExpandedFileID,
                       int64_t(Region.Kind)});
 }
@@ -153,11 +163,9 @@ json::Array renderFiles(const coverage::CoverageMapping &Coverage,
                         ArrayRef<FileCoverageSummary> FileReports,
                         const CoverageViewOptions &Options) {
   auto NumThreads = Options.NumThreads;
-  if (NumThreads == 0) {
-    NumThreads = std::max(1U, std::min(llvm::heavyweight_hardware_concurrency(),
-                                       unsigned(SourceFiles.size())));
-  }
-  ThreadPool Pool(NumThreads);
+  if (NumThreads == 0)
+    NumThreads = SourceFiles.size();
+  ThreadPool Pool(heavyweight_hardware_concurrency(NumThreads));
   json::Array FileArray;
   std::mutex FileArrayMutex;
 
@@ -182,7 +190,7 @@ json::Array renderFunctions(
   for (const auto &F : Functions)
     FunctionArray.push_back(
         json::Object({{"name", F.Name},
-                      {"count", int64_t(F.ExecutionCount)},
+                      {"count", clamp_uint64_to_int64(F.ExecutionCount)},
                       {"regions", renderRegions(F.CountedRegions)},
                       {"filenames", json::Array(F.Filenames)}}));
   return FunctionArray;

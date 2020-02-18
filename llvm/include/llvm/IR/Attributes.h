@@ -17,7 +17,6 @@
 
 #include "llvm-c/Types.h"
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/iterator_range.h"
@@ -38,6 +37,7 @@ class AttributeImpl;
 class AttributeListImpl;
 class AttributeSetNode;
 template<typename T> struct DenseMapInfo;
+class FoldingSetNodeID;
 class Function;
 class LLVMContext;
 class Type;
@@ -70,7 +70,8 @@ public:
   enum AttrKind {
     // IR-Level Attributes
     None,                  ///< No attributes have been set
-    #define GET_ATTR_ENUM
+    #define GET_ATTR_NAMES
+    #define ATTRIBUTE_ENUM(ENUM_NAME, OTHER) ENUM_NAME,
     #include "llvm/IR/Attributes.inc"
     EndAttrKinds           ///< Sentinal value useful for loops
   };
@@ -105,6 +106,13 @@ public:
                                         unsigned ElemSizeArg,
                                         const Optional<unsigned> &NumElemsArg);
   static Attribute getWithByValType(LLVMContext &Context, Type *Ty);
+
+  static Attribute::AttrKind getAttrKindFromName(StringRef AttrName);
+
+  static StringRef getNameFromAttrKind(Attribute::AttrKind AttrKind);
+
+  /// Return true if and only if the attribute has an Argument.
+  static bool doesAttrKindHaveArgument(Attribute::AttrKind AttrKind);
 
   //===--------------------------------------------------------------------===//
   // Attribute Accessors
@@ -151,11 +159,11 @@ public:
 
   /// Returns the alignment field of an attribute as a byte alignment
   /// value.
-  unsigned getAlignment() const;
+  MaybeAlign getAlignment() const;
 
   /// Returns the stack alignment field of an attribute as a byte
   /// alignment value.
-  unsigned getStackAlignment() const;
+  MaybeAlign getStackAlignment() const;
 
   /// Returns the number of dereferenceable bytes from the
   /// dereferenceable attribute.
@@ -180,9 +188,7 @@ public:
   /// Less-than operator. Useful for sorting the attributes list.
   bool operator<(Attribute A) const;
 
-  void Profile(FoldingSetNodeID &ID) const {
-    ID.AddPointer(pImpl);
-  }
+  void Profile(FoldingSetNodeID &ID) const;
 
   /// Return a raw pointer that uniquely identifies this attribute.
   void *getRawPointer() const {
@@ -285,8 +291,8 @@ public:
   /// Return the target-dependent attribute object.
   Attribute getAttribute(StringRef Kind) const;
 
-  unsigned getAlignment() const;
-  unsigned getStackAlignment() const;
+  MaybeAlign getAlignment() const;
+  MaybeAlign getStackAlignment() const;
   uint64_t getDereferenceableBytes() const;
   uint64_t getDereferenceableOrNullBytes() const;
   Type *getByValType() const;
@@ -604,16 +610,16 @@ public:
   }
 
   /// Return the alignment of the return value.
-  unsigned getRetAlignment() const;
+  MaybeAlign getRetAlignment() const;
 
   /// Return the alignment for the specified function parameter.
-  unsigned getParamAlignment(unsigned ArgNo) const;
+  MaybeAlign getParamAlignment(unsigned ArgNo) const;
 
   /// Return the byval type for the specified function parameter.
   Type *getParamByValType(unsigned ArgNo) const;
 
   /// Get the stack alignment.
-  unsigned getStackAlignment(unsigned Index) const;
+  MaybeAlign getStackAlignment(unsigned Index) const;
 
   /// Get the number of dereferenceable bytes (or zero if unknown).
   uint64_t getDereferenceableBytes(unsigned Index) const;
@@ -774,12 +780,10 @@ public:
   bool hasAlignmentAttr() const;
 
   /// Retrieve the alignment attribute, if it exists.
-  uint64_t getAlignment() const { return Alignment ? Alignment->value() : 0; }
+  MaybeAlign getAlignment() const { return Alignment; }
 
   /// Retrieve the stack alignment attribute, if it exists.
-  uint64_t getStackAlignment() const {
-    return StackAlignment ? StackAlignment->value() : 0;
-  }
+  MaybeAlign getStackAlignment() const { return StackAlignment; }
 
   /// Retrieve the number of dereferenceable bytes, if the
   /// dereferenceable attribute exists (zero is returned otherwise).
@@ -796,13 +800,29 @@ public:
   /// doesn't exist, pair(0, 0) is returned.
   std::pair<unsigned, Optional<unsigned>> getAllocSizeArgs() const;
 
+  /// This turns an alignment into the form used internally in Attribute.
+  /// This call has no effect if Align is not set.
+  AttrBuilder &addAlignmentAttr(MaybeAlign Align);
+
   /// This turns an int alignment (which must be a power of 2) into the
   /// form used internally in Attribute.
-  AttrBuilder &addAlignmentAttr(unsigned Align);
+  /// This call has no effect if Align is 0.
+  /// Deprecated, use the version using a MaybeAlign.
+  inline AttrBuilder &addAlignmentAttr(unsigned Align) {
+    return addAlignmentAttr(MaybeAlign(Align));
+  }
+
+  /// This turns a stack alignment into the form used internally in Attribute.
+  /// This call has no effect if Align is not set.
+  AttrBuilder &addStackAlignmentAttr(MaybeAlign Align);
 
   /// This turns an int stack alignment (which must be a power of 2) into
   /// the form used internally in Attribute.
-  AttrBuilder &addStackAlignmentAttr(unsigned Align);
+  /// This call has no effect if Align is 0.
+  /// Deprecated, use the version using a MaybeAlign.
+  inline AttrBuilder &addStackAlignmentAttr(unsigned Align) {
+    return addStackAlignmentAttr(MaybeAlign(Align));
+  }
 
   /// This turns the number of dereferenceable bytes into the form used
   /// internally in Attribute.

@@ -11,6 +11,7 @@
 
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/CachedHashString.h"
+#include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringRef.h"
 #include <cstdint>
@@ -114,7 +115,7 @@ public:
   std::string ModuleUserBuildPath;
 
   /// The mapping of module names to prebuilt module files.
-  std::map<std::string, std::string> PrebuiltModuleFiles;
+  std::map<std::string, std::string, std::less<>> PrebuiltModuleFiles;
 
   /// The directories used to load prebuilt module files.
   std::vector<std::string> PrebuiltModulePaths;
@@ -206,6 +207,13 @@ public:
 
   unsigned ModulesHashContent : 1;
 
+  /// Whether we should include all things that could impact the module in the
+  /// hash.
+  ///
+  /// This includes things like the full header search path, and enabled
+  /// diagnostics.
+  unsigned ModulesStrictContextHash : 1;
+
   HeaderSearchOptions(StringRef _Sysroot = "/")
       : Sysroot(_Sysroot), ModuleFormat("raw"), DisableModuleHash(false),
         ImplicitModuleMaps(false), ModuleMapFileHomeIsCwd(false),
@@ -214,7 +222,8 @@ public:
         ModulesValidateOncePerBuildSession(false),
         ModulesValidateSystemHeaders(false),
         ValidateASTInputFilesContent(false), UseDebugInfo(false),
-        ModulesValidateDiagnosticOptions(true), ModulesHashContent(false) {}
+        ModulesValidateDiagnosticOptions(true), ModulesHashContent(false),
+        ModulesStrictContextHash(false) {}
 
   /// AddPath - Add the \p Path path to the specified \p Group list.
   void AddPath(StringRef Path, frontend::IncludeDirGroup Group,
@@ -230,13 +239,22 @@ public:
   }
 
   void AddVFSOverlayFile(StringRef Name) {
-    VFSOverlayFiles.push_back(Name);
+    VFSOverlayFiles.push_back(std::string(Name));
   }
 
   void AddPrebuiltModulePath(StringRef Name) {
-    PrebuiltModulePaths.push_back(Name);
+    PrebuiltModulePaths.push_back(std::string(Name));
   }
 };
+
+inline llvm::hash_code hash_value(const HeaderSearchOptions::Entry &E) {
+  return llvm::hash_combine(E.Path, E.Group, E.IsFramework, E.IgnoreSysRoot);
+}
+
+inline llvm::hash_code
+hash_value(const HeaderSearchOptions::SystemHeaderPrefix &SHP) {
+  return llvm::hash_combine(SHP.Prefix, SHP.IsSystemHeader);
+}
 
 } // namespace clang
 

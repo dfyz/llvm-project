@@ -79,7 +79,7 @@ public:
   uint32_t Offset = 0;
   uint16_t Segment = 0;
   uint16_t Length = 0;
-  ThunkOrdinal Thunk;
+  ThunkOrdinal Thunk = ThunkOrdinal::Standard;
   StringRef Name;
   ArrayRef<uint8_t> VariantData;
 
@@ -159,7 +159,7 @@ public:
 struct DecodedAnnotation {
   StringRef Name;
   ArrayRef<uint8_t> Bytes;
-  BinaryAnnotationsOpCode OpCode;
+  BinaryAnnotationsOpCode OpCode = BinaryAnnotationsOpCode::Invalid;
   uint32_t U1 = 0;
   uint32_t U2 = 0;
   int32_t S1 = 0;
@@ -407,21 +407,21 @@ public:
       : SymbolRecord(SymbolRecordKind::LocalSym), RecordOffset(RecordOffset) {}
 
   TypeIndex Type;
-  LocalSymFlags Flags;
+  LocalSymFlags Flags = LocalSymFlags::None;
   StringRef Name;
 
   uint32_t RecordOffset = 0;
 };
 
 struct LocalVariableAddrRange {
-  uint32_t OffsetStart;
-  uint16_t ISectStart;
-  uint16_t Range;
+  uint32_t OffsetStart = 0;
+  uint16_t ISectStart = 0;
+  uint16_t Range = 0;
 };
 
 struct LocalVariableAddrGap {
-  uint16_t GapStartOffset;
-  uint16_t Range;
+  uint16_t GapStartOffset = 0;
+  uint16_t Range = 0;
 };
 
 enum : uint16_t { MaxDefRange = 0xf000 };
@@ -469,50 +469,54 @@ public:
   uint32_t RecordOffset = 0;
 };
 
+struct DefRangeRegisterHeader {
+  ulittle16_t Register;
+  ulittle16_t MayHaveNoName;
+};
+
 // S_DEFRANGE_REGISTER
 class DefRangeRegisterSym : public SymbolRecord {
 public:
-  struct Header {
-    ulittle16_t Register;
-    ulittle16_t MayHaveNoName;
-  };
-
   explicit DefRangeRegisterSym(SymbolRecordKind Kind) : SymbolRecord(Kind) {}
   explicit DefRangeRegisterSym(uint32_t RecordOffset)
       : SymbolRecord(SymbolRecordKind::DefRangeRegisterSym),
         RecordOffset(RecordOffset) {}
 
-  uint32_t getRelocationOffset() const { return RecordOffset + sizeof(Header); }
+  uint32_t getRelocationOffset() const { return RecordOffset + sizeof(DefRangeRegisterHeader); }
 
-  Header Hdr;
+  DefRangeRegisterHeader Hdr;
   LocalVariableAddrRange Range;
   std::vector<LocalVariableAddrGap> Gaps;
 
   uint32_t RecordOffset = 0;
 };
 
+struct DefRangeSubfieldRegisterHeader {
+  ulittle16_t Register;
+  ulittle16_t MayHaveNoName;
+  ulittle32_t OffsetInParent;
+};
+
 // S_DEFRANGE_SUBFIELD_REGISTER
 class DefRangeSubfieldRegisterSym : public SymbolRecord {
 public:
-  struct Header {
-    ulittle16_t Register;
-    ulittle16_t MayHaveNoName;
-    ulittle32_t OffsetInParent;
-  };
-
   explicit DefRangeSubfieldRegisterSym(SymbolRecordKind Kind)
       : SymbolRecord(Kind) {}
   explicit DefRangeSubfieldRegisterSym(uint32_t RecordOffset)
       : SymbolRecord(SymbolRecordKind::DefRangeSubfieldRegisterSym),
         RecordOffset(RecordOffset) {}
 
-  uint32_t getRelocationOffset() const { return RecordOffset + sizeof(Header); }
+  uint32_t getRelocationOffset() const { return RecordOffset + sizeof(DefRangeSubfieldRegisterHeader); }
 
-  Header Hdr;
+  DefRangeSubfieldRegisterHeader Hdr;
   LocalVariableAddrRange Range;
   std::vector<LocalVariableAddrGap> Gaps;
 
   uint32_t RecordOffset = 0;
+};
+
+struct DefRangeFramePointerRelHeader {
+  little32_t Offset;
 };
 
 // S_DEFRANGE_FRAMEPOINTER_REL
@@ -520,10 +524,6 @@ class DefRangeFramePointerRelSym : public SymbolRecord {
   static constexpr uint32_t RelocationOffset = 8;
 
 public:
-  struct Header {
-    little32_t Offset;
-  };
-
   explicit DefRangeFramePointerRelSym(SymbolRecordKind Kind)
       : SymbolRecord(Kind) {}
   explicit DefRangeFramePointerRelSym(uint32_t RecordOffset)
@@ -534,22 +534,22 @@ public:
     return RecordOffset + RelocationOffset;
   }
 
-  Header Hdr;
+  DefRangeFramePointerRelHeader Hdr;
   LocalVariableAddrRange Range;
   std::vector<LocalVariableAddrGap> Gaps;
 
   uint32_t RecordOffset = 0;
 };
 
+struct DefRangeRegisterRelHeader {
+  ulittle16_t Register;
+  ulittle16_t Flags;
+  little32_t BasePointerOffset;
+};
+
 // S_DEFRANGE_REGISTER_REL
 class DefRangeRegisterRelSym : public SymbolRecord {
 public:
-  struct Header {
-    ulittle16_t Register;
-    ulittle16_t Flags;
-    little32_t BasePointerOffset;
-  };
-
   explicit DefRangeRegisterRelSym(SymbolRecordKind Kind) : SymbolRecord(Kind) {}
   explicit DefRangeRegisterRelSym(uint32_t RecordOffset)
       : SymbolRecord(SymbolRecordKind::DefRangeRegisterRelSym),
@@ -567,9 +567,9 @@ public:
   bool hasSpilledUDTMember() const { return Hdr.Flags & IsSubfieldFlag; }
   uint16_t offsetInParent() const { return Hdr.Flags >> OffsetInParentShift; }
 
-  uint32_t getRelocationOffset() const { return RecordOffset + sizeof(Header); }
+  uint32_t getRelocationOffset() const { return RecordOffset + sizeof(DefRangeRegisterRelHeader); }
 
-  Header Hdr;
+  DefRangeRegisterRelHeader Hdr;
   LocalVariableAddrRange Range;
   std::vector<LocalVariableAddrGap> Gaps;
 
@@ -628,7 +628,7 @@ public:
 
   uint32_t CodeOffset = 0;
   uint16_t Segment = 0;
-  ProcSymFlags Flags;
+  ProcSymFlags Flags = ProcSymFlags::None;
   StringRef Name;
 
   uint32_t RecordOffset = 0;
@@ -670,7 +670,7 @@ public:
       : SymbolRecord(SymbolRecordKind::ExportSym), RecordOffset(RecordOffset) {}
 
   uint16_t Ordinal = 0;
-  ExportFlags Flags;
+  ExportFlags Flags = ExportFlags::None;
   StringRef Name;
 
   uint32_t RecordOffset = 0;
@@ -686,7 +686,7 @@ public:
 
   TypeIndex Index;
   uint32_t ModFilenameOffset = 0;
-  LocalSymFlags Flags;
+  LocalSymFlags Flags = LocalSymFlags::None;
   StringRef Name;
 
   uint32_t RecordOffset = 0;
@@ -700,7 +700,7 @@ public:
       : SymbolRecord(SymbolRecordKind::Compile2Sym),
         RecordOffset(RecordOffset) {}
 
-  CompileSym2Flags Flags;
+  CompileSym2Flags Flags = CompileSym2Flags::None;
   CPUType Machine;
   uint16_t VersionFrontendMajor = 0;
   uint16_t VersionFrontendMinor = 0;
@@ -726,7 +726,7 @@ public:
       : SymbolRecord(SymbolRecordKind::Compile3Sym),
         RecordOffset(RecordOffset) {}
 
-  CompileSym3Flags Flags;
+  CompileSym3Flags Flags = CompileSym3Flags::None;
   CPUType Machine;
   uint16_t VersionFrontendMajor = 0;
   uint16_t VersionFrontendMinor = 0;
@@ -771,7 +771,7 @@ public:
   uint32_t BytesOfCalleeSavedRegisters = 0;
   uint32_t OffsetOfExceptionHandler = 0;
   uint16_t SectionIdOfExceptionHandler = 0;
-  FrameProcedureOptions Flags;
+  FrameProcedureOptions Flags = FrameProcedureOptions::None;
 
   /// Extract the register this frame uses to refer to local variables.
   RegisterId getLocalFramePtrReg(CPUType CPU) const {

@@ -238,6 +238,11 @@ def ARMsmlalbt      : SDNode<"ARMISD::SMLALBT", SDT_LongMac, []>;
 def ARMsmlaltb      : SDNode<"ARMISD::SMLALTB", SDT_LongMac, []>;
 def ARMsmlaltt      : SDNode<"ARMISD::SMLALTT", SDT_LongMac, []>;
 
+def ARMqadd8b       : SDNode<"ARMISD::QADD8b", SDT_ARMAnd, []>;
+def ARMqsub8b       : SDNode<"ARMISD::QSUB8b", SDT_ARMAnd, []>;
+def ARMqadd16b      : SDNode<"ARMISD::QADD16b", SDT_ARMAnd, []>;
+def ARMqsub16b      : SDNode<"ARMISD::QSUB16b", SDT_ARMAnd, []>;
+
 // Vector operations shared between NEON and MVE
 
 def ARMvdup      : SDNode<"ARMISD::VDUP", SDTypeProfile<1, 1, [SDTCisVec<0>]>>;
@@ -263,6 +268,10 @@ def ARMvmovImm   : SDNode<"ARMISD::VMOVIMM", SDTARMVMOVIMM>;
 def ARMvmvnImm   : SDNode<"ARMISD::VMVNIMM", SDTARMVMOVIMM>;
 def ARMvmovFPImm : SDNode<"ARMISD::VMOVFPIMM", SDTARMVMOVIMM>;
 
+def SDTARMVORRIMM : SDTypeProfile<1, 2, [SDTCisVec<0>, SDTCisSameAs<0, 1>,
+                                           SDTCisVT<2, i32>]>;
+def ARMvorrImm   : SDNode<"ARMISD::VORRIMM", SDTARMVORRIMM>;
+def ARMvbicImm   : SDNode<"ARMISD::VBICIMM", SDTARMVORRIMM>;
 
 def SDTARMVSHIMM : SDTypeProfile<1, 2, [SDTCisInt<0>, SDTCisSameAs<0, 1>,
                                         SDTCisVT<2, i32>]>;
@@ -285,12 +294,49 @@ def ARMWLS      : SDNode<"ARMISD::WLS", SDT_ARMLoLoop, [SDNPHasChain]>;
 def ARMLE       : SDNode<"ARMISD::LE", SDT_ARMLoLoop, [SDNPHasChain]>;
 def ARMLoopDec  : SDNode<"ARMISD::LOOP_DEC", SDTIntBinOp, [SDNPHasChain]>;
 
+// 'VECTOR_REG_CAST' is an operation that reinterprets the contents of a
+// vector register as a different vector type, without changing the contents of
+// the register. It differs from 'bitconvert' in that bitconvert reinterprets
+// the _memory_ storage format of the vector, whereas VECTOR_REG_CAST
+// reinterprets the _register_ format - and in big-endian, the memory and
+// register formats are different, so they are different operations.
+//
+// For example, 'VECTOR_REG_CAST' between v8i16 and v16i8 will map the LSB of
+// the zeroth i16 lane to the zeroth i8 lane, regardless of system endianness,
+// whereas 'bitconvert' will map it to the high byte in big-endian mode,
+// because that's what (MVE) VSTRH.16 followed by VLDRB.8 would do. So the
+// bitconvert would have to emit a VREV16.8 instruction, whereas the
+// VECTOR_REG_CAST emits no code at all if the vector is already in a register.
+def ARMVectorRegCast : SDNode<"ARMISD::VECTOR_REG_CAST", SDTUnaryOp>;
+
 //===----------------------------------------------------------------------===//
 // ARM Flag Definitions.
 
 class RegConstraint<string C> {
   string Constraints = C;
 }
+
+// ARMCC condition codes. See ARMCC::CondCodes
+def ARMCCeq : PatLeaf<(i32 0)>;
+def ARMCCne : PatLeaf<(i32 1)>;
+def ARMCChs : PatLeaf<(i32 2)>;
+def ARMCClo : PatLeaf<(i32 3)>;
+def ARMCCmi : PatLeaf<(i32 4)>;
+def ARMCCpl : PatLeaf<(i32 5)>;
+def ARMCCvs : PatLeaf<(i32 6)>;
+def ARMCCvc : PatLeaf<(i32 7)>;
+def ARMCChi : PatLeaf<(i32 8)>;
+def ARMCCls : PatLeaf<(i32 9)>;
+def ARMCCge : PatLeaf<(i32 10)>;
+def ARMCClt : PatLeaf<(i32 11)>;
+def ARMCCgt : PatLeaf<(i32 12)>;
+def ARMCCle : PatLeaf<(i32 13)>;
+def ARMCCal : PatLeaf<(i32 14)>;
+
+// VCC predicates. See ARMVCC::VPTCodes
+def ARMVCCNone : PatLeaf<(i32 0)>;
+def ARMVCCThen : PatLeaf<(i32 1)>;
+def ARMVCCElse : PatLeaf<(i32 2)>;
 
 //===----------------------------------------------------------------------===//
 //  ARM specific transformation functions and pattern fragments.
@@ -908,7 +954,10 @@ def MVEShiftImm1_7AsmOperand: ImmAsmOperand<1,7> {
   // encodings allow.
   let DiagnosticString = "operand must be an immediate in the range [1,8]";
 }
-def mve_shift_imm1_7 : Operand<i32> {
+def mve_shift_imm1_7 : Operand<i32>,
+    // SelectImmediateInRange / isScaledConstantInRange uses a
+    // half-open interval, so the parameters <1,8> mean 1-7 inclusive
+    ComplexPattern<i32, 1, "SelectImmediateInRange<1,8>", [], []> {
   let ParserMatchClass = MVEShiftImm1_7AsmOperand;
   let EncoderMethod = "getMVEShiftImmOpValue";
 }
@@ -921,7 +970,10 @@ def MVEShiftImm1_15AsmOperand: ImmAsmOperand<1,15> {
   // encodings allow.
   let DiagnosticString = "operand must be an immediate in the range [1,16]";
 }
-def mve_shift_imm1_15 : Operand<i32> {
+def mve_shift_imm1_15 : Operand<i32>,
+    // SelectImmediateInRange / isScaledConstantInRange uses a
+    // half-open interval, so the parameters <1,16> mean 1-15 inclusive
+    ComplexPattern<i32, 1, "SelectImmediateInRange<1,16>", [], []> {
   let ParserMatchClass = MVEShiftImm1_15AsmOperand;
   let EncoderMethod = "getMVEShiftImmOpValue";
 }
@@ -3750,6 +3802,23 @@ let DecoderMethod = "DecodeQADDInstruction" in
                 [(set GPRnopc:$Rd, (int_arm_qadd GPRnopc:$Rm, GPRnopc:$Rn))]>;
 }
 
+def : ARMV5TEPat<(saddsat GPR:$a, GPR:$b),
+                 (QADD GPR:$a, GPR:$b)>;
+def : ARMV5TEPat<(ssubsat GPR:$a, GPR:$b),
+                 (QSUB GPR:$a, GPR:$b)>;
+def : ARMV5TEPat<(saddsat(saddsat rGPR:$Rm, rGPR:$Rm), rGPR:$Rn),
+                 (QDADD rGPR:$Rm, rGPR:$Rn)>;
+def : ARMV5TEPat<(ssubsat rGPR:$Rm, (saddsat rGPR:$Rn, rGPR:$Rn)),
+                 (QDSUB rGPR:$Rm, rGPR:$Rn)>;
+def : ARMV6Pat<(ARMqadd8b rGPR:$Rm, rGPR:$Rn),
+               (QADD8 rGPR:$Rm, rGPR:$Rn)>;
+def : ARMV6Pat<(ARMqsub8b rGPR:$Rm, rGPR:$Rn),
+               (QSUB8 rGPR:$Rm, rGPR:$Rn)>;
+def : ARMV6Pat<(ARMqadd16b rGPR:$Rm, rGPR:$Rn),
+               (QADD16 rGPR:$Rm, rGPR:$Rn)>;
+def : ARMV6Pat<(ARMqsub16b rGPR:$Rm, rGPR:$Rn),
+               (QSUB16 rGPR:$Rm, rGPR:$Rn)>;
+
 def UQADD16 : AAIIntrinsic<0b01100110, 0b11110001, "uqadd16", int_arm_uqadd16>;
 def UQADD8  : AAIIntrinsic<0b01100110, 0b11111001, "uqadd8", int_arm_uqadd8>;
 def UQSUB16 : AAIIntrinsic<0b01100110, 0b11110111, "uqsub16", int_arm_uqsub16>;
@@ -6192,7 +6261,7 @@ def CMP_SWAP_64 : PseudoInst<(outs GPRPair:$Rd, GPR:$temp),
 }
 
 def CompilerBarrier : PseudoInst<(outs), (ins i32imm:$ordering), NoItinerary,
-                                 [(atomic_fence imm:$ordering, 0)]> {
+                                 [(atomic_fence timm:$ordering, 0)]> {
   let hasSideEffects = 1;
   let Size = 0;
   let AsmString = "@ COMPILER BARRIER";

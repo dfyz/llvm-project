@@ -17,7 +17,6 @@
 #define LLVM_ADT_STLEXTRAS_H
 
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/iterator.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Config/abi-breaking.h"
@@ -50,10 +49,6 @@ namespace detail {
 
 template <typename RangeT>
 using IterOfRange = decltype(std::begin(std::declval<RangeT &>()));
-
-template <typename RangeT>
-using ValueOfRange = typename std::remove_reference<decltype(
-    *std::begin(std::declval<RangeT &>()))>::type;
 
 } // end namespace detail
 
@@ -120,9 +115,8 @@ public:
 
   template <typename Callable>
   function_ref(Callable &&callable,
-               typename std::enable_if<
-                   !std::is_same<typename std::remove_reference<Callable>::type,
-                                 function_ref>::value>::type * = nullptr)
+               std::enable_if_t<!std::is_same<std::remove_reference_t<Callable>,
+                                              function_ref>::value> * = nullptr)
       : callback(callback_fn<typename std::remove_reference<Callable>::type>),
         callable(reinterpret_cast<intptr_t>(&callable)) {}
 
@@ -151,16 +145,14 @@ namespace adl_detail {
 using std::begin;
 
 template <typename ContainerTy>
-auto adl_begin(ContainerTy &&container)
-    -> decltype(begin(std::forward<ContainerTy>(container))) {
+decltype(auto) adl_begin(ContainerTy &&container) {
   return begin(std::forward<ContainerTy>(container));
 }
 
 using std::end;
 
 template <typename ContainerTy>
-auto adl_end(ContainerTy &&container)
-    -> decltype(end(std::forward<ContainerTy>(container))) {
+decltype(auto) adl_end(ContainerTy &&container) {
   return end(std::forward<ContainerTy>(container));
 }
 
@@ -175,14 +167,12 @@ void adl_swap(T &&lhs, T &&rhs) noexcept(noexcept(swap(std::declval<T>(),
 } // end namespace adl_detail
 
 template <typename ContainerTy>
-auto adl_begin(ContainerTy &&container)
-    -> decltype(adl_detail::adl_begin(std::forward<ContainerTy>(container))) {
+decltype(auto) adl_begin(ContainerTy &&container) {
   return adl_detail::adl_begin(std::forward<ContainerTy>(container));
 }
 
 template <typename ContainerTy>
-auto adl_end(ContainerTy &&container)
-    -> decltype(adl_detail::adl_end(std::forward<ContainerTy>(container))) {
+decltype(auto) adl_end(ContainerTy &&container) {
   return adl_detail::adl_end(std::forward<ContainerTy>(container));
 }
 
@@ -196,6 +186,13 @@ void adl_swap(T &&lhs, T &&rhs) noexcept(
 template <typename T>
 constexpr bool empty(const T &RangeOrContainer) {
   return adl_begin(RangeOrContainer) == adl_end(RangeOrContainer);
+}
+
+/// Return a range covering \p RangeOrContainer with the first N elements
+/// excluded.
+template <typename T> auto drop_begin(T &&RangeOrContainer, size_t N) {
+  return make_range(std::next(adl_begin(RangeOrContainer), N),
+                    adl_end(RangeOrContainer));
 }
 
 // mapped_iterator - This is a simple iterator adapter that causes a function to
@@ -229,9 +226,7 @@ inline mapped_iterator<ItTy, FuncTy> map_iterator(ItTy I, FuncTy F) {
 }
 
 template <class ContainerTy, class FuncTy>
-auto map_range(ContainerTy &&C, FuncTy F)
-    -> decltype(make_range(map_iterator(C.begin(), F),
-                           map_iterator(C.end(), F))) {
+auto map_range(ContainerTy &&C, FuncTy F) {
   return make_range(map_iterator(C.begin(), F), map_iterator(C.end(), F));
 }
 
@@ -259,8 +254,7 @@ struct has_rbegin : has_rbegin_impl<typename std::remove_reference<Ty>::type> {
 // Note that the container must have rbegin()/rend() methods for this to work.
 template <typename ContainerTy>
 auto reverse(ContainerTy &&C,
-             typename std::enable_if<has_rbegin<ContainerTy>::value>::type * =
-                 nullptr) -> decltype(make_range(C.rbegin(), C.rend())) {
+             std::enable_if_t<has_rbegin<ContainerTy>::value> * = nullptr) {
   return make_range(C.rbegin(), C.rend());
 }
 
@@ -274,11 +268,8 @@ std::reverse_iterator<IteratorTy> make_reverse_iterator(IteratorTy It) {
 // Note that the container must have begin()/end() methods which return
 // bidirectional iterators for this to work.
 template <typename ContainerTy>
-auto reverse(
-    ContainerTy &&C,
-    typename std::enable_if<!has_rbegin<ContainerTy>::value>::type * = nullptr)
-    -> decltype(make_range(llvm::make_reverse_iterator(std::end(C)),
-                           llvm::make_reverse_iterator(std::begin(C)))) {
+auto reverse(ContainerTy &&C,
+             std::enable_if_t<!has_rbegin<ContainerTy>::value> * = nullptr) {
   return make_range(llvm::make_reverse_iterator(std::end(C)),
                     llvm::make_reverse_iterator(std::begin(C)));
 }
@@ -676,9 +667,8 @@ static Iter next_or_end(const Iter &I, const Iter &End) {
 }
 
 template <typename Iter>
-static auto deref_or_none(const Iter &I, const Iter &End)
-    -> llvm::Optional<typename std::remove_const<
-        typename std::remove_reference<decltype(*I)>::type>::type> {
+static auto deref_or_none(const Iter &I, const Iter &End) -> llvm::Optional<
+    std::remove_const_t<std::remove_reference_t<decltype(*I)>>> {
   if (I == End)
     return None;
   return *I;
@@ -979,8 +969,7 @@ struct on_first {
   FuncTy func;
 
   template <typename T>
-  auto operator()(const T &lhs, const T &rhs) const
-      -> decltype(func(lhs.first, rhs.first)) {
+  decltype(auto) operator()(const T &lhs, const T &rhs) const {
     return func(lhs.first, rhs.first);
   }
 };
@@ -1044,6 +1033,23 @@ inline int (*get_array_pod_sort_comparator(const T &))
   return array_pod_sort_comparator<T>;
 }
 
+#ifdef EXPENSIVE_CHECKS
+namespace detail {
+
+inline unsigned presortShuffleEntropy() {
+  static unsigned Result(std::random_device{}());
+  return Result;
+}
+
+template <class IteratorTy>
+inline void presortShuffle(IteratorTy Start, IteratorTy End) {
+  std::mt19937 Generator(presortShuffleEntropy());
+  std::shuffle(Start, End, Generator);
+}
+
+} // end namespace detail
+#endif
+
 /// array_pod_sort - This sorts an array with the specified start and end
 /// extent.  This is just like std::sort, except that it calls qsort instead of
 /// using an inlined template.  qsort is slightly slower than std::sort, but
@@ -1065,8 +1071,7 @@ inline void array_pod_sort(IteratorTy Start, IteratorTy End) {
   auto NElts = End - Start;
   if (NElts <= 1) return;
 #ifdef EXPENSIVE_CHECKS
-  std::mt19937 Generator(std::random_device{}());
-  std::shuffle(Start, End, Generator);
+  detail::presortShuffle<IteratorTy>(Start, End);
 #endif
   qsort(&*Start, NElts, sizeof(*Start), get_array_pod_sort_comparator(*Start));
 }
@@ -1082,8 +1087,7 @@ inline void array_pod_sort(
   auto NElts = End - Start;
   if (NElts <= 1) return;
 #ifdef EXPENSIVE_CHECKS
-  std::mt19937 Generator(std::random_device{}());
-  std::shuffle(Start, End, Generator);
+  detail::presortShuffle<IteratorTy>(Start, End);
 #endif
   qsort(&*Start, NElts, sizeof(*Start),
         reinterpret_cast<int (*)(const void *, const void *)>(Compare));
@@ -1094,8 +1098,7 @@ inline void array_pod_sort(
 template <typename IteratorTy>
 inline void sort(IteratorTy Start, IteratorTy End) {
 #ifdef EXPENSIVE_CHECKS
-  std::mt19937 Generator(std::random_device{}());
-  std::shuffle(Start, End, Generator);
+  detail::presortShuffle<IteratorTy>(Start, End);
 #endif
   std::sort(Start, End);
 }
@@ -1107,8 +1110,7 @@ template <typename Container> inline void sort(Container &&C) {
 template <typename IteratorTy, typename Compare>
 inline void sort(IteratorTy Start, IteratorTy End, Compare Comp) {
 #ifdef EXPENSIVE_CHECKS
-  std::mt19937 Generator(std::random_device{}());
-  std::shuffle(Start, End, Generator);
+  detail::presortShuffle<IteratorTy>(Start, End);
 #endif
   std::sort(Start, End, Comp);
 }
@@ -1143,12 +1145,11 @@ void DeleteContainerSeconds(Container &C) {
 /// Get the size of a range. This is a wrapper function around std::distance
 /// which is only enabled when the operation is O(1).
 template <typename R>
-auto size(R &&Range, typename std::enable_if<
-                         std::is_same<typename std::iterator_traits<decltype(
-                                          Range.begin())>::iterator_category,
-                                      std::random_access_iterator_tag>::value,
-                         void>::type * = nullptr)
-    -> decltype(std::distance(Range.begin(), Range.end())) {
+auto size(R &&Range,
+          std::enable_if_t<std::is_same<typename std::iterator_traits<decltype(
+                                            Range.begin())>::iterator_category,
+                                        std::random_access_iterator_tag>::value,
+                           void> * = nullptr) {
   return std::distance(Range.begin(), Range.end());
 }
 
@@ -1182,27 +1183,26 @@ bool none_of(R &&Range, UnaryPredicate P) {
 
 /// Provide wrappers to std::find which take ranges instead of having to pass
 /// begin/end explicitly.
-template <typename R, typename T>
-auto find(R &&Range, const T &Val) -> decltype(adl_begin(Range)) {
+template <typename R, typename T> auto find(R &&Range, const T &Val) {
   return std::find(adl_begin(Range), adl_end(Range), Val);
 }
 
 /// Provide wrappers to std::find_if which take ranges instead of having to pass
 /// begin/end explicitly.
 template <typename R, typename UnaryPredicate>
-auto find_if(R &&Range, UnaryPredicate P) -> decltype(adl_begin(Range)) {
+auto find_if(R &&Range, UnaryPredicate P) {
   return std::find_if(adl_begin(Range), adl_end(Range), P);
 }
 
 template <typename R, typename UnaryPredicate>
-auto find_if_not(R &&Range, UnaryPredicate P) -> decltype(adl_begin(Range)) {
+auto find_if_not(R &&Range, UnaryPredicate P) {
   return std::find_if_not(adl_begin(Range), adl_end(Range), P);
 }
 
 /// Provide wrappers to std::remove_if which take ranges instead of having to
 /// pass begin/end explicitly.
 template <typename R, typename UnaryPredicate>
-auto remove_if(R &&Range, UnaryPredicate P) -> decltype(adl_begin(Range)) {
+auto remove_if(R &&Range, UnaryPredicate P) {
   return std::remove_if(adl_begin(Range), adl_end(Range), P);
 }
 
@@ -1227,17 +1227,14 @@ bool is_contained(R &&Range, const E &Element) {
 
 /// Wrapper function around std::count to count the number of times an element
 /// \p Element occurs in the given range \p Range.
-template <typename R, typename E>
-auto count(R &&Range, const E &Element) ->
-    typename std::iterator_traits<decltype(adl_begin(Range))>::difference_type {
+template <typename R, typename E> auto count(R &&Range, const E &Element) {
   return std::count(adl_begin(Range), adl_end(Range), Element);
 }
 
 /// Wrapper function around std::count_if to count the number of times an
 /// element satisfying a given predicate occurs in a range.
 template <typename R, typename UnaryPredicate>
-auto count_if(R &&Range, UnaryPredicate P) ->
-    typename std::iterator_traits<decltype(adl_begin(Range))>::difference_type {
+auto count_if(R &&Range, UnaryPredicate P) {
   return std::count_if(adl_begin(Range), adl_end(Range), P);
 }
 
@@ -1251,36 +1248,32 @@ OutputIt transform(R &&Range, OutputIt d_first, UnaryPredicate P) {
 /// Provide wrappers to std::partition which take ranges instead of having to
 /// pass begin/end explicitly.
 template <typename R, typename UnaryPredicate>
-auto partition(R &&Range, UnaryPredicate P) -> decltype(adl_begin(Range)) {
+auto partition(R &&Range, UnaryPredicate P) {
   return std::partition(adl_begin(Range), adl_end(Range), P);
 }
 
 /// Provide wrappers to std::lower_bound which take ranges instead of having to
 /// pass begin/end explicitly.
-template <typename R, typename T>
-auto lower_bound(R &&Range, T &&Value) -> decltype(adl_begin(Range)) {
+template <typename R, typename T> auto lower_bound(R &&Range, T &&Value) {
   return std::lower_bound(adl_begin(Range), adl_end(Range),
                           std::forward<T>(Value));
 }
 
 template <typename R, typename T, typename Compare>
-auto lower_bound(R &&Range, T &&Value, Compare C)
-    -> decltype(adl_begin(Range)) {
+auto lower_bound(R &&Range, T &&Value, Compare C) {
   return std::lower_bound(adl_begin(Range), adl_end(Range),
                           std::forward<T>(Value), C);
 }
 
 /// Provide wrappers to std::upper_bound which take ranges instead of having to
 /// pass begin/end explicitly.
-template <typename R, typename T>
-auto upper_bound(R &&Range, T &&Value) -> decltype(adl_begin(Range)) {
+template <typename R, typename T> auto upper_bound(R &&Range, T &&Value) {
   return std::upper_bound(adl_begin(Range), adl_end(Range),
                           std::forward<T>(Value));
 }
 
 template <typename R, typename T, typename Compare>
-auto upper_bound(R &&Range, T &&Value, Compare C)
-    -> decltype(adl_begin(Range)) {
+auto upper_bound(R &&Range, T &&Value, Compare C) {
   return std::upper_bound(adl_begin(Range), adl_end(Range),
                           std::forward<T>(Value), C);
 }
@@ -1299,7 +1292,7 @@ void stable_sort(R &&Range, Compare C) {
 /// Requires that C is always true below some limit, and always false above it.
 template <typename R, typename Predicate,
           typename Val = decltype(*adl_begin(std::declval<R>()))>
-auto partition_point(R &&Range, Predicate P) -> decltype(adl_begin(Range)) {
+auto partition_point(R &&Range, Predicate P) {
   return std::partition_point(adl_begin(Range), adl_end(Range), P);
 }
 
@@ -1310,15 +1303,6 @@ bool is_splat(R &&Range) {
   size_t range_size = size(Range);
   return range_size != 0 && (range_size == 1 ||
          std::equal(adl_begin(Range) + 1, adl_end(Range), adl_begin(Range)));
-}
-
-/// Given a range of type R, iterate the entire range and return a
-/// SmallVector with elements of the vector.  This is useful, for example,
-/// when you want to iterate a range and then sort the results.
-template <unsigned Size, typename R>
-SmallVector<typename std::remove_const<detail::ValueOfRange<R>>::type, Size>
-to_vector(R &&Range) {
-  return {adl_begin(Range), adl_end(Range)};
 }
 
 /// Provide a container algorithm similar to C++ Library Fundamentals v2's
@@ -1385,8 +1369,7 @@ template <typename T> struct deref {
   // Could be further improved to cope with non-derivable functors and
   // non-binary functors (should be a variadic template member function
   // operator()).
-  template <typename A, typename B>
-  auto operator()(A &lhs, B &rhs) const -> decltype(func(*lhs, *rhs)) {
+  template <typename A, typename B> auto operator()(A &lhs, B &rhs) const {
     assert(lhs);
     assert(rhs);
     return func(*lhs, *rhs);
@@ -1407,6 +1390,8 @@ template <typename R> struct result_pair {
   result_pair(std::size_t Index, IterOfRange<R> Iter)
       : Index(Index), Iter(Iter) {}
 
+  result_pair<R>(const result_pair<R> &Other)
+      : Index(Other.Index), Iter(Other.Iter) {}
   result_pair<R> &operator=(const result_pair<R> &Other) {
     Index = Other.Index;
     Iter = Other.Iter;
@@ -1455,6 +1440,7 @@ public:
     return Result.Iter == RHS.Result.Iter;
   }
 
+  enumerator_iter<R>(const enumerator_iter<R> &Other) : Result(Other.Result) {}
   enumerator_iter<R> &operator=(const enumerator_iter<R> &Other) {
     Result = Other.Result;
     return *this;
@@ -1504,8 +1490,7 @@ template <typename R> detail::enumerator<R> enumerate(R &&TheRange) {
 namespace detail {
 
 template <typename F, typename Tuple, std::size_t... I>
-auto apply_tuple_impl(F &&f, Tuple &&t, std::index_sequence<I...>)
-    -> decltype(std::forward<F>(f)(std::get<I>(std::forward<Tuple>(t))...)) {
+decltype(auto) apply_tuple_impl(F &&f, Tuple &&t, std::index_sequence<I...>) {
   return std::forward<F>(f)(std::get<I>(std::forward<Tuple>(t))...);
 }
 
@@ -1515,10 +1500,7 @@ auto apply_tuple_impl(F &&f, Tuple &&t, std::index_sequence<I...>)
 /// tuple variadically to f as if by calling f(a1, a2, ..., an) and
 /// return the result.
 template <typename F, typename Tuple>
-auto apply_tuple(F &&f, Tuple &&t) -> decltype(detail::apply_tuple_impl(
-    std::forward<F>(f), std::forward<Tuple>(t),
-    std::make_index_sequence<
-        std::tuple_size<typename std::decay<Tuple>::type>::value>{})) {
+decltype(auto) apply_tuple(F &&f, Tuple &&t) {
   using Indices = std::make_index_sequence<
       std::tuple_size<typename std::decay<Tuple>::type>::value>;
 
@@ -1531,12 +1513,11 @@ auto apply_tuple(F &&f, Tuple &&t) -> decltype(detail::apply_tuple_impl(
 template <typename IterTy>
 bool hasNItems(
     IterTy &&Begin, IterTy &&End, unsigned N,
-    typename std::enable_if<
-        !std::is_same<
-            typename std::iterator_traits<typename std::remove_reference<
-                decltype(Begin)>::type>::iterator_category,
-            std::random_access_iterator_tag>::value,
-        void>::type * = nullptr) {
+    std::enable_if_t<
+        !std::is_same<typename std::iterator_traits<std::remove_reference_t<
+                          decltype(Begin)>>::iterator_category,
+                      std::random_access_iterator_tag>::value,
+        void> * = nullptr) {
   for (; N; --N, ++Begin)
     if (Begin == End)
       return false; // Too few.
@@ -1548,12 +1529,11 @@ bool hasNItems(
 template <typename IterTy>
 bool hasNItemsOrMore(
     IterTy &&Begin, IterTy &&End, unsigned N,
-    typename std::enable_if<
-        !std::is_same<
-            typename std::iterator_traits<typename std::remove_reference<
-                decltype(Begin)>::type>::iterator_category,
-            std::random_access_iterator_tag>::value,
-        void>::type * = nullptr) {
+    std::enable_if_t<
+        !std::is_same<typename std::iterator_traits<std::remove_reference_t<
+                          decltype(Begin)>>::iterator_category,
+                      std::random_access_iterator_tag>::value,
+        void> * = nullptr) {
   for (; N; --N, ++Begin)
     if (Begin == End)
       return false; // Too few.
@@ -1562,15 +1542,12 @@ bool hasNItemsOrMore(
 
 /// Returns a raw pointer that represents the same address as the argument.
 ///
-/// The late bound return should be removed once we move to C++14 to better
-/// align with the C++20 declaration. Also, this implementation can be removed
-/// once we move to C++20 where it's defined as std::to_addres()
+/// This implementation can be removed once we move to C++20 where it's defined
+/// as std::to_addres().
 ///
 /// The std::pointer_traits<>::to_address(p) variations of these overloads has
 /// not been implemented.
-template <class Ptr> auto to_address(const Ptr &P) -> decltype(P.operator->()) {
-  return P.operator->();
-}
+template <class Ptr> auto to_address(const Ptr &P) { return P.operator->(); }
 template <class T> constexpr T *to_address(T *P) { return P; }
 
 } // end namespace llvm

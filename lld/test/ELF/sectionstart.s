@@ -20,12 +20,6 @@
 # RUN: ld.lld %t.o -Ttext=0x100000 -Tdata=0x110000 -Tbss=0x200000 -o %t4
 # RUN: llvm-objdump -section-headers %t4 | FileCheck %s
 
-## Check Ttext-segment X and Ttext-segment=X forms.
-# RUN: ld.lld %t.o -Ttext-segment=0x100000 -Tdata=0x110000 -Tbss=0x200000 -o %t4
-# RUN: llvm-objdump -section-headers %t4 | FileCheck %s
-# RUN: ld.lld %t.o -Ttext-segment 0x100000 -Tdata=0x110000 -Tbss=0x200000 -o %t4
-# RUN: llvm-objdump -section-headers %t4 | FileCheck %s
-
 ## The same, but dropped "0x" prefix.
 # RUN: ld.lld %t.o -Ttext=100000 -Tdata=110000 -Tbss=200000 -o %t5
 # RUN: llvm-objdump -section-headers %t5 | FileCheck %s
@@ -43,15 +37,15 @@
 # RUN:    | FileCheck -check-prefix=ERR2 %s
 # ERR2: invalid argument: --section-start .text=1Q0000
 
-# RUN: not ld.lld %t.o -Ttext=1w0000 -o %t6 2>&1 \
+# RUN: not ld.lld %t.o -Ttext=1w0000 -o /dev/null 2>&1 \
 # RUN:    | FileCheck -check-prefix=ERR3 %s
 # ERR3: invalid argument: -Ttext=1w0000
 
-# RUN: not ld.lld %t.o -Tbss=1w0000 -o %t6 2>&1 \
+# RUN: not ld.lld %t.o -Tbss=1w0000 -o /dev/null 2>&1 \
 # RUN:    | FileCheck -check-prefix=ERR4 %s
 # ERR4: invalid argument: -Tbss=1w0000
 
-# RUN: not ld.lld %t.o -Tdata=1w0000 -o %t6 2>&1 \
+# RUN: not ld.lld %t.o -Tdata=1w0000 -o /dev/null 2>&1 \
 # RUN:    | FileCheck -check-prefix=ERR5 %s
 # ERR5: invalid argument: -Tdata=1w0000
 

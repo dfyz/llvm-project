@@ -61,6 +61,15 @@ class PPCRegisterInfo : public PPCGenRegisterInfo {
 public:
   PPCRegisterInfo(const PPCTargetMachine &TM);
 
+  /// getMappedIdxOpcForImmOpc - Return the mapped index form load/store opcode
+  /// for a given imm form load/store opcode \p ImmFormOpcode.
+  /// FIXME: move this to PPCInstrInfo class.
+  unsigned getMappedIdxOpcForImmOpc(unsigned ImmOpcode) const {
+    if (!ImmToIdxMap.count(ImmOpcode))
+      return PPC::INSTRUCTION_LIST_END;
+    return ImmToIdxMap.find(ImmOpcode)->second;
+  }
+
   /// getPointerRegClass - Return the register class to use to hold pointers.
   /// This is used for addressing modes.
   const TargetRegisterClass *
@@ -91,10 +100,6 @@ public:
   }
 
   bool requiresFrameIndexScavenging(const MachineFunction &MF) const override;
-
-  bool trackLivenessAfterRegAlloc(const MachineFunction &MF) const override {
-    return true;
-  }
 
   bool requiresVirtualBaseRegisters(const MachineFunction &MF) const override {
     return true;

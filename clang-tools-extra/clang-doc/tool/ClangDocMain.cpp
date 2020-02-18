@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This tool for generating C and C++ documenation from source code
+// This tool for generating C and C++ documentation from source code
 // and comments. Generally, it runs a LibTooling FrontendAction on source files,
 // mapping each declaration in those files to its USR and serializing relevant
 // information into LLVM bitcode. It then runs a pass over the collected
@@ -232,7 +232,7 @@ int main(int argc, const char **argv) {
     llvm::sys::path::native(AssetsPath, IndexJS);
     llvm::sys::path::append(IndexJS, "index.js");
     CDCtx.UserStylesheets.insert(CDCtx.UserStylesheets.begin(),
-                                 DefaultStylesheet.str());
+                                 std::string(DefaultStylesheet.str()));
     CDCtx.FilesToCopy.emplace_back(IndexJS.str());
   }
 
@@ -268,8 +268,7 @@ int main(int argc, const char **argv) {
   Error = false;
   llvm::sys::Mutex IndexMutex;
   // ExecutorConcurrency is a flag exposed by AllTUsExecution.h
-  llvm::ThreadPool Pool(ExecutorConcurrency == 0 ? llvm::hardware_concurrency()
-                                                 : ExecutorConcurrency);
+  llvm::ThreadPool Pool(llvm::hardware_concurrency(ExecutorConcurrency));
   for (auto &Group : USRToBitcode) {
     Pool.async([&]() {
       std::vector<std::unique_ptr<doc::Info>> Infos;

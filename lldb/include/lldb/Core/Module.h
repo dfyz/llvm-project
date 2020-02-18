@@ -10,6 +10,7 @@
 #define liblldb_Module_h_
 
 #include "lldb/Core/Address.h"
+#include "lldb/Core/ModuleList.h"
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolContextScope.h"
@@ -190,7 +191,7 @@ public:
   lldb::ModuleSP CalculateSymbolContextModule() override;
 
   void
-  GetDescription(Stream *s,
+  GetDescription(llvm::raw_ostream &s,
                  lldb::DescriptionLevel level = lldb::eDescriptionLevelFull);
 
   /// Get the module path and object name.
@@ -246,13 +247,13 @@ public:
       ConstString name,
       lldb::SymbolType symbol_type = lldb::eSymbolTypeAny);
 
-  size_t FindSymbolsWithNameAndType(ConstString name,
-                                    lldb::SymbolType symbol_type,
-                                    SymbolContextList &sc_list);
+  void FindSymbolsWithNameAndType(ConstString name,
+                                  lldb::SymbolType symbol_type,
+                                  SymbolContextList &sc_list);
 
-  size_t FindSymbolsMatchingRegExAndType(const RegularExpression &regex,
-                                         lldb::SymbolType symbol_type,
-                                         SymbolContextList &sc_list);
+  void FindSymbolsMatchingRegExAndType(const RegularExpression &regex,
+                                       lldb::SymbolType symbol_type,
+                                       SymbolContextList &sc_list);
 
   /// Find a function symbols in the object file's symbol table.
   ///
@@ -266,11 +267,8 @@ public:
   ///
   /// \param[out] sc_list
   ///     A list to append any matching symbol contexts to.
-  ///
-  /// \return
-  ///     The number of symbol contexts that were added to \a sc_list
-  size_t FindFunctionSymbols(ConstString name, uint32_t name_type_mask,
-                             SymbolContextList &sc_list);
+  void FindFunctionSymbols(ConstString name, uint32_t name_type_mask,
+                           SymbolContextList &sc_list);
 
   /// Find compile units by partial or full path.
   ///
@@ -280,19 +278,10 @@ public:
   /// \param[in] path
   ///     The name of the function we are looking for.
   ///
-  /// \param[in] append
-  ///     If \b true, then append any compile units that were found
-  ///     to \a sc_list. If \b false, then the \a sc_list is cleared
-  ///     and the contents of \a sc_list are replaced.
-  ///
   /// \param[out] sc_list
   ///     A symbol context list that gets filled in with all of the
   ///     matches.
-  ///
-  /// \return
-  ///     The number of matches added to \a sc_list.
-  size_t FindCompileUnits(const FileSpec &path, bool append,
-                          SymbolContextList &sc_list);
+  void FindCompileUnits(const FileSpec &path, SymbolContextList &sc_list);
 
   /// Find functions by name.
   ///
@@ -303,30 +292,19 @@ public:
   /// \param[in] name
   ///     The name of the compile unit we are looking for.
   ///
-  /// \param[in] namespace_decl
-  ///     If valid, a namespace to search in.
-  ///
   /// \param[in] name_type_mask
   ///     A bit mask of bits that indicate what kind of names should
   ///     be used when doing the lookup. Bits include fully qualified
   ///     names, base names, C++ methods, or ObjC selectors.
   ///     See FunctionNameType for more details.
   ///
-  /// \param[in] append
-  ///     If \b true, any matches will be appended to \a sc_list, else
-  ///     matches replace the contents of \a sc_list.
-  ///
   /// \param[out] sc_list
   ///     A symbol context list that gets filled in with all of the
   ///     matches.
-  ///
-  /// \return
-  ///     The number of matches added to \a sc_list.
-  size_t FindFunctions(ConstString name,
-                       const CompilerDeclContext *parent_decl_ctx,
-                       lldb::FunctionNameType name_type_mask, bool symbols_ok,
-                       bool inlines_ok, bool append,
-                       SymbolContextList &sc_list);
+  void FindFunctions(ConstString name,
+                     const CompilerDeclContext *parent_decl_ctx,
+                     lldb::FunctionNameType name_type_mask, bool symbols_ok,
+                     bool inlines_ok, SymbolContextList &sc_list);
 
   /// Find functions by name.
   ///
@@ -337,19 +315,11 @@ public:
   /// \param[in] regex
   ///     A regular expression to use when matching the name.
   ///
-  /// \param[in] append
-  ///     If \b true, any matches will be appended to \a sc_list, else
-  ///     matches replace the contents of \a sc_list.
-  ///
   /// \param[out] sc_list
   ///     A symbol context list that gets filled in with all of the
   ///     matches.
-  ///
-  /// \return
-  ///     The number of matches added to \a sc_list.
-  size_t FindFunctions(const RegularExpression &regex, bool symbols_ok,
-                       bool inlines_ok, bool append,
-                       SymbolContextList &sc_list);
+  void FindFunctions(const RegularExpression &regex, bool symbols_ok,
+                     bool inlines_ok, SymbolContextList &sc_list);
 
   /// Find addresses by file/line
   ///
@@ -394,11 +364,9 @@ public:
   /// \param[in] variable_list
   ///     A list of variables that gets the matches appended to.
   ///
-  /// \return
-  ///     The number of matches added to \a variable_list.
-  size_t FindGlobalVariables(ConstString name,
-                             const CompilerDeclContext *parent_decl_ctx,
-                             size_t max_matches, VariableList &variable_list);
+  void FindGlobalVariables(ConstString name,
+                           const CompilerDeclContext *parent_decl_ctx,
+                           size_t max_matches, VariableList &variable_list);
 
   /// Find global and static variables by regular expression.
   ///
@@ -412,10 +380,8 @@ public:
   /// \param[in] variable_list
   ///     A list of variables that gets the matches appended to.
   ///
-  /// \return
-  ///     The number of matches added to \a variable_list.
-  size_t FindGlobalVariables(const RegularExpression &regex, size_t max_matches,
-                             VariableList &variable_list);
+  void FindGlobalVariables(const RegularExpression &regex, size_t max_matches,
+                           VariableList &variable_list);
 
   /// Find types by name.
   ///
@@ -444,7 +410,7 @@ public:
   ///     omitted to make finding types that a user may type
   ///     easier.
   ///
-  /// \param[out] type_list
+  /// \param[out] types
   ///     A type list gets populated with any matches.
   ///
   void
@@ -457,7 +423,11 @@ public:
   /// This behaves like the other FindTypes method but allows to
   /// specify a DeclContext and a language for the type being searched
   /// for.
+  ///
+  /// \param searched_symbol_files
+  ///     Prevents one file from being visited multiple times.
   void FindTypes(llvm::ArrayRef<CompilerContext> pattern, LanguageSet languages,
+                 llvm::DenseSet<lldb_private::SymbolFile *> &searched_symbol_files,
                  TypeMap &types);
 
   lldb::TypeSP FindFirstType(const SymbolContext &sc,
@@ -471,12 +441,8 @@ public:
   ///     The name of a type within a namespace that should not include
   ///     any qualifying namespaces (just a type basename).
   ///
-  /// \param[in] namespace_decl
-  ///     The namespace declaration that this type must exist in.
-  ///
   /// \param[out] type_list
   ///     A type list gets populated with any matches.
-  ///
   void FindTypesInNamespace(ConstString type_name,
                             const CompilerDeclContext *parent_decl_ctx,
                             size_t max_matches, TypeList &type_list);
@@ -1001,10 +967,10 @@ protected:
   ///references to them
   TypeSystemMap m_type_system_map;   ///< A map of any type systems associated
                                      ///with this module
-  PathMappingList m_source_mappings; ///< Module specific source remappings for
-                                     ///when you have debug info for a module
-                                     ///that doesn't match where the sources
-                                     ///currently are
+  /// Module specific source remappings for when you have debug info for a
+  /// module that doesn't match where the sources currently are.
+  PathMappingList m_source_mappings =
+      ModuleList::GetGlobalModuleListProperties().GetSymlinkMappings();
   lldb::SectionListUP m_sections_up; ///< Unified section list for module that
                                      /// is used by the ObjectFile and and
                                      /// ObjectFile instances for the debug info

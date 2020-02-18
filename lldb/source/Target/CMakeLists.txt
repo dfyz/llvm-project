@@ -8,15 +8,17 @@ lldb_tablegen(TargetPropertiesEnum.inc -gen-lldb-property-enum-defs
 
 add_lldb_library(lldbTarget
   ABI.cpp
+  AssertFrameRecognizer.cpp
   ExecutionContext.cpp
-  JITLoader.cpp
-  JITLoaderList.cpp
   InstrumentationRuntime.cpp
   InstrumentationRuntimeStopInfo.cpp
+  JITLoader.cpp
+  JITLoaderList.cpp
   Language.cpp
   LanguageRuntime.cpp
   Memory.cpp
   MemoryHistory.cpp
+  MemoryRegionInfo.cpp
   ModuleCache.cpp
   OperatingSystem.cpp
   PathMappingList.cpp

@@ -61,7 +61,7 @@ struct CodeCompleteOptions {
   bool IncludeIneligibleResults = false;
 
   /// Combine overloads into a single completion item where possible.
-  /// If none, the the implementation may choose an appropriate behavior.
+  /// If none, the implementation may choose an appropriate behavior.
   /// (In practice, ClangdLSPServer enables bundling if the client claims
   /// to supports signature help).
   llvm::Optional<bool> BundleOverloads;
@@ -216,6 +216,11 @@ struct CodeCompleteResult {
   std::vector<CodeCompletion> Completions;
   bool HasMore = false;
   CodeCompletionContext::Kind Context = CodeCompletionContext::CCC_Other;
+  // The text that is being directly completed.
+  // Example: foo.pb^ -> foo.push_back()
+  //              ~~
+  // Typically matches the textEdit.range of Completions, but not guaranteed to.
+  llvm::Optional<Range> CompletionRange;
   // Usually the source will be parsed with a real C++ parser.
   // But heuristics may be used instead if e.g. the preamble is not ready.
   bool RanParser = true;

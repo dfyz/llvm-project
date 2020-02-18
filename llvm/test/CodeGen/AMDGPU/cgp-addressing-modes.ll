@@ -44,7 +44,10 @@ done:
 ; GCN-LABEL: {{^}}test_sink_global_small_max_i32_ds_offset:
 ; GCN: s_and_saveexec_b64
 ; SICIVI: buffer_load_sbyte {{v[0-9]+}}, off, {{s\[[0-9]+:[0-9]+\]}}, s{{[0-9]+$}}
-; GFX9: global_load_sbyte {{v[0-9]+}}, {{v\[[0-9]+:[0-9]+\]}}, off{{$}}
+
+; GFX9: v_add_co_u32_e32 v{{[0-9]+}}, vcc, 0xf000,
+; GFX9: v_addc_co_u32_e32 v{{[0-9]+}}, vcc, 0,
+; GFX9: global_load_sbyte {{v[0-9]+}}, {{v\[[0-9]+:[0-9]+\]}}, off offset:4095{{$}}
 ; GCN: {{^}}BB1_2:
 ; GCN: s_or_b64 exec
 define amdgpu_kernel void @test_sink_global_small_max_i32_ds_offset(i32 addrspace(1)* %out, i8 addrspace(1)* %in) {
@@ -365,9 +368,16 @@ done:
 
 ; GCN-LABEL: {{^}}test_sink_constant_max_32_bit_offset_i32:
 ; GCN: s_and_saveexec_b64
-; GCN: s_add_u32 s{{[0-9]+}}, s{{[0-9]+}}, -4{{$}}
-; GCN: s_addc_u32 s{{[0-9]+}}, s{{[0-9]+}}, 3{{$}}
+; SI: s_add_u32 s{{[0-9]+}}, s{{[0-9]+}}, -4{{$}}
+; SI: s_addc_u32 s{{[0-9]+}}, s{{[0-9]+}}, 3{{$}}
 ; SI: s_load_dword s{{[0-9]+}}, {{s\[[0-9]+:[0-9]+\]}}, 0x0{{$}}
+
+; VI: s_add_u32 s{{[0-9]+}}, s{{[0-9]+}}, -4{{$}}
+; VI: s_addc_u32 s{{[0-9]+}}, s{{[0-9]+}}, 3{{$}}
+; VI: s_load_dword s{{[0-9]+}}, {{s\[[0-9]+:[0-9]+\]}}, 0x0{{$}}
+
+; CI: s_load_dword s{{[0-9]+}}, {{s\[[0-9]+:[0-9]+\]}}, 0xffffffff{{$}}
+
 ; GCN: s_or_b64 exec, exec
 define amdgpu_kernel void @test_sink_constant_max_32_bit_offset_i32(i32 addrspace(1)* %out, i32 addrspace(4)* %in) {
 entry:

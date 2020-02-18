@@ -131,6 +131,7 @@ inline raw_ostream &operator<<(raw_ostream &OS, const MCExpr &E) {
 class MCConstantExpr : public MCExpr {
   int64_t Value;
   bool PrintInHex = false;
+  unsigned SizeInBytes = 0;
 
   explicit MCConstantExpr(int64_t Value)
       : MCExpr(MCExpr::Constant, SMLoc()), Value(Value) {}
@@ -139,18 +140,24 @@ class MCConstantExpr : public MCExpr {
       : MCExpr(MCExpr::Constant, SMLoc()), Value(Value),
         PrintInHex(PrintInHex) {}
 
+  MCConstantExpr(int64_t Value, bool PrintInHex, unsigned SizeInBytes)
+      : MCExpr(MCExpr::Constant, SMLoc()), Value(Value), PrintInHex(PrintInHex),
+        SizeInBytes(SizeInBytes) {}
+
 public:
   /// \name Construction
   /// @{
 
   static const MCConstantExpr *create(int64_t Value, MCContext &Ctx,
-                                      bool PrintInHex = false);
+                                      bool PrintInHex = false,
+                                      unsigned SizeInBytes = 0);
 
   /// @}
   /// \name Accessors
   /// @{
 
   int64_t getValue() const { return Value; }
+  unsigned getSizeInBytes() const { return SizeInBytes; }
 
   bool useHexFormat() const { return PrintInHex; }
 
@@ -235,6 +242,8 @@ public:
     VK_PPC_TOC_LO,         // symbol@toc@l
     VK_PPC_TOC_HI,         // symbol@toc@h
     VK_PPC_TOC_HA,         // symbol@toc@ha
+    VK_PPC_U,              // symbol@u
+    VK_PPC_L,              // symbol@l
     VK_PPC_DTPMOD,         // symbol@dtpmod
     VK_PPC_TPREL_LO,       // symbol@tprel@l
     VK_PPC_TPREL_HI,       // symbol@tprel@h

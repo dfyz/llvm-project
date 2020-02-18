@@ -1207,15 +1207,17 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
 
 
       // Update call site info and delete the pseudo instruction TCRETURN.
-      MBB.getParent()->moveCallSiteInfo(&MI, &*NewMI);
+      if (MI.isCandidateForCallSiteEntry())
+        MI.getMF()->moveCallSiteInfo(&MI, &*NewMI);
       MBB.erase(MBBI);
 
       MBBI = NewMI;
       return true;
     }
+    case ARM::VMOVHcc:
     case ARM::VMOVScc:
     case ARM::VMOVDcc: {
-      unsigned newOpc = Opcode == ARM::VMOVScc ? ARM::VMOVS : ARM::VMOVD;
+      unsigned newOpc = Opcode != ARM::VMOVDcc ? ARM::VMOVS : ARM::VMOVD;
       BuildMI(MBB, MBBI, MI.getDebugLoc(), TII->get(newOpc),
               MI.getOperand(1).getReg())
           .add(MI.getOperand(2))
@@ -1409,8 +1411,8 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
       const bool Thumb = Opcode == ARM::tTPsoft;
 
       MachineInstrBuilder MIB;
+      MachineFunction *MF = MBB.getParent();
       if (STI->genLongCalls()) {
-        MachineFunction *MF = MBB.getParent();
         MachineConstantPool *MCP = MF->getConstantPool();
         unsigned PCLabelID = AFI->createPICLabelUId();
         MachineConstantPoolValue *CPV =
@@ -1439,7 +1441,9 @@ bool ARMExpandPseudo::ExpandMI(MachineBasicBlock &MBB,
 
       MIB.cloneMemRefs(MI);
       TransferImpOps(MI, MIB, MIB);
-      MI.getMF()->moveCallSiteInfo(&MI, &*MIB);
+      // Update the call site info.
+      if (MI.isCandidateForCallSiteEntry())
+        MF->moveCallSiteInfo(&MI, &*MIB);
       MI.eraseFromParent();
       return true;
     }

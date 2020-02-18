@@ -173,7 +173,7 @@ public:
       : ID(ID), MRI(MRI) {}
   // Profiling methods.
   const GISelInstProfileBuilder &addNodeIDOpcode(unsigned Opc) const;
-  const GISelInstProfileBuilder &addNodeIDRegType(const LLT &Ty) const;
+  const GISelInstProfileBuilder &addNodeIDRegType(const LLT Ty) const;
   const GISelInstProfileBuilder &addNodeIDRegType(const unsigned) const;
 
   const GISelInstProfileBuilder &
@@ -220,9 +220,7 @@ class GISelCSEAnalysisWrapperPass : public MachineFunctionPass {
 
 public:
   static char ID;
-  GISelCSEAnalysisWrapperPass() : MachineFunctionPass(ID) {
-    initializeGISelCSEAnalysisWrapperPassPass(*PassRegistry::getPassRegistry());
-  }
+  GISelCSEAnalysisWrapperPass();
 
   void getAnalysisUsage(AnalysisUsage &AU) const override;
 

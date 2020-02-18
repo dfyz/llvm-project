@@ -45,6 +45,9 @@ struct ParseInputs {
   tooling::CompileCommand CompileCommand;
   IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS;
   std::string Contents;
+  // Prevent reuse of the cached preamble/AST. Slow! Useful to workaround
+  // clangd's assumption that missing header files will stay missing.
+  bool ForceRebuild = false;
   // Used to recover from diagnostics (e.g. find missing includes for symbol).
   const SymbolIndex *Index = nullptr;
   ParseOptions Opts;
@@ -52,8 +55,8 @@ struct ParseInputs {
 
 /// Builds compiler invocation that could be used to build AST or preamble.
 std::unique_ptr<CompilerInvocation>
-buildCompilerInvocation(const ParseInputs &Inputs,
-                        clang::DiagnosticConsumer &D);
+buildCompilerInvocation(const ParseInputs &Inputs, clang::DiagnosticConsumer &D,
+                        std::vector<std::string> *CC1Args = nullptr);
 
 /// Creates a compiler instance, configured so that:
 ///   - Contents of the parsed file are remapped to \p MainFile.

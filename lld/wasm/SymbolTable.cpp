@@ -65,6 +65,9 @@ void SymbolTable::addFile(InputFile *file) {
 // Because all bitcode files that the program consists of are passed
 // to the compiler at once, it can do whole-program optimization.
 void SymbolTable::addCombinedLTOObject() {
+  // Prevent further LTO objects being included
+  BitcodeFile::doneLTO = true;
+
   if (bitcodeFiles.empty())
     return;
 
@@ -203,8 +206,9 @@ DefinedFunction *SymbolTable::addSyntheticFunction(StringRef name,
 }
 
 // Adds an optional, linker generated, data symbols.  The symbol will only be
-// added if there is an undefine reference to it, or if it is explictly exported
-// via the --export flag.  Otherwise we don't add the symbol and return nullptr.
+// added if there is an undefine reference to it, or if it is explicitly
+// exported via the --export flag.  Otherwise we don't add the symbol and return
+// nullptr.
 DefinedData *SymbolTable::addOptionalDataSymbol(StringRef name,
                                                 uint32_t value) {
   Symbol *s = find(name);
@@ -393,6 +397,36 @@ Symbol *SymbolTable::addDefinedEvent(StringRef name, uint32_t flags,
   return s;
 }
 
+// This function get called when an undefined symbol is added, and there is
+// already an existing one in the symbols table.  In this case we check that
+// custom 'import-module' and 'import-field' symbol attributes agree.
+// With LTO these attributes are not available when the bitcode is read and only
+// become available when the LTO object is read.  In this case we silently
+// replace the empty attributes with the valid ones.
+template <typename T>
+static void setImportAttributes(T *existing, StringRef importName,
+                                StringRef importModule, InputFile *file) {
+  if (!importName.empty()) {
+    if (existing->importName.empty())
+      existing->importName = importName;
+    if (existing->importName != importName)
+      error("import name mismatch for symbol: " + toString(*existing) +
+            "\n>>> defined as " + existing->importName + " in " +
+            toString(existing->getFile()) + "\n>>> defined as " + importName +
+            " in " + toString(file));
+  }
+
+  if (!importModule.empty()) {
+    if (existing->importModule.empty())
+      existing->importModule = importModule;
+    if (existing->importModule != importModule)
+      error("import module mismatch for symbol: " + toString(*existing) +
+            "\n>>> defined as " + existing->importModule + " in " +
+            toString(existing->getFile()) + "\n>>> defined as " + importModule +
+            " in " + toString(file));
+  }
+}
+
 Symbol *SymbolTable::addUndefinedFunction(StringRef name, StringRef importName,
                                           StringRef importModule,
                                           uint32_t flags, InputFile *file,
@@ -424,10 +458,10 @@ Symbol *SymbolTable::addUndefinedFunction(StringRef name, StringRef importName,
       reportTypeError(s, file, WASM_SYMBOL_TYPE_FUNCTION);
       return s;
     }
+    auto *existingUndefined = dyn_cast<UndefinedFunction>(existingFunction);
     if (!existingFunction->signature && sig)
       existingFunction->signature = sig;
     if (isCalledDirectly && !signatureMatches(existingFunction, sig)) {
-      auto* existingUndefined = dyn_cast<UndefinedFunction>(existingFunction);
       // If the existing undefined functions is not called direcltly then let
       // this one take precedence.  Otherwise the existing function is either
       // direclty called or defined, in which case we need a function variant.
@@ -436,6 +470,8 @@ Symbol *SymbolTable::addUndefinedFunction(StringRef name, StringRef importName,
       else if (getFunctionVariant(s, sig, file, &s))
         replaceSym();
     }
+    if (existingUndefined)
+      setImportAttributes(existingUndefined, importName, importModule, file);
   }
 
   return s;
@@ -501,7 +537,7 @@ void SymbolTable::addLazy(ArchiveFile *file, const Archive::Symbol *sym) {
     return;
 
   // The existing symbol is undefined, load a new one from the archive,
-  // unless the the existing symbol is weak in which case replace the undefined
+  // unless the existing symbol is weak in which case replace the undefined
   // symbols with a LazySymbol.
   if (s->isWeak()) {
     const WasmSignature *oldSig = nullptr;
@@ -614,7 +650,7 @@ void SymbolTable::handleWeakUndefines() {
       // It is possible for undefined functions not to have a signature (eg. if
       // added via "--undefined"), but weak undefined ones do have a signature.
       // Lazy symbols may not be functions and therefore Sig can still be null
-      // in some circumstantce.
+      // in some circumstance.
       assert(!isa<FunctionSymbol>(sym));
       continue;
     }
@@ -686,7 +722,7 @@ void SymbolTable::handleSymbolVariants() {
       if (symbol != defined) {
         auto *f = cast<FunctionSymbol>(symbol);
         reportFunctionSignatureMismatch(symName, f, defined, false);
-        StringRef debugName = saver.save("unreachable:" + toString(*f));
+        StringRef debugName = saver.save("signature_mismatch:" + toString(*f));
         replaceWithUnreachable(f, *f->signature, debugName);
       }
     }

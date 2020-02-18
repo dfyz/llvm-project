@@ -250,7 +250,7 @@ still work.
 The most important command line options are:
 
 ``-help``
-  Print help message.
+  Print help message (``-help=1``).
 ``-seed``
   Random seed. If 0 (the default), the seed is generated.
 ``-runs``
@@ -258,7 +258,7 @@ The most important command line options are:
 ``-max_len``
   Maximum length of a test input. If 0 (the default), libFuzzer tries to guess
   a good value based on the corpus (and reports it).
-``len_control``
+``-len_control``
   Try generating small inputs first, then try larger inputs over time.
   Specifies the rate at which the length limit is increased (smaller == faster).
   Default is 100. If 0, immediately try inputs with size up to max_len.
@@ -287,7 +287,7 @@ The most important command line options are:
   that trigger new code coverage will be merged into the first corpus
   directory.  Defaults to 0. This flag can be used to minimize a corpus.
 ``-merge_control_file``
-  Specify a control file used for the merge proccess.
+  Specify a control file used for the merge process.
   If a merge process gets killed it tries to leave this file in a state
   suitable for resuming the merge. By default a temporary file will be used.
 ``-minimize_crash``
@@ -350,7 +350,7 @@ Output
 During operation the fuzzer prints information to ``stderr``, for example::
 
   INFO: Seed: 1523017872
-  INFO: Loaded 1 modules (16 guards): [0x744e60, 0x744ea0), 
+  INFO: Loaded 1 modules (16 guards): [0x744e60, 0x744ea0),
   INFO: -max_len is not provided, using 64
   INFO: A corpus is not provided, starting from an empty corpus
   #0	READ units: 1
@@ -409,8 +409,8 @@ Each output line also reports the following statistics (when non-zero):
 ``rss:``
   Current memory consumption.
 
-For ``NEW`` events, the output line also includes information about the mutation
-operation that produced the new input:
+For ``NEW`` and ``REDUCE`` events, the output line also includes information
+about the mutation operation that produced the new input:
 
 ``L:``
   Size of the new input in bytes.
@@ -449,7 +449,7 @@ A simple function that does something interesting if it receives the input
 You should get an error pretty quickly::
 
   INFO: Seed: 1523017872
-  INFO: Loaded 1 modules (16 guards): [0x744e60, 0x744ea0), 
+  INFO: Loaded 1 modules (16 guards): [0x744e60, 0x744ea0),
   INFO: -max_len is not provided, using 64
   INFO: A corpus is not provided, starting from an empty corpus
   #0	READ units: 1
@@ -515,7 +515,7 @@ and extra run-time flag ``-use_value_profile=1`` the fuzzer will
 collect value profiles for the parameters of compare instructions
 and treat some new values as new coverage.
 
-The current imlpementation does roughly the following:
+The current implementation does roughly the following:
 
 * The compiler instruments all CMP instructions with a callback that receives both CMP arguments.
 * The callback computes `(caller_pc&4095) | (popcnt(Arg1 ^ Arg2) << 12)` and uses this value to set a bit in a bitset.

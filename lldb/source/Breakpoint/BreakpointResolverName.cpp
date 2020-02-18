@@ -1,4 +1,4 @@
-//===-- BreakpointResolverName.cpp ------------------------------*- C++ -*-===//
+//===-- BreakpointResolverName.cpp ----------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -173,7 +173,7 @@ BreakpointResolver *BreakpointResolverName::CreateFromStructuredData(
         error.SetErrorString("BRN::CFSD: name mask entry is not an integer.");
         return nullptr;
       }
-      names.push_back(name);
+      names.push_back(std::string(name));
       name_masks.push_back(static_cast<FunctionNameType>(fnt));
     }
 
@@ -199,7 +199,7 @@ StructuredData::ObjectSP BreakpointResolverName::SerializeToStructuredData() {
     StructuredData::ArraySP name_masks_sp(new StructuredData::Array());
     for (auto lookup : m_lookups) {
       names_sp->AddItem(StructuredData::StringSP(
-          new StructuredData::String(lookup.GetName().AsCString())));
+          new StructuredData::String(lookup.GetName().GetStringRef())));
       name_masks_sp->AddItem(StructuredData::IntegerSP(
           new StructuredData::Integer(lookup.GetNameTypeMask())));
     }
@@ -271,7 +271,6 @@ BreakpointResolverName::SearchCallback(SearchFilter &filter,
   bool filter_by_language = (m_language != eLanguageTypeUnknown);
   const bool include_symbols = !filter_by_cu;
   const bool include_inlines = true;
-  const bool append = true;
 
   switch (m_match_type) {
   case Breakpoint::Exact:
@@ -280,7 +279,7 @@ BreakpointResolverName::SearchCallback(SearchFilter &filter,
         const size_t start_func_idx = func_list.GetSize();
         context.module_sp->FindFunctions(
             lookup.GetLookupName(), nullptr, lookup.GetNameTypeMask(),
-            include_symbols, include_inlines, append, func_list);
+            include_symbols, include_inlines, func_list);
 
         const size_t end_func_idx = func_list.GetSize();
 
@@ -294,7 +293,7 @@ BreakpointResolverName::SearchCallback(SearchFilter &filter,
       context.module_sp->FindFunctions(
           m_regex,
           !filter_by_cu, // include symbols only if we aren't filtering by CU
-          include_inlines, append, func_list);
+          include_inlines, func_list);
     }
     break;
   case Breakpoint::Glob:

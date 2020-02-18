@@ -37,6 +37,8 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/IntrinsicsX86.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
@@ -499,6 +501,10 @@ bool ReadDataFromGlobal(Constant *C, uint64_t ByteOffset, unsigned char *CurPtr,
 
 Constant *FoldReinterpretLoadFromConstPtr(Constant *C, Type *LoadTy,
                                           const DataLayout &DL) {
+  // Bail out early. Not expect to load from scalable global variable.
+  if (LoadTy->isVectorTy() && LoadTy->getVectorIsScalable())
+    return nullptr;
+
   auto *PTy = cast<PointerType>(C->getType());
   auto *IntType = dyn_cast<IntegerType>(LoadTy);
 
@@ -518,8 +524,8 @@ Constant *FoldReinterpretLoadFromConstPtr(Constant *C, Type *LoadTy,
     else if (LoadTy->isDoubleTy())
       MapTy = Type::getInt64Ty(C->getContext());
     else if (LoadTy->isVectorTy()) {
-      MapTy = PointerType::getIntNTy(C->getContext(),
-                                     DL.getTypeSizeInBits(LoadTy));
+      MapTy = PointerType::getIntNTy(
+          C->getContext(), DL.getTypeSizeInBits(LoadTy).getFixedSize());
     } else
       return nullptr;
 
@@ -559,7 +565,8 @@ Constant *FoldReinterpretLoadFromConstPtr(Constant *C, Type *LoadTy,
     return nullptr;
 
   int64_t Offset = OffsetAI.getSExtValue();
-  int64_t InitializerSize = DL.getTypeAllocSize(GV->getInitializer()->getType());
+  int64_t InitializerSize =
+      DL.getTypeAllocSize(GV->getInitializer()->getType()).getFixedSize();
 
   // If we're not accessing anything in this constant, the result is undefined.
   if (Offset <= -1 * static_cast<int64_t>(BytesLoaded))
@@ -764,8 +771,8 @@ Constant *SymbolicallyEvaluateBinop(unsigned Opc, Constant *Op0, Constant *Op1,
 Constant *CastGEPIndices(Type *SrcElemTy, ArrayRef<Constant *> Ops,
                          Type *ResultTy, Optional<unsigned> InRangeIndex,
                          const DataLayout &DL, const TargetLibraryInfo *TLI) {
-  Type *IntPtrTy = DL.getIntPtrType(ResultTy);
-  Type *IntPtrScalarTy = IntPtrTy->getScalarType();
+  Type *IntIdxTy = DL.getIndexType(ResultTy);
+  Type *IntIdxScalarTy = IntIdxTy->getScalarType();
 
   bool Any = false;
   SmallVector<Constant*, 32> NewIdxs;
@@ -773,11 +780,11 @@ Constant *CastGEPIndices(Type *SrcElemTy, ArrayRef<Constant *> Ops,
     if ((i == 1 ||
          !isa<StructType>(GetElementPtrInst::getIndexedType(
              SrcElemTy, Ops.slice(1, i - 1)))) &&
-        Ops[i]->getType()->getScalarType() != IntPtrScalarTy) {
+        Ops[i]->getType()->getScalarType() != IntIdxScalarTy) {
       Any = true;
       Type *NewType = Ops[i]->getType()->isVectorTy()
-                          ? IntPtrTy
-                          : IntPtrTy->getScalarType();
+                          ? IntIdxTy
+                          : IntIdxScalarTy;
       NewIdxs.push_back(ConstantExpr::getCast(CastInst::getCastOpcode(Ops[i],
                                                                       true,
                                                                       NewType,
@@ -826,7 +833,8 @@ Constant *SymbolicallyEvaluateGEP(const GEPOperator *GEP,
   Type *SrcElemTy = GEP->getSourceElementType();
   Type *ResElemTy = GEP->getResultElementType();
   Type *ResTy = GEP->getType();
-  if (!SrcElemTy->isSized())
+  if (!SrcElemTy->isSized() ||
+      (SrcElemTy->isVectorTy() && SrcElemTy->getVectorIsScalable()))
     return nullptr;
 
   if (Constant *C = CastGEPIndices(SrcElemTy, Ops, ResTy,
@@ -837,7 +845,7 @@ Constant *SymbolicallyEvaluateGEP(const GEPOperator *GEP,
   if (!Ptr->getType()->isPointerTy())
     return nullptr;
 
-  Type *IntPtrTy = DL.getIntPtrType(Ptr->getType());
+  Type *IntIdxTy = DL.getIndexType(Ptr->getType());
 
   // If this is a constant expr gep that is effectively computing an
   // "offsetof", fold it into 'cast int Size to T*' instead of 'gep 0, 0, 12'
@@ -848,7 +856,7 @@ Constant *SymbolicallyEvaluateGEP(const GEPOperator *GEP,
         // "inttoptr (sub (ptrtoint Ptr), V)"
         if (Ops.size() == 2 && ResElemTy->isIntegerTy(8)) {
           auto *CE = dyn_cast<ConstantExpr>(Ops[1]);
-          assert((!CE || CE->getType() == IntPtrTy) &&
+          assert((!CE || CE->getType() == IntIdxTy) &&
                  "CastGEPIndices didn't canonicalize index types!");
           if (CE && CE->getOpcode() == Instruction::Sub &&
               CE->getOperand(0)->isNullValue()) {
@@ -863,7 +871,7 @@ Constant *SymbolicallyEvaluateGEP(const GEPOperator *GEP,
         return nullptr;
       }
 
-  unsigned BitWidth = DL.getTypeSizeInBits(IntPtrTy);
+  unsigned BitWidth = DL.getTypeSizeInBits(IntIdxTy);
   APInt Offset =
       APInt(BitWidth,
             DL.getIndexedOffsetInType(
@@ -943,7 +951,7 @@ Constant *SymbolicallyEvaluateGEP(const GEPOperator *GEP,
         // The element size is 0. This may be [0 x Ty]*, so just use a zero
         // index for this level and proceed to the next level to see if it can
         // accommodate the offset.
-        NewIdxs.push_back(ConstantInt::get(IntPtrTy, 0));
+        NewIdxs.push_back(ConstantInt::get(IntIdxTy, 0));
       } else {
         // The element size is non-zero divide the offset by the element
         // size (rounding down), to compute the index at this level.
@@ -952,7 +960,7 @@ Constant *SymbolicallyEvaluateGEP(const GEPOperator *GEP,
         if (Overflow)
           break;
         Offset -= NewIdx * ElemSize;
-        NewIdxs.push_back(ConstantInt::get(IntPtrTy, NewIdx));
+        NewIdxs.push_back(ConstantInt::get(IntIdxTy, NewIdx));
       }
     } else {
       auto *STy = cast<StructType>(Ty);
@@ -1515,7 +1523,8 @@ bool llvm::canConstantFoldCallTo(const CallBase *Call, const Function *F) {
   case 'p':
     return Name == "pow" || Name == "powf";
   case 'r':
-    return Name == "rint" || Name == "rintf" ||
+    return Name == "remainder" || Name == "remainderf" ||
+           Name == "rint" || Name == "rintf" ||
            Name == "round" || Name == "roundf";
   case 's':
     return Name == "sin" || Name == "sinf" ||
@@ -2095,6 +2104,14 @@ static Constant *ConstantFoldScalarCall2(StringRef Name,
             return ConstantFP::get(Ty->getContext(), V);
         }
         break;
+      case LibFunc_remainder:
+      case LibFunc_remainderf:
+        if (TLI->has(Func)) {
+          APFloat V = Op1->getValueAPF();
+          if (APFloat::opStatus::opOK == V.remainder(Op2->getValueAPF()))
+            return ConstantFP::get(Ty->getContext(), V);
+        }
+        break;
       case LibFunc_atan2:
       case LibFunc_atan2f:
       case LibFunc_atan2_finite:
@@ -2397,6 +2414,11 @@ static Constant *ConstantFoldVectorCall(StringRef Name,
   SmallVector<Constant *, 4> Lane(Operands.size());
   Type *Ty = VTy->getElementType();
 
+  // Do not iterate on scalable vector. The number of elements is unknown at
+  // compile-time.
+  if (VTy->getVectorIsScalable())
+    return nullptr;
+
   if (IntrinsicID == Intrinsic::masked_load) {
     auto *SrcPtr = Operands[0];
     auto *Mask = Operands[2];
@@ -2624,6 +2646,9 @@ bool llvm::isMathLibCallNoop(const CallBase *Call,
       case LibFunc_fmodl:
       case LibFunc_fmod:
       case LibFunc_fmodf:
+      case LibFunc_remainderl:
+      case LibFunc_remainder:
+      case LibFunc_remainderf:
         return Op0.isNaN() || Op1.isNaN() ||
                (!Op0.isInfinity() && !Op1.isZero());
 

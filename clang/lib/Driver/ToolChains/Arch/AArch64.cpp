@@ -12,6 +12,7 @@
 #include "clang/Driver/Options.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/TargetParser.h"
+#include "llvm/Support/Host.h"
 
 using namespace clang::driver;
 using namespace clang::driver::tools;
@@ -38,14 +39,15 @@ std::string aarch64::getAArch64TargetCPU(const ArgList &Args,
 
   // Handle CPU name is 'native'.
   if (CPU == "native")
-    return llvm::sys::getHostCPUName();
+    return std::string(llvm::sys::getHostCPUName());
   else if (CPU.size())
     return CPU;
 
-  // Make sure we pick "cyclone" if -arch is used or when targetting a Darwin
-  // OS.
+  // Make sure we pick the appropriate Apple CPU if -arch is used or when
+  // targetting a Darwin OS.
   if (Args.getLastArg(options::OPT_arch) || Triple.isOSDarwin())
-    return "cyclone";
+    return Triple.getArch() == llvm::Triple::aarch64_32 ? "apple-s4"
+                                                        : "apple-a7";
 
   return "generic";
 }
@@ -137,8 +139,8 @@ getAArch64MicroArchFeaturesFromMtune(const Driver &D, StringRef Mtune,
 
   // Handle CPU name is 'native'.
   if (MtuneLowerCase == "native")
-    MtuneLowerCase = llvm::sys::getHostCPUName();
-  if (MtuneLowerCase == "cyclone") {
+    MtuneLowerCase = std::string(llvm::sys::getHostCPUName());
+  if (MtuneLowerCase == "cyclone" || MtuneLowerCase.find("apple") == 0) {
     Features.push_back("+zcm");
     Features.push_back("+zcz");
   }

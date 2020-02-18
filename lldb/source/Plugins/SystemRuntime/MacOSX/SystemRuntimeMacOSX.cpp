@@ -1,4 +1,4 @@
-//===-- SystemRuntimeMacOSX.cpp ---------------------------------*- C++ -*-===//
+//===-- SystemRuntimeMacOSX.cpp -------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,12 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "Plugins/Process/Utility/HistoryThread.h"
+#include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Breakpoint/StoppointCallbackContext.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Section.h"
-#include "lldb/Symbol/ClangASTContext.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Symbol/SymbolContext.h"
 #include "lldb/Target/Process.h"
@@ -33,6 +33,8 @@
 
 using namespace lldb;
 using namespace lldb_private;
+
+LLDB_PLUGIN_DEFINE(SystemRuntimeMacOSX)
 
 // Create an instance of this class. This function is filled into the plugin
 // info class that gets handed out by the plugin factory and allows the lldb to
@@ -411,30 +413,29 @@ void SystemRuntimeMacOSX::ReadLibdispatchTSDIndexes() {
         }
 #endif
 
-    ClangASTContext *ast_ctx =
-        m_process->GetTarget().GetScratchClangASTContext();
-    if (ast_ctx->getASTContext() &&
-        m_dispatch_tsd_indexes_addr != LLDB_INVALID_ADDRESS) {
+    TypeSystemClang *ast_ctx =
+        TypeSystemClang::GetScratch(m_process->GetTarget());
+    if (m_dispatch_tsd_indexes_addr != LLDB_INVALID_ADDRESS) {
       CompilerType uint16 =
           ast_ctx->GetBuiltinTypeForEncodingAndBitSize(eEncodingUint, 16);
       CompilerType dispatch_tsd_indexes_s = ast_ctx->CreateRecordType(
           nullptr, lldb::eAccessPublic, "__lldb_dispatch_tsd_indexes_s",
           clang::TTK_Struct, lldb::eLanguageTypeC);
 
-      ClangASTContext::StartTagDeclarationDefinition(dispatch_tsd_indexes_s);
-      ClangASTContext::AddFieldToRecordType(dispatch_tsd_indexes_s,
+      TypeSystemClang::StartTagDeclarationDefinition(dispatch_tsd_indexes_s);
+      TypeSystemClang::AddFieldToRecordType(dispatch_tsd_indexes_s,
                                             "dti_version", uint16,
                                             lldb::eAccessPublic, 0);
-      ClangASTContext::AddFieldToRecordType(dispatch_tsd_indexes_s,
+      TypeSystemClang::AddFieldToRecordType(dispatch_tsd_indexes_s,
                                             "dti_queue_index", uint16,
                                             lldb::eAccessPublic, 0);
-      ClangASTContext::AddFieldToRecordType(dispatch_tsd_indexes_s,
+      TypeSystemClang::AddFieldToRecordType(dispatch_tsd_indexes_s,
                                             "dti_voucher_index", uint16,
                                             lldb::eAccessPublic, 0);
-      ClangASTContext::AddFieldToRecordType(dispatch_tsd_indexes_s,
+      TypeSystemClang::AddFieldToRecordType(dispatch_tsd_indexes_s,
                                             "dti_qos_class_index", uint16,
                                             lldb::eAccessPublic, 0);
-      ClangASTContext::CompleteTagDeclarationDefinition(dispatch_tsd_indexes_s);
+      TypeSystemClang::CompleteTagDeclarationDefinition(dispatch_tsd_indexes_s);
 
       ProcessStructReader struct_reader(m_process, m_dispatch_tsd_indexes_addr,
                                         dispatch_tsd_indexes_s);
@@ -579,9 +580,9 @@ bool SystemRuntimeMacOSX::BacktraceRecordingHeadersInitialized() {
   static ConstString introspection_dispatch_queue_info_version(
       "__introspection_dispatch_queue_info_version");
   SymbolContextList sc_list;
-  if (m_process->GetTarget().GetImages().FindSymbolsWithNameAndType(
-          introspection_dispatch_queue_info_version, eSymbolTypeData, sc_list) >
-      0) {
+  m_process->GetTarget().GetImages().FindSymbolsWithNameAndType(
+      introspection_dispatch_queue_info_version, eSymbolTypeData, sc_list);
+  if (!sc_list.IsEmpty()) {
     SymbolContext sc;
     sc_list.GetContextAtIndex(0, sc);
     AddressRange addr_range;
@@ -593,9 +594,9 @@ bool SystemRuntimeMacOSX::BacktraceRecordingHeadersInitialized() {
 
   static ConstString introspection_dispatch_queue_info_data_offset(
       "__introspection_dispatch_queue_info_data_offset");
-  if (m_process->GetTarget().GetImages().FindSymbolsWithNameAndType(
-          introspection_dispatch_queue_info_data_offset, eSymbolTypeData,
-          sc_list) > 0) {
+  m_process->GetTarget().GetImages().FindSymbolsWithNameAndType(
+      introspection_dispatch_queue_info_data_offset, eSymbolTypeData, sc_list);
+  if (!sc_list.IsEmpty()) {
     SymbolContext sc;
     sc_list.GetContextAtIndex(0, sc);
     AddressRange addr_range;
@@ -607,9 +608,9 @@ bool SystemRuntimeMacOSX::BacktraceRecordingHeadersInitialized() {
 
   static ConstString introspection_dispatch_item_info_version(
       "__introspection_dispatch_item_info_version");
-  if (m_process->GetTarget().GetImages().FindSymbolsWithNameAndType(
-          introspection_dispatch_item_info_version, eSymbolTypeData, sc_list) >
-      0) {
+  m_process->GetTarget().GetImages().FindSymbolsWithNameAndType(
+      introspection_dispatch_item_info_version, eSymbolTypeData, sc_list);
+  if (!sc_list.IsEmpty()) {
     SymbolContext sc;
     sc_list.GetContextAtIndex(0, sc);
     AddressRange addr_range;
@@ -621,9 +622,9 @@ bool SystemRuntimeMacOSX::BacktraceRecordingHeadersInitialized() {
 
   static ConstString introspection_dispatch_item_info_data_offset(
       "__introspection_dispatch_item_info_data_offset");
-  if (m_process->GetTarget().GetImages().FindSymbolsWithNameAndType(
-          introspection_dispatch_item_info_data_offset, eSymbolTypeData,
-          sc_list) > 0) {
+  m_process->GetTarget().GetImages().FindSymbolsWithNameAndType(
+      introspection_dispatch_item_info_data_offset, eSymbolTypeData, sc_list);
+  if (!sc_list.IsEmpty()) {
     SymbolContext sc;
     sc_list.GetContextAtIndex(0, sc);
     AddressRange addr_range;

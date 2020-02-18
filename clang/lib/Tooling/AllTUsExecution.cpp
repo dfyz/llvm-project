@@ -8,6 +8,7 @@
 
 #include "clang/Tooling/AllTUsExecution.h"
 #include "clang/Tooling/ToolExecutorPluginRegistry.h"
+#include "llvm/Support/Threading.h"
 #include "llvm/Support/ThreadPool.h"
 #include "llvm/Support/VirtualFileSystem.h"
 
@@ -113,8 +114,7 @@ llvm::Error AllTUsToolExecutor::execute(
   auto &Action = Actions.front();
 
   {
-    llvm::ThreadPool Pool(ThreadCount == 0 ? llvm::hardware_concurrency()
-                                           : ThreadCount);
+    llvm::ThreadPool Pool(llvm::hardware_concurrency(ThreadCount));
     for (std::string File : Files) {
       Pool.async(
           [&](std::string Path) {

@@ -69,8 +69,6 @@ typedef void (*RequestCallback)(const llvm::json::Object &command);
 
 enum LaunchMethod { Launch, Attach, AttachForSuspendedLaunch };
 
-enum VSCodeBroadcasterBits { eBroadcastBitStopEventThread = 1u << 0 };
-
 SOCKET AcceptConnection(int portno) {
   // Accept a socket connection from any host on "portno".
   SOCKET newsockfd = -1;
@@ -379,27 +377,20 @@ void EventThreadFunction() {
         if (event_mask & lldb::SBTarget::eBroadcastBitBreakpointChanged) {
           auto event_type =
               lldb::SBBreakpoint::GetBreakpointEventTypeFromEvent(event);
-          const auto num_locs =
-              lldb::SBBreakpoint::GetNumBreakpointLocationsFromEvent(event);
           auto bp = lldb::SBBreakpoint::GetBreakpointFromEvent(event);
-          bool added = event_type & lldb::eBreakpointEventTypeLocationsAdded;
-          bool removed =
-              event_type & lldb::eBreakpointEventTypeLocationsRemoved;
-          if (added || removed) {
-            for (size_t i = 0; i < num_locs; ++i) {
-              auto bp_loc =
-                  lldb::SBBreakpoint::GetBreakpointLocationAtIndexFromEvent(
-                      event, i);
-              auto bp_event = CreateEventObject("breakpoint");
-              llvm::json::Object body;
-              body.try_emplace("breakpoint", CreateBreakpoint(bp_loc));
-              if (added)
-                body.try_emplace("reason", "new");
-              else
-                body.try_emplace("reason", "removed");
-              bp_event.try_emplace("body", std::move(body));
-              g_vsc.SendJSON(llvm::json::Value(std::move(bp_event)));
-            }
+          // If the breakpoint was originated from the IDE, it will have the
+          // BreakpointBase::GetBreakpointLabel() label attached. Regardless
+          // of wether the locations were added or removed, the breakpoint
+          // ins't going away, so we the reason is always "changed".
+          if ((event_type & lldb::eBreakpointEventTypeLocationsAdded ||
+               event_type & lldb::eBreakpointEventTypeLocationsRemoved) &&
+              bp.MatchesName(BreakpointBase::GetBreakpointLabel())) {
+            auto bp_event = CreateEventObject("breakpoint");
+            llvm::json::Object body;
+            body.try_emplace("breakpoint", CreateBreakpoint(bp));
+            body.try_emplace("reason", "changed");
+            bp_event.try_emplace("body", std::move(body));
+            g_vsc.SendJSON(llvm::json::Value(std::move(bp_event)));
           }
         }
       } else if (event.BroadcasterMatchesRef(g_vsc.broadcaster)) {
@@ -512,25 +503,13 @@ void request_attach(const llvm::json::Object &request) {
   // Run any initialize LLDB commands the user specified in the launch.json
   g_vsc.RunInitCommands();
 
-  // Grab the name of the program we need to debug and set it as the first
-  // argument that will be passed to the program we will debug.
-  const auto program = GetString(arguments, "program");
-  if (!program.empty()) {
-    lldb::SBFileSpec program_fspec(program.data(), true /*resolve_path*/);
-
-    g_vsc.launch_info.SetExecutableFile(program_fspec,
-                                        false /*add_as_first_arg*/);
-    const char *target_triple = nullptr;
-    const char *uuid_cstr = nullptr;
-    // Stand alone debug info file if different from executable
-    const char *symfile = nullptr;
-    g_vsc.target.AddModule(program.data(), target_triple, uuid_cstr, symfile);
-    if (error.Fail()) {
-      response["success"] = llvm::json::Value(false);
-      EmplaceSafeString(response, "message", std::string(error.GetCString()));
-      g_vsc.SendJSON(llvm::json::Value(std::move(response)));
-      return;
-    }
+  lldb::SBError status;
+  g_vsc.SetTarget(g_vsc.CreateTargetFromArguments(*arguments, status));
+  if (status.Fail()) {
+    response["success"] = llvm::json::Value(false);
+    EmplaceSafeString(response, "message", status.GetCString());
+    g_vsc.SendJSON(llvm::json::Value(std::move(response)));
+    return;
   }
 
   const bool detatchOnError = GetBoolean(arguments, "detachOnError", false);
@@ -543,7 +522,8 @@ void request_attach(const llvm::json::Object &request) {
     char attach_info[256];
     auto attach_info_len =
         snprintf(attach_info, sizeof(attach_info),
-                 "Waiting to attach to \"%s\"...", program.data());
+                 "Waiting to attach to \"%s\"...",
+                 g_vsc.target.GetExecutable().GetFilename());
     g_vsc.SendOutput(OutputType::Console, llvm::StringRef(attach_info,
                                                           attach_info_len));
   }
@@ -821,6 +801,160 @@ void request_exceptionInfo(const llvm::json::Object &request) {
   g_vsc.SendJSON(llvm::json::Value(std::move(response)));
 }
 
+// "CompletionsRequest": {
+//   "allOf": [ { "$ref": "#/definitions/Request" }, {
+//     "type": "object",
+//     "description": "Returns a list of possible completions for a given caret position and text.\nThe CompletionsRequest may only be called if the 'supportsCompletionsRequest' capability exists and is true.",
+//     "properties": {
+//       "command": {
+//         "type": "string",
+//         "enum": [ "completions" ]
+//       },
+//       "arguments": {
+//         "$ref": "#/definitions/CompletionsArguments"
+//       }
+//     },
+//     "required": [ "command", "arguments"  ]
+//   }]
+// },
+// "CompletionsArguments": {
+//   "type": "object",
+//   "description": "Arguments for 'completions' request.",
+//   "properties": {
+//     "frameId": {
+//       "type": "integer",
+//       "description": "Returns completions in the scope of this stack frame. If not specified, the completions are returned for the global scope."
+//     },
+//     "text": {
+//       "type": "string",
+//       "description": "One or more source lines. Typically this is the text a user has typed into the debug console before he asked for completion."
+//     },
+//     "column": {
+//       "type": "integer",
+//       "description": "The character position for which to determine the completion proposals."
+//     },
+//     "line": {
+//       "type": "integer",
+//       "description": "An optional line for which to determine the completion proposals. If missing the first line of the text is assumed."
+//     }
+//   },
+//   "required": [ "text", "column" ]
+// },
+// "CompletionsResponse": {
+//   "allOf": [ { "$ref": "#/definitions/Response" }, {
+//     "type": "object",
+//     "description": "Response to 'completions' request.",
+//     "properties": {
+//       "body": {
+//         "type": "object",
+//         "properties": {
+//           "targets": {
+//             "type": "array",
+//             "items": {
+//               "$ref": "#/definitions/CompletionItem"
+//             },
+//             "description": "The possible completions for ."
+//           }
+//         },
+//         "required": [ "targets" ]
+//       }
+//     },
+//     "required": [ "body" ]
+//   }]
+// },
+// "CompletionItem": {
+//   "type": "object",
+//   "description": "CompletionItems are the suggestions returned from the CompletionsRequest.",
+//   "properties": {
+//     "label": {
+//       "type": "string",
+//       "description": "The label of this completion item. By default this is also the text that is inserted when selecting this completion."
+//     },
+//     "text": {
+//       "type": "string",
+//       "description": "If text is not falsy then it is inserted instead of the label."
+//     },
+//     "sortText": {
+//       "type": "string",
+//       "description": "A string that should be used when comparing this item with other items. When `falsy` the label is used."
+//     },
+//     "type": {
+//       "$ref": "#/definitions/CompletionItemType",
+//       "description": "The item's type. Typically the client uses this information to render the item in the UI with an icon."
+//     },
+//     "start": {
+//       "type": "integer",
+//       "description": "This value determines the location (in the CompletionsRequest's 'text' attribute) where the completion text is added.\nIf missing the text is added at the location specified by the CompletionsRequest's 'column' attribute."
+//     },
+//     "length": {
+//       "type": "integer",
+//       "description": "This value determines how many characters are overwritten by the completion text.\nIf missing the value 0 is assumed which results in the completion text being inserted."
+//     }
+//   },
+//   "required": [ "label" ]
+// },
+// "CompletionItemType": {
+//   "type": "string",
+//   "description": "Some predefined types for the CompletionItem. Please note that not all clients have specific icons for all of them.",
+//   "enum": [ "method", "function", "constructor", "field", "variable", "class", "interface", "module", "property", "unit", "value", "enum", "keyword", "snippet", "text", "color", "file", "reference", "customcolor" ]
+// }
+void request_completions(const llvm::json::Object &request) {
+  llvm::json::Object response;
+  FillResponse(request, response);
+  llvm::json::Object body;
+  auto arguments = request.getObject("arguments");
+  std::string text = std::string(GetString(arguments, "text"));
+  auto original_column = GetSigned(arguments, "column", text.size());
+  auto actual_column = original_column - 1;
+  llvm::json::Array targets;
+  // NOTE: the 'line' argument is not needed, as multiline expressions
+  // work well already
+  // TODO: support frameID. Currently
+  // g_vsc.debugger.GetCommandInterpreter().HandleCompletionWithDescriptions
+  // is frame-unaware.
+
+  if (!text.empty() && text[0] == '`') {
+    text = text.substr(1);
+    actual_column--;
+  } else {
+    text = "p " + text;
+    actual_column += 2;
+  }
+  lldb::SBStringList matches;
+  lldb::SBStringList descriptions;
+  g_vsc.debugger.GetCommandInterpreter().HandleCompletionWithDescriptions(
+    text.c_str(),
+    actual_column,
+    0, -1, matches, descriptions);
+  size_t count = std::min((uint32_t)50, matches.GetSize());
+  targets.reserve(count);
+  for (size_t i = 0; i < count; i++) {
+    std::string match = matches.GetStringAtIndex(i);
+    std::string description = descriptions.GetStringAtIndex(i);
+    
+    llvm::json::Object item;
+
+    llvm::StringRef match_ref = match;
+    for(llvm::StringRef commit_point: {".", "->"}) {
+      if (match_ref.contains(commit_point)){
+        match_ref = match_ref.rsplit(commit_point).second;
+      }
+    }
+    EmplaceSafeString(item, "text", match_ref);
+
+    if (description.empty())
+      EmplaceSafeString(item, "label", match);
+    else
+      EmplaceSafeString(item, "label", match + " -- " + description);
+
+    targets.emplace_back(std::move(item));
+  }
+
+  body.try_emplace("targets", std::move(targets));
+  response.try_emplace("body", std::move(body));
+  g_vsc.SendJSON(llvm::json::Value(std::move(response)));
+}
+
 //  "EvaluateRequest": {
 //    "allOf": [ { "$ref": "#/definitions/Request" }, {
 //      "type": "object",
@@ -931,8 +1065,8 @@ void request_evaluate(const llvm::json::Object &request) {
   const auto expression = GetString(arguments, "expression");
 
   if (!expression.empty() && expression[0] == '`') {
-    auto result = RunLLDBCommands(llvm::StringRef(),
-                                     {expression.substr(1)});
+    auto result =
+        RunLLDBCommands(llvm::StringRef(), {std::string(expression.substr(1))});
     EmplaceSafeString(body, "result", result);
     body.try_emplace("variablesReference", (int64_t)0);
   } else {
@@ -1063,13 +1197,6 @@ void request_initialize(const llvm::json::Object &request) {
     g_vsc.debugger.SetErrorFileHandle(out, false);
   }
 
-  g_vsc.target = g_vsc.debugger.CreateTarget(nullptr);
-  lldb::SBListener listener = g_vsc.debugger.GetListener();
-  listener.StartListeningForEvents(
-      g_vsc.target.GetBroadcaster(),
-      lldb::SBTarget::eBroadcastBitBreakpointChanged);
-  listener.StartListeningForEvents(g_vsc.broadcaster,
-                                   eBroadcastBitStopEventThread);
   // Start our event thread so we can receive events from the debugger, target,
   // process and more.
   g_vsc.event_thread = std::thread(EventThreadFunction);
@@ -1106,7 +1233,21 @@ void request_initialize(const llvm::json::Object &request) {
   body.try_emplace("supportsGotoTargetsRequest", false);
   // The debug adapter supports the stepInTargetsRequest.
   body.try_emplace("supportsStepInTargetsRequest", false);
-  // The debug adapter supports the completionsRequest.
+  // We need to improve the current implementation of completions in order to
+  // enable it again. For some context, this is how VSCode works: 
+  // - VSCode sends a completion request whenever chars are added, the user
+  //   triggers completion manually via CTRL-space or similar mechanisms, but
+  //   not when there's a deletion. Besides, VSCode doesn't let us know which
+  //   of these events we are handling. What is more, the use can paste or cut
+  //   sections of the text arbitrarily.
+  //   https://github.com/microsoft/vscode/issues/89531 tracks part of the
+  //   issue just mentioned.
+  // This behavior causes many problems with the current way completion is
+  // implemented in lldb-vscode, as these requests could be really expensive,
+  // blocking the debugger, and there could be many concurrent requests unless
+  // the user types very slowly... We need to address this specific issue, or
+  // at least trigger completion only when the user explicitly wants it, which
+  // is the behavior of LLDB CLI, that expects a TAB.
   body.try_emplace("supportsCompletionsRequest", false);
   // The debug adapter supports the modules request.
   body.try_emplace("supportsModulesRequest", false);
@@ -1197,38 +1338,28 @@ void request_launch(const llvm::json::Object &request) {
 
   SetSourceMapFromArguments(*arguments);
 
-  // Run any initialize LLDB commands the user specified in the launch.json
+  // Run any initialize LLDB commands the user specified in the launch.json.
+  // This is run before target is created, so commands can't do anything with
+  // the targets - preRunCommands are run with the target.
   g_vsc.RunInitCommands();
+
+  lldb::SBError status;
+  g_vsc.SetTarget(g_vsc.CreateTargetFromArguments(*arguments, status));
+  if (status.Fail()) {
+    response["success"] = llvm::json::Value(false);
+    EmplaceSafeString(response, "message", status.GetCString());
+    g_vsc.SendJSON(llvm::json::Value(std::move(response)));
+    return;
+  }
+
+  // Instantiate a launch info instance for the target.
+  g_vsc.launch_info = g_vsc.target.GetLaunchInfo();
 
   // Grab the current working directory if there is one and set it in the
   // launch info.
   const auto cwd = GetString(arguments, "cwd");
   if (!cwd.empty())
     g_vsc.launch_info.SetWorkingDirectory(cwd.data());
-
-  // Grab the name of the program we need to debug and set it as the first
-  // argument that will be passed to the program we will debug.
-  llvm::StringRef program = GetString(arguments, "program");
-  if (!program.empty()) {
-    lldb::SBFileSpec program_fspec(program.data(), true /*resolve_path*/);
-    g_vsc.launch_info.SetExecutableFile(program_fspec,
-                                        true /*add_as_first_arg*/);
-    const char *target_triple = nullptr;
-    const char *uuid_cstr = nullptr;
-    // Stand alone debug info file if different from executable
-    const char *symfile = nullptr;
-    lldb::SBModule module = g_vsc.target.AddModule(
-        program.data(), target_triple, uuid_cstr, symfile);
-    if (!module.IsValid()) {
-      response["success"] = llvm::json::Value(false);
-
-      EmplaceSafeString(
-          response, "message",
-          llvm::formatv("Could not load program '{0}'.", program).str());
-      g_vsc.SendJSON(llvm::json::Value(std::move(response)));
-      return;
-    }
-  }
 
   // Extract any extra arguments and append them to our program arguments for
   // when we launch
@@ -1707,10 +1838,10 @@ void request_setExceptionBreakpoints(const llvm::json::Object &request) {
 
   for (const auto &value : *filters) {
     const auto filter = GetAsString(value);
-    auto exc_bp = g_vsc.GetExceptionBreakpoint(filter);
+    auto exc_bp = g_vsc.GetExceptionBreakpoint(std::string(filter));
     if (exc_bp) {
       exc_bp->SetBreakpoint();
-      unset_filters.erase(filter);
+      unset_filters.erase(std::string(filter));
     }
   }
   for (const auto &filter : unset_filters) {
@@ -2020,6 +2151,8 @@ void request_stackTrace(const llvm::json::Object &request) {
         break;
       stackFrames.emplace_back(CreateStackFrame(frame));
     }
+    const auto totalFrames = thread.GetNumFrames();
+    body.try_emplace("totalFrames", totalFrames);
   }
   body.try_emplace("stackFrames", std::move(stackFrames));
   response.try_emplace("body", std::move(body));
@@ -2556,6 +2689,7 @@ const std::map<std::string, RequestCallback> &GetRequestHandlers() {
   static std::map<std::string, RequestCallback> g_request_handlers = {
       // VSCode Debug Adaptor requests
       REQUEST_CALLBACK(attach),
+      REQUEST_CALLBACK(completions),
       REQUEST_CALLBACK(continue),
       REQUEST_CALLBACK(configurationDone),
       REQUEST_CALLBACK(disconnect),
@@ -2649,7 +2783,7 @@ int main(int argc, char *argv[]) {
     const auto packet_type = GetString(object, "type");
     if (packet_type == "request") {
       const auto command = GetString(object, "command");
-      auto handler_pos = request_handlers.find(command);
+      auto handler_pos = request_handlers.find(std::string(command));
       if (handler_pos != request_handlers.end()) {
         handler_pos->second(*object);
       } else {

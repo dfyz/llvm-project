@@ -267,8 +267,7 @@ public:
                             StringRef Name, bool isPacked = false);
   static StructType *create(LLVMContext &Context, ArrayRef<Type *> Elements);
   template <class... Tys>
-  static typename std::enable_if<are_base_of<Type, Tys...>::value,
-                                 StructType *>::type
+  static std::enable_if_t<are_base_of<Type, Tys...>::value, StructType *>
   create(StringRef Name, Type *elt1, Tys *... elts) {
     assert(elt1 && "Cannot create a struct type with no elements with this");
     SmallVector<llvm::Type *, 8> StructFields({elt1, elts...});
@@ -286,8 +285,7 @@ public:
   /// specifying the elements as arguments. Note that this method always returns
   /// a non-packed struct, and requires at least one element type.
   template <class... Tys>
-  static typename std::enable_if<are_base_of<Type, Tys...>::value,
-                                 StructType *>::type
+  static std::enable_if_t<are_base_of<Type, Tys...>::value, StructType *>
   get(Type *elt1, Tys *... elts) {
     assert(elt1 && "Cannot create a struct type with no elements with this");
     LLVMContext &Ctx = elt1->getContext();
@@ -324,7 +322,7 @@ public:
   void setBody(ArrayRef<Type*> Elements, bool isPacked = false);
 
   template <typename... Tys>
-  typename std::enable_if<are_base_of<Type, Tys...>::value, void>::type
+  std::enable_if_t<are_base_of<Type, Tys...>::value, void>
   setBody(Type *elt1, Tys *... elts) {
     assert(elt1 && "Cannot create a struct type with no elements with this");
     SmallVector<llvm::Type *, 8> StructFields({elt1, elts...});
@@ -571,6 +569,10 @@ bool Type::getVectorIsScalable() const {
   return cast<VectorType>(this)->isScalable();
 }
 
+ElementCount Type::getVectorElementCount() const {
+  return cast<VectorType>(this)->getElementCount();
+}
+
 /// Class to represent pointers.
 class PointerType : public Type {
   explicit PointerType(Type *ElType, unsigned AddrSpace);
@@ -616,6 +618,16 @@ Type *Type::getExtendedType() const {
     return VectorType::getExtendedElementVectorType(
         const_cast<VectorType *>(VTy));
   return cast<IntegerType>(this)->getExtendedType();
+}
+
+Type *Type::getWithNewBitWidth(unsigned NewBitWidth) const {
+  assert(
+      isIntOrIntVectorTy() &&
+      "Original type expected to be a vector of integers or a scalar integer.");
+  Type *NewType = getIntNTy(getContext(), NewBitWidth);
+  if (isVectorTy())
+    NewType = VectorType::get(NewType, getVectorElementCount());
+  return NewType;
 }
 
 unsigned Type::getPointerAddressSpace() const {

@@ -384,7 +384,8 @@ spillIncomingStatepointValue(SDValue Incoming, SDValue Chain,
     // can consider allowing spills of smaller values to larger slots
     // (i.e. change the '==' in the assert below to a '>=').
     MachineFrameInfo &MFI = Builder.DAG.getMachineFunction().getFrameInfo();
-    assert((MFI.getObjectSize(Index) * 8) == Incoming.getValueSizeInBits() &&
+    assert((MFI.getObjectSize(Index) * 8) ==
+           (int64_t)Incoming.getValueSizeInBits() &&
            "Bad spill:  stack slot does not match!");
 
     // Note: Using the alignment of the spill slot (rather than the abi or
@@ -858,7 +859,8 @@ SelectionDAGBuilder::LowerStatepoint(ImmutableStatepoint ISP,
     const auto &DL = DAG.getDataLayout();
 
     unsigned AS = ISP.getCalledValue()->getType()->getPointerAddressSpace();
-    ActualCallee = DAG.getConstant(0, getCurSDLoc(), TLI.getPointerTy(DL, AS));
+    ActualCallee =
+        DAG.getTargetConstant(0, getCurSDLoc(), TLI.getPointerTy(DL, AS));
   } else {
     ActualCallee = getValue(ISP.getCalledValue());
   }

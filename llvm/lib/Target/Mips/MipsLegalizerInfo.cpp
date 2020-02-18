@@ -13,6 +13,7 @@
 #include "MipsLegalizerInfo.h"
 #include "MipsTargetMachine.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
+#include "llvm/IR/IntrinsicsMips.h"
 
 using namespace llvm;
 
@@ -41,6 +42,14 @@ CheckTy0Ty1MemSizeAlign(const LegalityQuery &Query,
   return false;
 }
 
+static bool CheckTyN(unsigned N, const LegalityQuery &Query,
+                     std::initializer_list<LLT> SupportedValues) {
+  for (auto &Val : SupportedValues)
+    if (Val == Query.Types[N])
+      return true;
+  return false;
+}
+
 MipsLegalizerInfo::MipsLegalizerInfo(const MipsSubtarget &ST) {
   using namespace TargetOpcode;
 
@@ -54,7 +63,13 @@ MipsLegalizerInfo::MipsLegalizerInfo(const MipsSubtarget &ST) {
   const LLT p0 = LLT::pointer(0, 32);
 
   getActionDefinitionsBuilder({G_ADD, G_SUB, G_MUL})
-      .legalFor({s32})
+      .legalIf([=, &ST](const LegalityQuery &Query) {
+        if (CheckTyN(0, Query, {s32}))
+          return true;
+        if (ST.hasMSA() && CheckTyN(0, Query, {v16s8, v8s16, v4s32, v2s64}))
+          return true;
+        return false;
+      })
       .clampScalar(0, s32, s32);
 
   getActionDefinitionsBuilder({G_UADDO, G_UADDE, G_USUBO, G_USUBE, G_UMULO})
@@ -127,8 +142,14 @@ MipsLegalizerInfo::MipsLegalizerInfo(const MipsSubtarget &ST) {
       .legalFor({s32})
       .clampScalar(0, s32, s32);
 
-  getActionDefinitionsBuilder({G_SDIV, G_SREM, G_UREM, G_UDIV})
-      .legalFor({s32})
+  getActionDefinitionsBuilder({G_SDIV, G_SREM, G_UDIV, G_UREM})
+      .legalIf([=, &ST](const LegalityQuery &Query) {
+        if (CheckTyN(0, Query, {s32}))
+          return true;
+        if (ST.hasMSA() && CheckTyN(0, Query, {v16s8, v8s16, v4s32, v2s64}))
+          return true;
+        return false;
+      })
       .minScalar(0, s32)
       .libcallFor({s64});
 
@@ -146,7 +167,7 @@ MipsLegalizerInfo::MipsLegalizerInfo(const MipsSubtarget &ST) {
       .legalFor({s32})
       .clampScalar(0, s32, s32);
 
-  getActionDefinitionsBuilder({G_GEP, G_INTTOPTR})
+  getActionDefinitionsBuilder({G_PTR_ADD, G_INTTOPTR})
       .legalFor({{p0, s32}});
 
   getActionDefinitionsBuilder(G_PTRTOINT)
@@ -164,12 +185,54 @@ MipsLegalizerInfo::MipsLegalizerInfo(const MipsSubtarget &ST) {
   getActionDefinitionsBuilder(G_VASTART)
      .legalFor({p0});
 
+  getActionDefinitionsBuilder(G_BSWAP)
+      .legalIf([=, &ST](const LegalityQuery &Query) {
+        if (ST.hasMips32r2() && CheckTyN(0, Query, {s32}))
+          return true;
+        return false;
+      })
+      .lowerIf([=, &ST](const LegalityQuery &Query) {
+        if (!ST.hasMips32r2() && CheckTyN(0, Query, {s32}))
+          return true;
+        return false;
+      })
+      .maxScalar(0, s32);
+
+  getActionDefinitionsBuilder(G_BITREVERSE)
+      .lowerFor({s32})
+      .maxScalar(0, s32);
+
+  getActionDefinitionsBuilder(G_CTLZ)
+      .legalFor({{s32, s32}})
+      .maxScalar(0, s32)
+      .maxScalar(1, s32);
+  getActionDefinitionsBuilder(G_CTLZ_ZERO_UNDEF)
+      .lowerFor({{s32, s32}});
+
+  getActionDefinitionsBuilder(G_CTTZ)
+      .lowerFor({{s32, s32}})
+      .maxScalar(0, s32)
+      .maxScalar(1, s32);
+  getActionDefinitionsBuilder(G_CTTZ_ZERO_UNDEF)
+      .lowerFor({{s32, s32}, {s64, s64}});
+
+  getActionDefinitionsBuilder(G_CTPOP)
+      .lowerFor({{s32, s32}})
+      .clampScalar(0, s32, s32)
+      .clampScalar(1, s32, s32);
+
   // FP instructions
   getActionDefinitionsBuilder(G_FCONSTANT)
       .legalFor({s32, s64});
 
   getActionDefinitionsBuilder({G_FADD, G_FSUB, G_FMUL, G_FDIV, G_FABS, G_FSQRT})
-      .legalFor({s32, s64});
+      .legalIf([=, &ST](const LegalityQuery &Query) {
+        if (CheckTyN(0, Query, {s32, s64}))
+          return true;
+        if (ST.hasMSA() && CheckTyN(0, Query, {v16s8, v8s16, v4s32, v2s64}))
+          return true;
+        return false;
+      });
 
   getActionDefinitionsBuilder(G_FCMP)
       .legalFor({{s32, s32}, {s32, s64}})
@@ -270,9 +333,48 @@ bool MipsLegalizerInfo::legalizeCustom(MachineInstr &MI,
   return true;
 }
 
+static bool SelectMSA3OpIntrinsic(MachineInstr &MI, unsigned Opcode,
+                                  MachineIRBuilder &MIRBuilder,
+                                  const MipsSubtarget &ST) {
+  assert(ST.hasMSA() && "MSA intrinsic not supported on target without MSA.");
+  if (!MIRBuilder.buildInstr(Opcode)
+           .add(MI.getOperand(0))
+           .add(MI.getOperand(2))
+           .add(MI.getOperand(3))
+           .constrainAllUses(MIRBuilder.getTII(), *ST.getRegisterInfo(),
+                             *ST.getRegBankInfo()))
+    return false;
+  MI.eraseFromParent();
+  return true;
+}
+
+static bool MSA3OpIntrinsicToGeneric(MachineInstr &MI, unsigned Opcode,
+                                     MachineIRBuilder &MIRBuilder,
+                                     const MipsSubtarget &ST) {
+  assert(ST.hasMSA() && "MSA intrinsic not supported on target without MSA.");
+  MIRBuilder.buildInstr(Opcode)
+      .add(MI.getOperand(0))
+      .add(MI.getOperand(2))
+      .add(MI.getOperand(3));
+  MI.eraseFromParent();
+  return true;
+}
+
+static bool MSA2OpIntrinsicToGeneric(MachineInstr &MI, unsigned Opcode,
+                                     MachineIRBuilder &MIRBuilder,
+                                     const MipsSubtarget &ST) {
+  assert(ST.hasMSA() && "MSA intrinsic not supported on target without MSA.");
+  MIRBuilder.buildInstr(Opcode)
+      .add(MI.getOperand(0))
+      .add(MI.getOperand(2));
+  MI.eraseFromParent();
+  return true;
+}
+
 bool MipsLegalizerInfo::legalizeIntrinsic(MachineInstr &MI,
-                                          MachineRegisterInfo &MRI,
-                                          MachineIRBuilder &MIRBuilder) const {
+                                          MachineIRBuilder &MIRBuilder,
+                                          GISelChangeObserver &Observer) const {
+  MachineRegisterInfo &MRI = *MIRBuilder.getMRI();
   const MipsSubtarget &ST =
       static_cast<const MipsSubtarget &>(MI.getMF()->getSubtarget());
   const MipsInstrInfo &TII = *ST.getInstrInfo();
@@ -295,17 +397,87 @@ bool MipsLegalizerInfo::legalizeIntrinsic(MachineInstr &MI,
     return constrainSelectedInstRegOperands(*Trap, TII, TRI, RBI);
   }
   case Intrinsic::vacopy: {
-    Register Tmp = MRI.createGenericVirtualRegister(LLT::pointer(0, 32));
     MachinePointerInfo MPO;
-    MIRBuilder.buildLoad(Tmp, MI.getOperand(2),
-                         *MI.getMF()->getMachineMemOperand(
-                             MPO, MachineMemOperand::MOLoad, 4, 4));
+    auto Tmp = MIRBuilder.buildLoad(LLT::pointer(0, 32), MI.getOperand(2),
+                                    *MI.getMF()->getMachineMemOperand(
+                                        MPO, MachineMemOperand::MOLoad, 4, 4));
     MIRBuilder.buildStore(Tmp, MI.getOperand(1),
                           *MI.getMF()->getMachineMemOperand(
                               MPO, MachineMemOperand::MOStore, 4, 4));
     MI.eraseFromParent();
     return true;
   }
+  case Intrinsic::mips_addv_b:
+  case Intrinsic::mips_addv_h:
+  case Intrinsic::mips_addv_w:
+  case Intrinsic::mips_addv_d:
+    return MSA3OpIntrinsicToGeneric(MI, TargetOpcode::G_ADD, MIRBuilder, ST);
+  case Intrinsic::mips_addvi_b:
+    return SelectMSA3OpIntrinsic(MI, Mips::ADDVI_B, MIRBuilder, ST);
+  case Intrinsic::mips_addvi_h:
+    return SelectMSA3OpIntrinsic(MI, Mips::ADDVI_H, MIRBuilder, ST);
+  case Intrinsic::mips_addvi_w:
+    return SelectMSA3OpIntrinsic(MI, Mips::ADDVI_W, MIRBuilder, ST);
+  case Intrinsic::mips_addvi_d:
+    return SelectMSA3OpIntrinsic(MI, Mips::ADDVI_D, MIRBuilder, ST);
+  case Intrinsic::mips_subv_b:
+  case Intrinsic::mips_subv_h:
+  case Intrinsic::mips_subv_w:
+  case Intrinsic::mips_subv_d:
+    return MSA3OpIntrinsicToGeneric(MI, TargetOpcode::G_SUB, MIRBuilder, ST);
+  case Intrinsic::mips_subvi_b:
+    return SelectMSA3OpIntrinsic(MI, Mips::SUBVI_B, MIRBuilder, ST);
+  case Intrinsic::mips_subvi_h:
+    return SelectMSA3OpIntrinsic(MI, Mips::SUBVI_H, MIRBuilder, ST);
+  case Intrinsic::mips_subvi_w:
+    return SelectMSA3OpIntrinsic(MI, Mips::SUBVI_W, MIRBuilder, ST);
+  case Intrinsic::mips_subvi_d:
+    return SelectMSA3OpIntrinsic(MI, Mips::SUBVI_D, MIRBuilder, ST);
+  case Intrinsic::mips_mulv_b:
+  case Intrinsic::mips_mulv_h:
+  case Intrinsic::mips_mulv_w:
+  case Intrinsic::mips_mulv_d:
+    return MSA3OpIntrinsicToGeneric(MI, TargetOpcode::G_MUL, MIRBuilder, ST);
+  case Intrinsic::mips_div_s_b:
+  case Intrinsic::mips_div_s_h:
+  case Intrinsic::mips_div_s_w:
+  case Intrinsic::mips_div_s_d:
+    return MSA3OpIntrinsicToGeneric(MI, TargetOpcode::G_SDIV, MIRBuilder, ST);
+  case Intrinsic::mips_mod_s_b:
+  case Intrinsic::mips_mod_s_h:
+  case Intrinsic::mips_mod_s_w:
+  case Intrinsic::mips_mod_s_d:
+    return MSA3OpIntrinsicToGeneric(MI, TargetOpcode::G_SREM, MIRBuilder, ST);
+  case Intrinsic::mips_div_u_b:
+  case Intrinsic::mips_div_u_h:
+  case Intrinsic::mips_div_u_w:
+  case Intrinsic::mips_div_u_d:
+    return MSA3OpIntrinsicToGeneric(MI, TargetOpcode::G_UDIV, MIRBuilder, ST);
+  case Intrinsic::mips_mod_u_b:
+  case Intrinsic::mips_mod_u_h:
+  case Intrinsic::mips_mod_u_w:
+  case Intrinsic::mips_mod_u_d:
+    return MSA3OpIntrinsicToGeneric(MI, TargetOpcode::G_UREM, MIRBuilder, ST);
+  case Intrinsic::mips_fadd_w:
+  case Intrinsic::mips_fadd_d:
+    return MSA3OpIntrinsicToGeneric(MI, TargetOpcode::G_FADD, MIRBuilder, ST);
+  case Intrinsic::mips_fsub_w:
+  case Intrinsic::mips_fsub_d:
+    return MSA3OpIntrinsicToGeneric(MI, TargetOpcode::G_FSUB, MIRBuilder, ST);
+  case Intrinsic::mips_fmul_w:
+  case Intrinsic::mips_fmul_d:
+    return MSA3OpIntrinsicToGeneric(MI, TargetOpcode::G_FMUL, MIRBuilder, ST);
+  case Intrinsic::mips_fdiv_w:
+  case Intrinsic::mips_fdiv_d:
+    return MSA3OpIntrinsicToGeneric(MI, TargetOpcode::G_FDIV, MIRBuilder, ST);
+  case Intrinsic::mips_fmax_a_w:
+    return SelectMSA3OpIntrinsic(MI, Mips::FMAX_A_W, MIRBuilder, ST);
+  case Intrinsic::mips_fmax_a_d:
+    return SelectMSA3OpIntrinsic(MI, Mips::FMAX_A_D, MIRBuilder, ST);
+  case Intrinsic::mips_fsqrt_w:
+    return MSA2OpIntrinsicToGeneric(MI, TargetOpcode::G_FSQRT, MIRBuilder, ST);
+  case Intrinsic::mips_fsqrt_d:
+    return MSA2OpIntrinsicToGeneric(MI, TargetOpcode::G_FSQRT, MIRBuilder, ST);
   default:
     break;
   }

@@ -115,12 +115,12 @@ private:
 
   StringRef getPassName() const override { return "X86 Optimize Call Frame"; }
 
-  const X86InstrInfo *TII;
-  const X86FrameLowering *TFL;
-  const X86Subtarget *STI;
-  MachineRegisterInfo *MRI;
-  unsigned SlotSize;
-  unsigned Log2SlotSize;
+  const X86InstrInfo *TII = nullptr;
+  const X86FrameLowering *TFL = nullptr;
+  const X86Subtarget *STI = nullptr;
+  MachineRegisterInfo *MRI = nullptr;
+  unsigned SlotSize = 0;
+  unsigned Log2SlotSize = 0;
 };
 
 } // end anonymous namespace
@@ -162,14 +162,13 @@ bool X86CallFrameOptimization::isLegal(MachineFunction &MF) {
   // memory for arguments.
   unsigned FrameSetupOpcode = TII->getCallFrameSetupOpcode();
   unsigned FrameDestroyOpcode = TII->getCallFrameDestroyOpcode();
-  bool UseStackProbe =
-      !STI->getTargetLowering()->getStackProbeSymbolName(MF).empty();
+  bool EmitStackProbeCall = STI->getTargetLowering()->hasStackProbeSymbol(MF);
   unsigned StackProbeSize = STI->getTargetLowering()->getStackProbeSize(MF);
   for (MachineBasicBlock &BB : MF) {
     bool InsideFrameSequence = false;
     for (MachineInstr &MI : BB) {
       if (MI.getOpcode() == FrameSetupOpcode) {
-        if (TII->getFrameSize(MI) >= StackProbeSize && UseStackProbe)
+        if (TII->getFrameSize(MI) >= StackProbeSize && EmitStackProbeCall)
           return false;
         if (InsideFrameSequence)
           return false;

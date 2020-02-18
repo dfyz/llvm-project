@@ -11,12 +11,8 @@
 #include "Arch/ARM.h"
 #include "Arch/Mips.h"
 #include "Arch/PPC.h"
-#include "Arch/RISCV.h"
-#include "Arch/Sparc.h"
 #include "Arch/SystemZ.h"
 #include "Arch/X86.h"
-#include "AMDGPU.h"
-#include "MSP430.h"
 #include "HIP.h"
 #include "Hexagon.h"
 #include "InputInfo.h"
@@ -95,7 +91,7 @@ void tools::addDirectoryList(const ArgList &Args, ArgStringList &CmdArgs,
     return; // Nothing to do.
 
   StringRef Name(ArgName);
-  if (Name.equals("-I") || Name.equals("-L"))
+  if (Name.equals("-I") || Name.equals("-L") || Name.empty())
     CombinedArg = true;
 
   StringRef Dirs(DirList);
@@ -257,6 +253,7 @@ std::string tools::getCPUName(const ArgList &Args, const llvm::Triple &T,
     return "";
 
   case llvm::Triple::aarch64:
+  case llvm::Triple::aarch64_32:
   case llvm::Triple::aarch64_be:
     return aarch64::getAArch64TargetCPU(Args, T, A);
 
@@ -281,7 +278,7 @@ std::string tools::getCPUName(const ArgList &Args, const llvm::Triple &T,
     StringRef CPUName;
     StringRef ABIName;
     mips::getMipsCPUAndABI(Args, T, CPUName, ABIName);
-    return CPUName;
+    return std::string(CPUName);
   }
 
   case llvm::Triple::nvptx:
@@ -337,7 +334,7 @@ std::string tools::getCPUName(const ArgList &Args, const llvm::Triple &T,
 
   case llvm::Triple::wasm32:
   case llvm::Triple::wasm64:
-    return getWebAssemblyTargetCPU(Args);
+    return std::string(getWebAssemblyTargetCPU(Args));
   }
 }
 
@@ -356,28 +353,32 @@ bool tools::isUseSeparateSections(const llvm::Triple &Triple) {
   return Triple.getOS() == llvm::Triple::CloudABI;
 }
 
-void tools::AddGoldPlugin(const ToolChain &ToolChain, const ArgList &Args,
+void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
                           ArgStringList &CmdArgs, const InputInfo &Output,
                           const InputInfo &Input, bool IsThinLTO) {
-  // Tell the linker to load the plugin. This has to come before AddLinkerInputs
-  // as gold requires -plugin to come before any -plugin-opt that -Wl might
-  // forward.
-  CmdArgs.push_back("-plugin");
+  const char *Linker = Args.MakeArgString(ToolChain.GetLinkerPath());
+  if (llvm::sys::path::filename(Linker) != "ld.lld" &&
+      llvm::sys::path::stem(Linker) != "ld.lld") {
+    // Tell the linker to load the plugin. This has to come before
+    // AddLinkerInputs as gold requires -plugin to come before any -plugin-opt
+    // that -Wl might forward.
+    CmdArgs.push_back("-plugin");
 
 #if defined(_WIN32)
-  const char *Suffix = ".dll";
+    const char *Suffix = ".dll";
 #elif defined(__APPLE__)
-  const char *Suffix = ".dylib";
+    const char *Suffix = ".dylib";
 #else
-  const char *Suffix = ".so";
+    const char *Suffix = ".so";
 #endif
 
-  SmallString<1024> Plugin;
-  llvm::sys::path::native(Twine(ToolChain.getDriver().Dir) +
-                              "/../lib" CLANG_LIBDIR_SUFFIX "/LLVMgold" +
-                              Suffix,
-                          Plugin);
-  CmdArgs.push_back(Args.MakeArgString(Plugin));
+    SmallString<1024> Plugin;
+    llvm::sys::path::native(Twine(ToolChain.getDriver().Dir) +
+                                "/../lib" CLANG_LIBDIR_SUFFIX "/LLVMgold" +
+                                Suffix,
+                            Plugin);
+    CmdArgs.push_back(Args.MakeArgString(Plugin));
+  }
 
   // Try to pass driver level flags relevant to LTO code generation down to
   // the plugin.
@@ -488,14 +489,6 @@ void tools::AddGoldPlugin(const ToolChain &ToolChain, const ArgList &Args,
   if (!StatsFile.empty())
     CmdArgs.push_back(
         Args.MakeArgString(Twine("-plugin-opt=stats-file=") + StatsFile));
-
-  getTargetFeatures(ToolChain, ToolChain.getTriple(), Args, CmdArgs,
-                    /* ForAS= */ false, /* ForLTOPlugin= */ true);
-
-  StringRef ABIName = tools::getTargetABI(Args, ToolChain.getTriple());
-  if (!ABIName.empty())
-    CmdArgs.push_back(
-        Args.MakeArgString(Twine("-plugin-opt=-target-abi=") + ABIName));
 }
 
 void tools::addArchSpecificRPath(const ToolChain &TC, const ArgList &Args,
@@ -594,6 +587,11 @@ static bool addSanitizerDynamicList(const ToolChain &TC, const ArgList &Args,
 
 void tools::linkSanitizerRuntimeDeps(const ToolChain &TC,
                                      ArgStringList &CmdArgs) {
+  // Fuchsia never needs these.  Any sanitizer runtimes with system
+  // dependencies use the `.deplibs` feature instead.
+  if (TC.getTriple().isOSFuchsia())
+    return;
+
   // Force linking against the system libraries sanitizers depends on
   // (see PR15823 why this is necessary).
   CmdArgs.push_back("--no-as-needed");
@@ -653,17 +651,21 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
     StaticRuntimes.push_back("stats_client");
 
   // Collect static runtimes.
-  if (Args.hasArg(options::OPT_shared) || SanArgs.needsSharedRt()) {
-    // Don't link static runtimes into DSOs or if -shared-libasan.
+  if (Args.hasArg(options::OPT_shared)) {
+    // Don't link static runtimes into DSOs.
     return;
   }
-  if (SanArgs.needsAsanRt() && SanArgs.linkRuntimes()) {
+
+  // Each static runtime that has a DSO counterpart above is excluded below,
+  // but runtimes that exist only as static are not affected by needsSharedRt.
+
+  if (!SanArgs.needsSharedRt() && SanArgs.needsAsanRt() && SanArgs.linkRuntimes()) {
     StaticRuntimes.push_back("asan");
     if (SanArgs.linkCXXRuntimes())
       StaticRuntimes.push_back("asan_cxx");
   }
 
-  if (SanArgs.needsHwasanRt() && SanArgs.linkRuntimes()) {
+  if (!SanArgs.needsSharedRt() && SanArgs.needsHwasanRt() && SanArgs.linkRuntimes()) {
     StaticRuntimes.push_back("hwasan");
     if (SanArgs.linkCXXRuntimes())
       StaticRuntimes.push_back("hwasan_cxx");
@@ -682,7 +684,7 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
     if (SanArgs.linkCXXRuntimes())
       StaticRuntimes.push_back("tsan_cxx");
   }
-  if (SanArgs.needsUbsanRt() && SanArgs.linkRuntimes()) {
+  if (!SanArgs.needsSharedRt() && SanArgs.needsUbsanRt() && SanArgs.linkRuntimes()) {
     if (SanArgs.requiresMinimalRuntime()) {
       StaticRuntimes.push_back("ubsan_minimal");
     } else {
@@ -695,18 +697,20 @@ collectSanitizerRuntimes(const ToolChain &TC, const ArgList &Args,
     NonWholeStaticRuntimes.push_back("safestack");
     RequiredSymbols.push_back("__safestack_init");
   }
-  if (SanArgs.needsCfiRt() && SanArgs.linkRuntimes())
-    StaticRuntimes.push_back("cfi");
-  if (SanArgs.needsCfiDiagRt() && SanArgs.linkRuntimes()) {
-    StaticRuntimes.push_back("cfi_diag");
-    if (SanArgs.linkCXXRuntimes())
-      StaticRuntimes.push_back("ubsan_standalone_cxx");
+  if (!(SanArgs.needsSharedRt() && SanArgs.needsUbsanRt() && SanArgs.linkRuntimes())) {
+    if (SanArgs.needsCfiRt() && SanArgs.linkRuntimes())
+      StaticRuntimes.push_back("cfi");
+    if (SanArgs.needsCfiDiagRt() && SanArgs.linkRuntimes()) {
+      StaticRuntimes.push_back("cfi_diag");
+      if (SanArgs.linkCXXRuntimes())
+        StaticRuntimes.push_back("ubsan_standalone_cxx");
+    }
   }
   if (SanArgs.needsStatsRt() && SanArgs.linkRuntimes()) {
     NonWholeStaticRuntimes.push_back("stats");
     RequiredSymbols.push_back("__sanitizer_stats_register");
   }
-  if (SanArgs.needsScudoRt() && SanArgs.linkRuntimes()) {
+  if (!SanArgs.needsSharedRt() && SanArgs.needsScudoRt() && SanArgs.linkRuntimes()) {
     if (SanArgs.requiresMinimalRuntime()) {
       StaticRuntimes.push_back("scudo_minimal");
       if (SanArgs.linkCXXRuntimes())
@@ -1138,6 +1142,21 @@ unsigned tools::ParseFunctionAlignment(const ToolChain &TC,
   return Value ? llvm::Log2_32_Ceil(std::min(Value, 65536u)) : Value;
 }
 
+unsigned tools::ParseDebugDefaultVersion(const ToolChain &TC,
+                                         const ArgList &Args) {
+  const Arg *A = Args.getLastArg(options::OPT_fdebug_default_version);
+
+  if (!A)
+    return 0;
+
+  unsigned Value = 0;
+  if (StringRef(A->getValue()).getAsInteger(10, Value) || Value > 5 ||
+      Value < 2)
+    TC.getDriver().Diag(diag::err_drv_invalid_int_value)
+        << A->getAsString(Args) << A->getValue();
+  return Value;
+}
+
 void tools::AddAssemblerKPIC(const ToolChain &ToolChain, const ArgList &Args,
                              ArgStringList &CmdArgs) {
   llvm::Reloc::Model RelocationModel;
@@ -1205,7 +1224,10 @@ static void AddUnwindLibrary(const ToolChain &TC, const Driver &D,
     break;
   }
   case ToolChain::UNW_CompilerRT:
-    CmdArgs.push_back("-lunwind");
+    if (LGT == LibGccType::StaticLibGcc)
+      CmdArgs.push_back("-l:libunwind.a");
+    else
+      CmdArgs.push_back("-l:libunwind.so");
     break;
   }
 
@@ -1285,7 +1307,8 @@ void tools::AddHIPLinkerScript(const ToolChain &TC, Compilation &C,
 
   // Create temporary linker script. Keep it if save-temps is enabled.
   const char *LKS;
-  std::string Name = llvm::sys::path::filename(Output.getFilename());
+  std::string Name =
+      std::string(llvm::sys::path::filename(Output.getFilename()));
   if (C.getDriver().isSaveTempsEnabled()) {
     LKS = C.getArgs().MakeArgString(Name + ".lk");
   } else {
@@ -1391,112 +1414,4 @@ SmallString<128> tools::getStatsFileName(const llvm::opt::ArgList &Args,
 void tools::addMultilibFlag(bool Enabled, const char *const Flag,
                             Multilib::flags_list &Flags) {
   Flags.push_back(std::string(Enabled ? "+" : "-") + Flag);
-}
-
-static void getWebAssemblyTargetFeatures(const ArgList &Args,
-                                         std::vector<StringRef> &Features) {
-  handleTargetFeaturesGroup(Args, Features, options::OPT_m_wasm_Features_Group);
-}
-
-void tools::getTargetFeatures(const ToolChain &TC, const llvm::Triple &Triple,
-                       const ArgList &Args, ArgStringList &CmdArgs, bool ForAS,
-                       bool ForLTOPlugin) {
-
-  const Driver &D = TC.getDriver();
-  std::vector<StringRef> Features;
-  switch (Triple.getArch()) {
-  default:
-    break;
-  case llvm::Triple::mips:
-  case llvm::Triple::mipsel:
-  case llvm::Triple::mips64:
-  case llvm::Triple::mips64el:
-    mips::getMIPSTargetFeatures(D, Triple, Args, Features);
-    break;
-
-  case llvm::Triple::arm:
-  case llvm::Triple::armeb:
-  case llvm::Triple::thumb:
-  case llvm::Triple::thumbeb:
-    arm::getARMTargetFeatures(TC, Triple, Args, CmdArgs, Features, ForAS);
-    break;
-
-  case llvm::Triple::ppc:
-  case llvm::Triple::ppc64:
-  case llvm::Triple::ppc64le:
-    ppc::getPPCTargetFeatures(D, Triple, Args, Features);
-    break;
-  case llvm::Triple::riscv32:
-  case llvm::Triple::riscv64:
-    riscv::getRISCVTargetFeatures(D, Triple, Args, Features);
-    break;
-  case llvm::Triple::systemz:
-    systemz::getSystemZTargetFeatures(Args, Features);
-    break;
-  case llvm::Triple::aarch64:
-  case llvm::Triple::aarch64_be:
-    aarch64::getAArch64TargetFeatures(D, Triple, Args, Features);
-    break;
-  case llvm::Triple::x86:
-  case llvm::Triple::x86_64:
-    x86::getX86TargetFeatures(D, Triple, Args, Features);
-    break;
-  case llvm::Triple::hexagon:
-    hexagon::getHexagonTargetFeatures(D, Args, Features);
-    break;
-  case llvm::Triple::wasm32:
-  case llvm::Triple::wasm64:
-    getWebAssemblyTargetFeatures(Args, Features);
-    break;
-  case llvm::Triple::sparc:
-  case llvm::Triple::sparcel:
-  case llvm::Triple::sparcv9:
-    sparc::getSparcTargetFeatures(D, Args, Features);
-    break;
-  case llvm::Triple::r600:
-  case llvm::Triple::amdgcn:
-    amdgpu::getAMDGPUTargetFeatures(D, Args, Features);
-    break;
-  case llvm::Triple::msp430:
-    msp430::getMSP430TargetFeatures(D, Args, Features);
-  }
-
-  // Find the last of each feature.
-  llvm::StringMap<unsigned> LastOpt;
-  for (unsigned I = 0, N = Features.size(); I < N; ++I) {
-    StringRef Name = Features[I];
-    assert(Name[0] == '-' || Name[0] == '+');
-    LastOpt[Name.drop_front(1)] = I;
-  }
-
-  for (unsigned I = 0, N = Features.size(); I < N; ++I) {
-    // If this feature was overridden, ignore it.
-    StringRef Name = Features[I];
-    llvm::StringMap<unsigned>::iterator LastI =
-        LastOpt.find(Name.drop_front(1));
-    assert(LastI != LastOpt.end());
-    unsigned Last = LastI->second;
-    if (Last != I)
-      continue;
-    if (!ForLTOPlugin) {
-      CmdArgs.push_back("-target-feature");
-      CmdArgs.push_back(Name.data());
-    } else {
-      CmdArgs.push_back(
-          Args.MakeArgString(Twine("-plugin-opt=-mattr=") + Name));
-    }
-  }
-}
-
-StringRef tools::getTargetABI(const ArgList &Args, const llvm::Triple &Triple) {
-  // TODO: Support the other target ABI
-  switch (Triple.getArch()) {
-  default:
-    break;
-  case llvm::Triple::riscv32:
-  case llvm::Triple::riscv64:
-    return tools::riscv::getRISCVABI(Args, Triple);
-    break;
-  }
-  return StringRef();
 }

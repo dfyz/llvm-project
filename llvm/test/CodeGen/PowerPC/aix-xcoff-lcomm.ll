@@ -6,7 +6,7 @@
 ; RUN: FileCheck --check-prefix=OBJ %s
 ; RUN: llvm-readobj --syms %t.o | FileCheck --check-prefix=SYMS %s
 
-; RUN: not llc -mtriple powerpc64-ibm-aix-xcoff -filetype=obj < %s 2>&1 | \
+; RUN: not --crash llc -mtriple powerpc64-ibm-aix-xcoff -filetype=obj < %s 2>&1 | \
 ; RUN: FileCheck --check-prefix=OBJ64 %s
 ; OBJ64: LLVM ERROR: 64-bit XCOFF object files are not supported yet.
 
@@ -14,9 +14,9 @@
 @b = internal global i64 0, align 8
 @c = internal global i16 0, align 2
 
-; CHECK:      .lcomm a,4,a,2
-; CHECK-NEXT: .lcomm b,8,b,3
-; CHECK-NEXT: .lcomm c,2,c,1
+; CHECK:      .lcomm a,4,a[BS],2
+; CHECK-NEXT: .lcomm b,8,b[BS],3
+; CHECK-NEXT: .lcomm c,2,c[BS],1
 
 ; OBJ:      File: {{.*}}aix-xcoff-lcomm.ll.tmp.o
 ; OBJ-NEXT: Format: aixcoff-rs6000

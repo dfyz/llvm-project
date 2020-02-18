@@ -126,12 +126,7 @@ public:
 
   llvm::MCRegisterInfo &GetMCRegisterInfo() { return *m_mc_register_info_up; }
 
-  virtual const RegisterInfo *GetRegisterInfoArray(uint32_t &count) = 0;
-
-  bool GetRegisterInfoByName(ConstString name, RegisterInfo &info);
-
-  bool GetRegisterInfoByKind(lldb::RegisterKind reg_kind, uint32_t reg_num,
-                             RegisterInfo &info);
+  virtual void AugmentRegisterInfo(RegisterInfo &info) = 0;
 
   virtual bool GetPointerReturnRegister(const char *&name) { return false; }
 
@@ -154,6 +149,18 @@ protected:
 
 private:
   DISALLOW_COPY_AND_ASSIGN(ABI);
+};
+
+class RegInfoBasedABI : public ABI {
+public:
+  void AugmentRegisterInfo(RegisterInfo &info) override;
+
+protected:
+  using ABI::ABI;
+
+  bool GetRegisterInfoByName(ConstString name, RegisterInfo &info);
+
+  virtual const RegisterInfo *GetRegisterInfoArray(uint32_t &count) = 0;
 };
 
 } // namespace lldb_private

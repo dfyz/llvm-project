@@ -472,6 +472,9 @@ static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
     TLI.setUnavailable(LibFunc_tmpfile64);
 
     // Relaxed math functions are included in math-finite.h on Linux (GLIBC).
+    // Note that math-finite.h is no longer supported by top-of-tree GLIBC,
+    // so we keep these functions around just so that they're recognized by
+    // the ConstantFolder.
     TLI.setUnavailable(LibFunc_acos_finite);
     TLI.setUnavailable(LibFunc_acosf_finite);
     TLI.setUnavailable(LibFunc_acosl_finite);
@@ -1488,9 +1491,9 @@ bool TargetLibraryInfoImpl::getLibFunc(const Function &FDecl,
                                        LibFunc &F) const {
   // Intrinsics don't overlap w/libcalls; if our module has a large number of
   // intrinsics, this ends up being an interesting compile time win since we
-  // avoid string normalization and comparison. 
+  // avoid string normalization and comparison.
   if (FDecl.isIntrinsic()) return false;
-  
+
   const DataLayout *DL =
       FDecl.getParent() ? &FDecl.getParent()->getDataLayout() : nullptr;
   return getLibFunc(FDecl.getName(), F) &&

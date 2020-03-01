@@ -5,12 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// This pass replaces dynamic allocation of coroutine frame with alloca and
-// replaces calls to llvm.coro.resume and llvm.coro.destroy with direct calls
-// to coroutine sub-functions.
-//===----------------------------------------------------------------------===//
 
+#include "llvm/Transforms/Coroutines/CoroElide.h"
 #include "CoroInternal.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/IR/Dominators.h"
@@ -30,13 +28,15 @@ struct Lowerer : coro::LowererBase {
   SmallVector<CoroBeginInst *, 1> CoroBegins;
   SmallVector<CoroAllocInst *, 1> CoroAllocs;
   SmallVector<CoroSubFnInst *, 4> ResumeAddr;
-  SmallVector<CoroSubFnInst *, 4> DestroyAddr;
+  DenseMap<CoroBeginInst *, SmallVector<CoroSubFnInst *, 4>> DestroyAddr;
   SmallVector<CoroFreeInst *, 1> CoroFrees;
+  CoroSuspendInst *CoroFinalSuspend;
 
   Lowerer(Module &M) : LowererBase(M) {}
 
   void elideHeapAllocations(Function *F, Type *FrameTy, AAResults &AA);
   bool shouldElide(Function *F, DominatorTree &DT) const;
+  void collectPostSplitCoroIds(Function *F);
   bool processCoroId(CoroIdInst *, AAResults &AA, DominatorTree &DT);
 };
 } // end anonymous namespace
@@ -148,33 +148,62 @@ bool Lowerer::shouldElide(Function *F, DominatorTree &DT) const {
   if (CoroAllocs.empty())
     return false;
 
-  // Check that for every coro.begin there is a coro.destroy directly
-  // referencing the SSA value of that coro.begin along a non-exceptional path.
+  // Check that for every coro.begin there is at least one coro.destroy directly
+  // referencing the SSA value of that coro.begin along each
+  // non-exceptional path.
   // If the value escaped, then coro.destroy would have been referencing a
   // memory location storing that value and not the virtual register.
 
-  // First gather all of the non-exceptional terminators for the function.
   SmallPtrSet<Instruction *, 8> Terminators;
-  for (BasicBlock &B : *F) {
-    auto *TI = B.getTerminator();
-    if (TI->getNumSuccessors() == 0 && !TI->isExceptionalTerminator() &&
-        !isa<UnreachableInst>(TI))
-      Terminators.insert(TI);
+  bool HasMultiPred = false;
+  // First gather all of the non-exceptional terminators for the function.
+  // Consider the final coro.suspend as the real terminator when the current
+  // function is a coroutine.
+  if (CoroFinalSuspend) {
+    // If block of final coro.suspend has more than one predecessor,
+    // then there is one resume path and the others are exceptional paths,
+    // consider these predecessors as terminators.
+    BasicBlock *FinalBB = CoroFinalSuspend->getParent();
+    if (FinalBB->hasNPredecessorsOrMore(2)) {
+      HasMultiPred = true;
+      for (auto *B : predecessors(FinalBB))
+        Terminators.insert(B->getTerminator());
+    } else
+      Terminators.insert(CoroFinalSuspend);
+  } else {
+    for (BasicBlock &B : *F) {
+      auto *TI = B.getTerminator();
+      if (TI->getNumSuccessors() == 0 && !TI->isExceptionalTerminator() &&
+          !isa<UnreachableInst>(TI))
+        Terminators.insert(TI);
+    }
   }
 
   // Filter out the coro.destroy that lie along exceptional paths.
   SmallPtrSet<CoroSubFnInst *, 4> DAs;
-  for (CoroSubFnInst *DA : DestroyAddr) {
-    for (Instruction *TI : Terminators) {
-      if (DT.dominates(DA, TI)) {
-        DAs.insert(DA);
-        break;
+  SmallPtrSet<Instruction *, 2> TIs;
+  SmallPtrSet<CoroBeginInst *, 8> ReferencedCoroBegins;
+  for (auto &It : DestroyAddr) {
+    for (CoroSubFnInst *DA : It.second) {
+      for (Instruction *TI : Terminators) {
+        if (DT.dominates(DA, TI)) {
+          if (HasMultiPred)
+            TIs.insert(TI);
+          else
+            DAs.insert(DA);
+          break;
+        }
       }
+    }
+    // If all the predecessors dominate coro.destroys that reference same
+    // coro.begin, record the coro.begin
+    if (TIs.size() == Terminators.size()) {
+      ReferencedCoroBegins.insert(It.first);
+      TIs.clear();
     }
   }
 
   // Find all the coro.begin referenced by coro.destroy along happy paths.
-  SmallPtrSet<CoroBeginInst *, 8> ReferencedCoroBegins;
   for (CoroSubFnInst *DA : DAs) {
     if (auto *CB = dyn_cast<CoroBeginInst>(DA->getFrame()))
       ReferencedCoroBegins.insert(CB);
@@ -186,6 +215,26 @@ bool Lowerer::shouldElide(Function *F, DominatorTree &DT) const {
   // found a coro.free or coro.destroy referencing each coro.begin, so we can
   // perform heap elision.
   return ReferencedCoroBegins.size() == CoroBegins.size();
+}
+
+void Lowerer::collectPostSplitCoroIds(Function *F) {
+  CoroIds.clear();
+  CoroFinalSuspend = nullptr;
+  for (auto &I : instructions(F)) {
+    if (auto *CII = dyn_cast<CoroIdInst>(&I))
+      if (CII->getInfo().isPostSplit())
+        // If it is the coroutine itself, don't touch it.
+        if (CII->getCoroutine() != CII->getFunction())
+          CoroIds.push_back(CII);
+
+    if (auto *CSI = dyn_cast<CoroSuspendInst>(&I))
+      if (CSI->isFinal()) {
+        if (!CoroFinalSuspend)
+          CoroFinalSuspend = CSI;
+        else
+          report_fatal_error("Only one suspend point can be marked as final");
+      }
+  }
 }
 
 bool Lowerer::processCoroId(CoroIdInst *CoroId, AAResults &AA,
@@ -218,7 +267,7 @@ bool Lowerer::processCoroId(CoroIdInst *CoroId, AAResults &AA,
           ResumeAddr.push_back(II);
           break;
         case CoroSubFnInst::DestroyIndex:
-          DestroyAddr.push_back(II);
+          DestroyAddr[CB].push_back(II);
           break;
         default:
           llvm_unreachable("unexpected coro.subfn.addr constant");
@@ -241,7 +290,8 @@ bool Lowerer::processCoroId(CoroIdInst *CoroId, AAResults &AA,
       Resumers,
       ShouldElide ? CoroSubFnInst::CleanupIndex : CoroSubFnInst::DestroyIndex);
 
-  replaceWithConstant(DestroyAddrConstant, DestroyAddr);
+  for (auto &It : DestroyAddr)
+    replaceWithConstant(DestroyAddrConstant, It.second);
 
   if (ShouldElide) {
     auto *FrameTy = getFrameType(cast<Function>(ResumeAddrConstant));
@@ -272,9 +322,31 @@ static bool replaceDevirtTrigger(Function &F) {
   return true;
 }
 
-//===----------------------------------------------------------------------===//
-//                              Top Level Driver
-//===----------------------------------------------------------------------===//
+static bool declaresCoroElideIntrinsics(Module &M) {
+  return coro::declaresIntrinsics(M, {"llvm.coro.id"});
+}
+
+PreservedAnalyses CoroElidePass::run(Function &F, FunctionAnalysisManager &AM) {
+  auto &M = *F.getParent();
+  if (!declaresCoroElideIntrinsics(M))
+    return PreservedAnalyses::all();
+
+  Lowerer L(M);
+  L.CoroIds.clear();
+  L.collectPostSplitCoroIds(&F);
+  // If we did not find any coro.id, there is nothing to do.
+  if (L.CoroIds.empty())
+    return PreservedAnalyses::all();
+
+  AAResults &AA = AM.getResult<AAManager>(F);
+  DominatorTree &DT = AM.getResult<DominatorTreeAnalysis>(F);
+
+  bool Changed = false;
+  for (auto *CII : L.CoroIds)
+    Changed |= L.processCoroId(CII, AA, DT);
+
+  return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
+}
 
 namespace {
 struct CoroElideLegacy : FunctionPass {
@@ -286,7 +358,7 @@ struct CoroElideLegacy : FunctionPass {
   std::unique_ptr<Lowerer> L;
 
   bool doInitialization(Module &M) override {
-    if (coro::declaresIntrinsics(M, {"llvm.coro.id"}))
+    if (declaresCoroElideIntrinsics(M))
       L = std::make_unique<Lowerer>(M);
     return false;
   }
@@ -301,15 +373,7 @@ struct CoroElideLegacy : FunctionPass {
       Changed = replaceDevirtTrigger(F);
 
     L->CoroIds.clear();
-
-    // Collect all PostSplit coro.ids.
-    for (auto &I : instructions(F))
-      if (auto *CII = dyn_cast<CoroIdInst>(&I))
-        if (CII->getInfo().isPostSplit())
-          // If it is the coroutine itself, don't touch it.
-          if (CII->getCoroutine() != CII->getFunction())
-            L->CoroIds.push_back(CII);
-
+    L->collectPostSplitCoroIds(&F);
     // If we did not find any coro.id, there is nothing to do.
     if (L->CoroIds.empty())
       return Changed;

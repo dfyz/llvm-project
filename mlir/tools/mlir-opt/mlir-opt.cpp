@@ -13,6 +13,8 @@
 #include "mlir/Analysis/Passes.h"
 #include "mlir/InitAllDialects.h"
 #include "mlir/InitAllPasses.h"
+#include "mlir/IR/Dialect.h"
+#include "mlir/IR/MLIRContext.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Support/FileUtilities.h"
@@ -32,6 +34,7 @@ void registerInliner();
 void registerMemRefBoundCheck();
 void registerPassManagerTestPass();
 void registerPatternsTestPass();
+void registerPrintOpAvailabilityPass();
 void registerSimpleParametricTilingPass();
 void registerSymbolTestPasses();
 void registerTestAffineDataCopyPass();
@@ -49,6 +52,7 @@ void registerTestMemRefDependenceCheck();
 void registerTestMemRefStrideCalculation();
 void registerTestOpaqueLoc();
 void registerTestParallelismDetection();
+void registerTestGpuParallelLoopMappingPass();
 void registerTestVectorConversions();
 void registerTestVectorToLoopsPass();
 void registerVectorizerTestPass();
@@ -84,6 +88,7 @@ void registerTestPasses() {
   registerMemRefBoundCheck();
   registerPassManagerTestPass();
   registerPatternsTestPass();
+  registerPrintOpAvailabilityPass();
   registerSimpleParametricTilingPass();
   registerSymbolTestPasses();
   registerTestAffineDataCopyPass();
@@ -101,6 +106,7 @@ void registerTestPasses() {
   registerTestMemRefStrideCalculation();
   registerTestOpaqueLoc();
   registerTestParallelismDetection();
+  registerTestGpuParallelLoopMappingPass();
   registerTestVectorConversions();
   registerTestVectorToLoopsPass();
   registerVectorizerTestPass();
@@ -114,6 +120,11 @@ void registerTestPasses() {
   createTestMemRefDependenceCheckPass();
 }
 
+static cl::opt<bool>
+    showDialects("show-dialects",
+                 cl::desc("Print the list of registered dialects"),
+                 cl::init(false));
+
 int main(int argc, char **argv) {
   registerAllDialects();
   registerAllPasses();
@@ -126,6 +137,15 @@ int main(int argc, char **argv) {
 
   // Parse pass names in main to ensure static initialization completed.
   cl::ParseCommandLineOptions(argc, argv, "MLIR modular optimizer driver\n");
+
+  MLIRContext context;
+  if(showDialects) {
+    llvm::outs() << "Registered Dialects:\n";
+    for(Dialect *dialect : context.getRegisteredDialects()) {
+      llvm::outs() << dialect->getNamespace() << "\n";
+    }
+    return 0;
+  }
 
   // Set up the input file.
   std::string errorMessage;

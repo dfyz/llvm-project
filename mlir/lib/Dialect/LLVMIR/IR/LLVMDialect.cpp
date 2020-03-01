@@ -234,15 +234,14 @@ static ParseResult parseStoreOp(OpAsmParser &parser, OperationState &result) {
 static LogicalResult verify(InvokeOp op) {
   if (op.getNumResults() > 1)
     return op.emitOpError("must have 0 or 1 result");
-  if (op.getNumSuccessors() != 2)
-    return op.emitOpError("must have normal and unwind destinations");
 
-  if (op.getSuccessor(1)->empty())
+  Block *unwindDest = op.unwindDest();
+  if (unwindDest->empty())
     return op.emitError(
         "must have at least one operation in unwind destination");
 
   // In unwind destination, first operation must be LandingpadOp
-  if (!isa<LandingpadOp>(op.getSuccessor(1)->front()))
+  if (!isa<LandingpadOp>(unwindDest->front()))
     return op.emitError("first operation in unwind destination should be a "
                         "llvm.landingpad operation");
 
@@ -782,69 +781,6 @@ static ParseResult parseInsertValueOp(OpAsmParser &parser,
 }
 
 //===----------------------------------------------------------------------===//
-// Printing/parsing for LLVM::BrOp.
-//===----------------------------------------------------------------------===//
-
-static void printBrOp(OpAsmPrinter &p, BrOp &op) {
-  p << op.getOperationName() << ' ';
-  p.printSuccessorAndUseList(op.getOperation(), 0);
-  p.printOptionalAttrDict(op.getAttrs());
-}
-
-// <operation> ::= `llvm.br` bb-id (`[` ssa-use-and-type-list `]`)?
-// attribute-dict?
-static ParseResult parseBrOp(OpAsmParser &parser, OperationState &result) {
-  Block *dest;
-  SmallVector<Value, 4> operands;
-  if (parser.parseSuccessorAndUseList(dest, operands) ||
-      parser.parseOptionalAttrDict(result.attributes))
-    return failure();
-
-  result.addSuccessor(dest, operands);
-  return success();
-}
-
-//===----------------------------------------------------------------------===//
-// Printing/parsing for LLVM::CondBrOp.
-//===----------------------------------------------------------------------===//
-
-static void printCondBrOp(OpAsmPrinter &p, CondBrOp &op) {
-  p << op.getOperationName() << ' ' << op.getOperand(0) << ", ";
-  p.printSuccessorAndUseList(op.getOperation(), 0);
-  p << ", ";
-  p.printSuccessorAndUseList(op.getOperation(), 1);
-  p.printOptionalAttrDict(op.getAttrs());
-}
-
-// <operation> ::= `llvm.cond_br` ssa-use `,`
-//                  bb-id (`[` ssa-use-and-type-list `]`)? `,`
-//                  bb-id (`[` ssa-use-and-type-list `]`)? attribute-dict?
-static ParseResult parseCondBrOp(OpAsmParser &parser, OperationState &result) {
-  Block *trueDest;
-  Block *falseDest;
-  SmallVector<Value, 4> trueOperands;
-  SmallVector<Value, 4> falseOperands;
-  OpAsmParser::OperandType condition;
-
-  Builder &builder = parser.getBuilder();
-  auto *llvmDialect =
-      builder.getContext()->getRegisteredDialect<LLVM::LLVMDialect>();
-  auto i1Type = LLVM::LLVMType::getInt1Ty(llvmDialect);
-
-  if (parser.parseOperand(condition) || parser.parseComma() ||
-      parser.parseSuccessorAndUseList(trueDest, trueOperands) ||
-      parser.parseComma() ||
-      parser.parseSuccessorAndUseList(falseDest, falseOperands) ||
-      parser.parseOptionalAttrDict(result.attributes) ||
-      parser.resolveOperand(condition, i1Type, result.operands))
-    return failure();
-
-  result.addSuccessor(trueDest, trueOperands);
-  result.addSuccessor(falseDest, falseOperands);
-  return success();
-}
-
-//===----------------------------------------------------------------------===//
 // Printing/parsing for LLVM::ReturnOp.
 //===----------------------------------------------------------------------===//
 
@@ -952,6 +888,45 @@ static void printGlobalOp(OpAsmPrinter &p, GlobalOp op) {
   Region &initializer = op.getInitializerRegion();
   if (!initializer.empty())
     p.printRegion(initializer, /*printEntryBlockArgs=*/false);
+}
+
+//===----------------------------------------------------------------------===//
+// Verifier for LLVM::DialectCastOp.
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verify(DialectCastOp op) {
+  auto verifyMLIRCastType = [&op](Type type) -> LogicalResult {
+    if (auto llvmType = type.dyn_cast<LLVM::LLVMType>()) {
+      if (llvmType.isVectorTy())
+        llvmType = llvmType.getVectorElementType();
+      if (llvmType.isIntegerTy() || llvmType.isHalfTy() ||
+          llvmType.isFloatTy() || llvmType.isDoubleTy()) {
+        return success();
+      }
+      return op.emitOpError("type must be non-index integer types, float "
+                            "types, or vector of mentioned types.");
+    }
+    if (auto vectorType = type.dyn_cast<VectorType>()) {
+      if (vectorType.getShape().size() > 1)
+        return op.emitOpError("only 1-d vector is allowed");
+      type = vectorType.getElementType();
+    }
+    if (type.isSignlessIntOrFloat())
+      return success();
+    // Note that memrefs are not supported. We currently don't have a use case
+    // for it, but even if we do, there are challenges:
+    // * if we allow memrefs to cast from/to memref descriptors, then the
+    // semantics of the cast op depends on the implementation detail of the
+    // descriptor.
+    // * if we allow memrefs to cast from/to bare pointers, some users might
+    // alternatively want metadata that only present in the descriptor.
+    //
+    // TODO(timshen): re-evaluate the memref cast design when it's needed.
+    return op.emitOpError("type must be non-index integer types, float types, "
+                          "or vector of mentioned types.");
+  };
+  return failure(failed(verifyMLIRCastType(op.in().getType())) ||
+                 failed(verifyMLIRCastType(op.getType())));
 }
 
 // Parses one of the keywords provided in the list `keywords` and returns the

@@ -55,9 +55,9 @@ struct TestPatternDriver : public FunctionPass<TestPatternDriver> {
 //===----------------------------------------------------------------------===//
 
 namespace {
-// Generate ops for each instance where the type can be successfully infered.
+// Generate ops for each instance where the type can be successfully inferred.
 template <typename OpTy>
-static void invokeCreateWithInferedReturnType(Operation *op) {
+static void invokeCreateWithInferredReturnType(Operation *op) {
   auto *context = op->getContext();
   auto fop = op->getParentOfType<FuncOp>();
   auto location = UnknownLoc::get(context);
@@ -69,10 +69,10 @@ static void invokeCreateWithInferedReturnType(Operation *op) {
   for (int i = 0, e = fop.getNumArguments(); i < e; ++i) {
     for (int j = 0; j < e; ++j) {
       std::array<Value, 2> values = {{fop.getArgument(i), fop.getArgument(j)}};
-      SmallVector<Type, 2> inferedReturnTypes;
+      SmallVector<Type, 2> inferredReturnTypes;
       if (succeeded(OpTy::inferReturnTypes(context, llvm::None, values,
                                            op->getAttrs(), op->getRegions(),
-                                           inferedReturnTypes))) {
+                                           inferredReturnTypes))) {
         OperationState state(location, OpTy::getOperationName());
         // TODO(jpienaar): Expand to regions.
         OpTy::build(&b, state, values, op->getAttrs());
@@ -80,6 +80,19 @@ static void invokeCreateWithInferedReturnType(Operation *op) {
       }
     }
   }
+}
+
+static void reifyReturnShape(Operation *op) {
+  OpBuilder b(op);
+
+  // Use permutations of 2 args as operands.
+  auto shapedOp = cast<OpWithShapedTypeInferTypeInterfaceOp>(op);
+  SmallVector<Value, 2> shapes;
+  if (failed(shapedOp.reifyReturnTypeShapes(b, shapes)))
+    return;
+  for (auto it : llvm::enumerate(shapes))
+    op->emitRemark() << "value " << it.index() << ": "
+                     << it.value().getDefiningOp();
 }
 
 struct TestReturnTypeDriver : public FunctionPass<TestReturnTypeDriver> {
@@ -94,11 +107,21 @@ struct TestReturnTypeDriver : public FunctionPass<TestReturnTypeDriver> {
         // Test create method of each of the Op classes below. The resultant
         // output would be in reverse order underneath `op` from which
         // the attributes and regions are used.
-        invokeCreateWithInferedReturnType<OpWithInferTypeInterfaceOp>(op);
-        invokeCreateWithInferedReturnType<OpWithShapedTypeInferTypeInterfaceOp>(
-            op);
+        invokeCreateWithInferredReturnType<OpWithInferTypeInterfaceOp>(op);
+        invokeCreateWithInferredReturnType<
+            OpWithShapedTypeInferTypeInterfaceOp>(op);
       };
       return;
+    }
+    if (getFunction().getName() == "testReifyFunctions") {
+      std::vector<Operation *> ops;
+      // Collect ops to avoid triggering on inserted ops.
+      for (auto &op : getFunction().getBody().front())
+        if (isa<OpWithShapedTypeInferTypeInterfaceOp>(op))
+          ops.push_back(&op);
+      // Generate test patterns for each, but skip terminator.
+      for (auto *op : ops)
+        reifyReturnShape(op);
     }
   }
 };
@@ -235,7 +258,7 @@ struct TestChangeProducerTypeI32ToF32 : public ConversionPattern {
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
     // If the type is I32, change the type to F32.
-    if (!Type(*op->result_type_begin()).isInteger(32))
+    if (!Type(*op->result_type_begin()).isSignlessInteger(32))
       return matchFailure();
     rewriter.replaceOpWithNewOp<TestTypeProducerOp>(op, rewriter.getF32Type());
     return matchSuccess();
@@ -305,14 +328,15 @@ struct TestNonRootReplacement : public RewritePattern {
 namespace {
 struct TestTypeConverter : public TypeConverter {
   using TypeConverter::TypeConverter;
+  TestTypeConverter() { addConversion(convertType); }
 
-  LogicalResult convertType(Type t, SmallVectorImpl<Type> &results) override {
+  static LogicalResult convertType(Type t, SmallVectorImpl<Type> &results) {
     // Drop I16 types.
-    if (t.isInteger(16))
+    if (t.isSignlessInteger(16))
       return success();
 
     // Convert I64 to F64.
-    if (t.isInteger(64)) {
+    if (t.isSignlessInteger(64)) {
       results.push_back(FloatType::getF64(t.getContext()));
       return success();
     }

@@ -399,7 +399,7 @@ public:
     --I;
     MCSectionSubPair NewSection = I->first;
 
-    if (OldSection != NewSection)
+    if (NewSection.first && OldSection != NewSection)
       ChangeSection(NewSection.first, NewSection.second);
     SectionStack.pop_back();
     return true;
@@ -663,6 +663,11 @@ public:
     emitIntValue(Value, Size);
   }
 
+  void emitInt8(uint64_t Value) { emitIntValue(Value, 1); }
+  void emitInt16(uint64_t Value) { emitIntValue(Value, 2); }
+  void emitInt32(uint64_t Value) { emitIntValue(Value, 4); }
+  void emitInt64(uint64_t Value) { emitIntValue(Value, 8); }
+
   /// Special case of EmitValue that avoids the client having to pass
   /// in a MCExpr for constant integers & prints in Hex format for certain
   /// modes, pads the field with leading zeros to Size width
@@ -802,12 +807,6 @@ public:
   /// \param Value - The value to use when filling bytes.
   virtual void emitValueToOffset(const MCExpr *Offset, unsigned char Value,
                                  SMLoc Loc);
-
-  virtual void
-  EmitCodePaddingBasicBlockStart(const MCCodePaddingContext &Context) {}
-
-  virtual void
-  EmitCodePaddingBasicBlockEnd(const MCCodePaddingContext &Context) {}
 
   /// @}
 

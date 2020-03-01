@@ -121,7 +121,7 @@ unsigned AlphaInstrInfo::insertBranch(MachineBasicBlock &MBB,
 
 void AlphaInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MI, const DebugLoc &DL,
-                                 unsigned DestReg, unsigned SrcReg,
+                                 MCRegister DestReg, MCRegister SrcReg,
                                  bool KillSrc) const {
   if (Alpha::GPRCRegClass.contains(DestReg, SrcReg)) {
     BuildMI(MBB, MI, DL, get(Alpha::BISr), DestReg)
@@ -143,7 +143,7 @@ void AlphaInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
 void
 AlphaInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
                                     MachineBasicBlock::iterator MI,
-                                    unsigned SrcReg, bool isKill, int FrameIdx,
+                                    Register SrcReg, bool isKill, int FrameIdx,
                                     const TargetRegisterClass *RC,
                                     const TargetRegisterInfo *TRI) const {
   //cerr << "Trying to store " << getPrettyName(SrcReg) << " to "
@@ -171,8 +171,8 @@ AlphaInstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
 
 void
 AlphaInstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
-                                        MachineBasicBlock::iterator MI,
-                                        unsigned DestReg, int FrameIdx,
+                                     MachineBasicBlock::iterator MI,
+                                     Register DestReg, int FrameIdx,
                                      const TargetRegisterClass *RC,
                                      const TargetRegisterInfo *TRI) const {
   //cerr << "Trying to load " << getPrettyName(DestReg) << " to "

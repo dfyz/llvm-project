@@ -26,7 +26,7 @@ class AlphaFrameLowering : public TargetFrameLowering {
   mutable int curgpdist;
 public:
   explicit AlphaFrameLowering(const AlphaSubtarget &sti)
-    : TargetFrameLowering(StackGrowsDown, 16, 0), STI(sti), curgpdist(0) {
+    : TargetFrameLowering(StackGrowsDown, Align(16), 0), STI(sti), curgpdist(0) {
   }
 
   /// emitProlog/emitEpilog - These methods insert prolog and epilog code into

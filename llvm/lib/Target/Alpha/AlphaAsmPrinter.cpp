@@ -41,20 +41,21 @@ namespace {
     StringRef getPassName() const override {
       return "Alpha Assembly Printer";
     }
-    void printInstruction(const MachineInstr *MI, raw_ostream &O);
-    void EmitInstruction(const MachineInstr *MI) override {
+    void printInstruction(const MachineInstr *MI, uint64_t Address, raw_ostream &O);
+    void emitInstruction(const MachineInstr *MI) override {
       SmallString<128> Str;
       raw_svector_ostream OS(Str);
-      printInstruction(MI, OS);
-      OutStreamer->EmitRawText(OS.str());
+      uint64_t DummyAddress{};
+      printInstruction(MI, DummyAddress, OS);
+      OutStreamer->emitRawText(OS.str());
     }
     static const char *getRegisterName(unsigned RegNo);
 
     void printOp(const MachineOperand &MO, raw_ostream &O);
     void printOperand(const MachineInstr *MI, int opNum, raw_ostream &O);
-    void EmitFunctionBodyStart() override;
-    void EmitFunctionBodyEnd() override;
-    void EmitStartOfAsmFile(Module &M) override;
+    void emitFunctionBodyStart() override;
+    void emitFunctionBodyEnd() override;
+    void emitStartOfAsmFile(Module &M) override;
 
     bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                          const char *ExtraCode,
@@ -123,19 +124,19 @@ void AlphaAsmPrinter::printOp(const MachineOperand &MO, raw_ostream &O) {
 
 /// EmitFunctionBodyStart - Targets can override this to emit stuff before
 /// the first basic block in the function.
-void AlphaAsmPrinter::EmitFunctionBodyStart() {
-  OutStreamer->EmitRawText("\t.ent " + Twine(CurrentFnSym->getName()));
+void AlphaAsmPrinter::emitFunctionBodyStart() {
+  OutStreamer->emitRawText("\t.ent " + Twine(CurrentFnSym->getName()));
 }
 
 /// EmitFunctionBodyEnd - Targets can override this to emit stuff after
 /// the last basic block in the function.
-void AlphaAsmPrinter::EmitFunctionBodyEnd() {
-  OutStreamer->EmitRawText("\t.end " + Twine(CurrentFnSym->getName()));
+void AlphaAsmPrinter::emitFunctionBodyEnd() {
+  OutStreamer->emitRawText("\t.end " + Twine(CurrentFnSym->getName()));
 }
 
-void AlphaAsmPrinter::EmitStartOfAsmFile(Module &M) {
-  OutStreamer->EmitRawText(StringRef("\t.arch ev6"));
-  OutStreamer->EmitRawText(StringRef("\t.set noat"));
+void AlphaAsmPrinter::emitStartOfAsmFile(Module &M) {
+  OutStreamer->emitRawText(StringRef("\t.arch ev6"));
+  OutStreamer->emitRawText(StringRef("\t.set noat"));
 }
 
 /// PrintAsmOperand - Print out an operand for an inline asm expression.

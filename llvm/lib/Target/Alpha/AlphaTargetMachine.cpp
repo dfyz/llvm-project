@@ -32,7 +32,7 @@ AlphaTargetMachine::AlphaTargetMachine(const Target &T, const Triple &TT, String
   : LLVMTargetMachine(T, "e-m:m-f128:128:128-n64", TT, CPU, FS, Options,
                       Reloc::PIC_, CM.getValueOr(CodeModel::Small), OL),
     TLOF(std::make_unique<TargetLoweringObjectFileELF>()),
-    Subtarget(TT, CPU, FS, *this)
+    Subtarget(TT, std::string(CPU), std::string(FS), *this)
 {
   initAsmInfo();
 }

@@ -14,7 +14,7 @@
 #include "AlphaMCAsmInfo.h"
 using namespace llvm;
 
-AlphaMCAsmInfo::AlphaMCAsmInfo(const Triple & /*TT*/) {
+AlphaMCAsmInfo::AlphaMCAsmInfo(const Triple & /*TT*/, const MCTargetOptions & /*Options*/) {
   AlignmentIsInBytes = false;
   PrivateGlobalPrefix = "$";
   PrivateLabelPrefix = "$";

@@ -22,7 +22,7 @@ namespace llvm {
   class Triple;
 
   struct AlphaMCAsmInfo : public MCAsmInfo {
-    explicit AlphaMCAsmInfo(const Triple &TT);
+    explicit AlphaMCAsmInfo(const Triple &TT, const MCTargetOptions &Options);
   };
 
 } // namespace llvm

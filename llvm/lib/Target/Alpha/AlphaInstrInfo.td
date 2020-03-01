@@ -595,7 +595,7 @@ def RPCC : MfcForm<0x18, 0xC000, "rpcc $RA", s_rpcc>; //Read process cycle count
 def MB  : MfcPForm<0x18, 0x4000, "mb",  s_imisc>; //memory barrier
 def WMB : MfcPForm<0x18, 0x4400, "wmb", s_imisc>; //write memory barrier
 
-def : Pat<(atomic_fence (imm), (imm)), (MB)>;
+def : Pat<(atomic_fence (timm), (timm)), (MB)>;
 
 //Basic Floating point ops
 

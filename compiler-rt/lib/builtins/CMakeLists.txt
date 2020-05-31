@@ -485,6 +485,7 @@ set(armv7_SOURCES ${arm_SOURCES})
 set(armv7s_SOURCES ${arm_SOURCES})
 set(armv7k_SOURCES ${arm_SOURCES})
 set(arm64_SOURCES ${aarch64_SOURCES})
+set(arm64e_SOURCES ${aarch64_SOURCES})
 
 # macho_embedded archs
 set(armv6m_SOURCES ${thumb1_SOURCES})
@@ -571,6 +572,12 @@ set(wasm64_SOURCES
   ${GENERIC_TF_SOURCES}
   ${GENERIC_SOURCES}
 )
+
+set(ve_SOURCES
+  ve/grow_stack.S
+  ve/grow_stack_align.S
+  ${GENERIC_TF_SOURCES}
+  ${GENERIC_SOURCES})
 
 add_custom_target(builtins)
 set_target_properties(builtins PROPERTIES FOLDER "Compiler-RT Misc")

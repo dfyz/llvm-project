@@ -474,7 +474,7 @@ endif
 # Additional system libraries
 #----------------------------------------------------------------------
 ifeq (1,$(USE_LIBDL))
-	ifneq ($(OS),NetBSD)
+	ifeq (,$(filter $(OS), NetBSD Windows_NT))
 		LDFLAGS += -ldl
 	endif
 endif
@@ -657,8 +657,13 @@ endif
 $(DYLIB_OBJECTS) : CFLAGS += -DCOMPILING_LLDB_TEST_DLL
 
 ifneq "$(OS)" "Windows_NT"
+ifeq "$(DYLIB_ONLY)" ""
+CFLAGS += -fPIC
+CXXFLAGS += -fPIC
+else
 $(DYLIB_OBJECTS) : CFLAGS += -fPIC
 $(DYLIB_OBJECTS) : CXXFLAGS += -fPIC
+endif
 endif
 
 $(DYLIB_FILENAME) : $(DYLIB_OBJECTS)

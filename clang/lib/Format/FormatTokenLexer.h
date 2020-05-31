@@ -52,10 +52,10 @@ private:
   bool tryMergeJSPrivateIdentifier();
   bool tryMergeCSharpStringLiteral();
   bool tryMergeCSharpKeywordVariables();
-  bool tryMergeCSharpNullConditionals();
   bool tryMergeCSharpDoubleQuestion();
+  bool tryMergeCSharpNullConditional();
   bool tryTransformCSharpForEach();
-  bool tryMergeCSharpAttributeAndTarget();
+  bool tryMergeForEach();
 
   bool tryMergeTokens(ArrayRef<tok::TokenKind> Kinds, TokenType NewType);
 

@@ -3,25 +3,18 @@ add_mlir_conversion_library(MLIRAffineToStandard
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Conversion/AffineToStandard
-)
-add_dependencies(
-  MLIRAffineToStandard
 
-  MLIRAffineOps
-  MLIRStandardOps
-  MLIRIR
-  LLVMCore
-  LLVMSupport
-)
-target_link_libraries(
-  MLIRAffineToStandard
+  DEPENDS
+  MLIRConversionPassIncGen
 
+  LINK_COMPONENTS
+  Core
+
+  LINK_LIBS PUBLIC
   MLIRAffineOps
-  MLIRLoopOps
+  MLIRSCF
   MLIRPass
   MLIRStandardOps
   MLIRTransforms
   MLIRIR
-  LLVMCore
-  LLVMSupport
-)
+  )

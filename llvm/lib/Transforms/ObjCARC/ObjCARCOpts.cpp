@@ -43,7 +43,6 @@
 #include "llvm/Analysis/ObjCARCInstKind.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
-#include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -610,8 +609,7 @@ bool
 ObjCARCOpt::OptimizeRetainRVCall(Function &F, Instruction *RetainRV) {
   // Check for the argument being from an immediately preceding call or invoke.
   const Value *Arg = GetArgRCIdentityRoot(RetainRV);
-  ImmutableCallSite CS(Arg);
-  if (const Instruction *Call = CS.getInstruction()) {
+  if (const Instruction *Call = dyn_cast<CallBase>(Arg)) {
     if (Call->getParent() == RetainRV->getParent()) {
       BasicBlock::const_iterator I(Call);
       ++I;
@@ -2344,6 +2342,14 @@ void ObjCARCOpt::OptimizeReturns(Function &F) {
     bool HasSafePathToCall = HasSafePathToPredecessorCall(Arg, Retain,
                                                           DependingInstructions,
                                                           Visited, PA);
+
+    // Don't remove retainRV/autoreleaseRV pairs if the call isn't a tail call.
+    if (HasSafePathToCall &&
+        GetBasicARCInstKind(Retain) == ARCInstKind::RetainRV &&
+        GetBasicARCInstKind(Autorelease) == ARCInstKind::AutoreleaseRV &&
+        !cast<CallInst>(*DependingInstructions.begin())->isTailCall())
+      continue;
+
     DependingInstructions.clear();
     Visited.clear();
 

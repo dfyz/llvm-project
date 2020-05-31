@@ -6,13 +6,13 @@ add_mlir_dialect_library(MLIRSPIRVSerialization
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/SPIRV
-  )
 
-add_dependencies(MLIRSPIRVSerialization
-  MLIRSPIRVSerializationGen)
+  DEPENDS
+  MLIRSPIRVSerializationGen
 
-target_link_libraries(MLIRSPIRVSerialization
+  LINK_LIBS PUBLIC
   MLIRIR
   MLIRSPIRV
   MLIRSupport
-  MLIRTranslation)
+  MLIRTranslation
+  )

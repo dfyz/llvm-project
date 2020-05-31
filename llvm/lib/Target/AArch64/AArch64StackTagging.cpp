@@ -256,8 +256,8 @@ public:
       Type *EltTy = VecTy->getElementType();
       if (EltTy->isPointerTy()) {
         uint32_t EltSize = DL->getTypeSizeInBits(EltTy);
-        Type *NewTy = VectorType::get(IntegerType::get(Ctx, EltSize),
-                                      VecTy->getNumElements());
+        auto *NewTy = FixedVectorType::get(IntegerType::get(Ctx, EltSize),
+                                           VecTy->getNumElements());
         V = IRB.CreatePointerCast(V, NewTy);
       }
     }
@@ -400,7 +400,9 @@ bool AArch64StackTagging::isInterestingAlloca(const AllocaInst &AI) {
       // dynamic alloca instrumentation for them as well.
       !AI.isUsedWithInAlloca() &&
       // swifterror allocas are register promoted by ISel
-      !AI.isSwiftError();
+      !AI.isSwiftError() &&
+      // safe allocas are not interesting
+      !AI.getMetadata("stack-safe");
   return IsInteresting;
 }
 
@@ -482,7 +484,7 @@ void AArch64StackTagging::alignAndPadAlloca(AllocaInfo &Info) {
   auto *NewAI = new AllocaInst(
       TypeWithPadding, Info.AI->getType()->getAddressSpace(), nullptr, "", Info.AI);
   NewAI->takeName(Info.AI);
-  NewAI->setAlignment(MaybeAlign(Info.AI->getAlignment()));
+  NewAI->setAlignment(Info.AI->getAlign());
   NewAI->setUsedWithInAlloca(Info.AI->isUsedWithInAlloca());
   NewAI->setSwiftError(Info.AI->isSwiftError());
   NewAI->copyMetadata(*Info.AI);

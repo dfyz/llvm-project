@@ -22,18 +22,18 @@ entry:
   ret i32 0
 }
 
-;CHECK:         .csect .rodata[RO]
+;CHECK:         .csect .rodata[RO],4
 ;CHECK-NEXT:         .align  4
 ;CHECK-NEXT: .L__const.main.cnst32:
-;CHECK-NEXT:         .llong  4611686018427387954     # 0x4000000000000032
+;CHECK-NEXT:         .llong  4611686018427387954
 ;CHECK-NEXT:         .long   0                       # 0x0
 ;CHECK-NEXT:         .space  4
-;CHECK-NEXT:         .llong  0                       # 0x0
+;CHECK-NEXT:         .llong  0
 ;CHECK-NEXT:         .long   0                       # 0x0
 ;CHECK-NEXT:         .space  4
 ;CHECK-NEXT:         .align  3
 ;CHECK-NEXT: .L__const.main.cnst16:
-;CHECK-NEXT:         .llong  4611686018427387926     # 0x4000000000000016
+;CHECK-NEXT:         .llong  4611686018427387926
 ;CHECK-NEXT:         .long   0                       # 0x0
 ;CHECK-NEXT:         .space  4
 ;CHECK-NEXT:         .align  3
@@ -47,11 +47,11 @@ entry:
 ;CHECK-NEXT:         .space  1
 
 
-;CHECKOBJ:      00000000 .text:
+;CHECKOBJ:      00000000 <.text>:
 ;CHECKOBJ-NEXT:        0: 38 60 00 00                    li 3, 0
 ;CHECKOBJ-NEXT:        4: 4e 80 00 20                    blr
 ;CHECKOBJ-NEXT:          ...{{[[:space:]] *}}
-;CHECKOBJ-NEXT: 00000010 .rodata:
+;CHECKOBJ-NEXT: 00000010 <.rodata>:
 ;CHECKOBJ-NEXT:        10: 40 00 00 00
 ;CHECKOBJ-NEXT:        14: 00 00 00 32
 ;CHECKOBJ-NEXT:          ...{{[[:space:]] *}}

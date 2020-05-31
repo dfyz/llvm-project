@@ -5,7 +5,7 @@
 # CHECK:      .debug_info.dwo contents:
 
 # CHECK:      0x00000000: Compile Unit:
-# CHECK-SAME:   length = 0x00000018
+# CHECK-SAME:   length = 0x0000000000000018
 # CHECK-SAME:   version = 0x0004
 # CHECK-SAME:   abbr_offset = 0x0000
 # CHECK-SAME:   addr_size = 0x04
@@ -62,7 +62,7 @@
 ## Row 0:
     .long 1                     # DW_SECT_INFO
     .long 3                     # DW_SECT_ABBREV
-# Row 1:
+## Row 1:
     .long .LCUBegin-.debug_info.dwo     # Offset in .debug_info.dwo
     .long .LAbbrBegin-.debug_abbrev.dwo # Offset in .debug_abbrev.dwo
 ## Table of Section Sizes:

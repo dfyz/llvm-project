@@ -45,6 +45,7 @@ module Clang_Basic {
   textual header "Basic/BuiltinsNEON.def"
   textual header "Basic/BuiltinsNVPTX.def"
   textual header "Basic/BuiltinsPPC.def"
+  textual header "Basic/BuiltinsSVE.def"
   textual header "Basic/BuiltinsSystemZ.def"
   textual header "Basic/BuiltinsWebAssembly.def"
   textual header "Basic/BuiltinsX86.def"
@@ -148,6 +149,12 @@ module Clang_StaticAnalyzer_Checkers {
 module Clang_StaticAnalyzer_Frontend {
   requires cplusplus
   umbrella "StaticAnalyzer/Frontend"
+  module * { export * }
+}
+
+module Clang_Testing {
+  requires cplusplus
+  umbrella "Testing"
   module * { export * }
 }
 

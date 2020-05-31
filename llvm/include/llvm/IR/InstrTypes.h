@@ -1286,10 +1286,6 @@ public:
 
   Value *getCalledOperand() const { return Op<CalledOperandOpEndIdx>(); }
 
-  // DEPRECATED: This routine will be removed in favor of `getCalledOperand` in
-  // the near future.
-  Value *getCalledValue() const { return getCalledOperand(); }
-
   const Use &getCalledOperandUse() const { return Op<CalledOperandOpEndIdx>(); }
   Use &getCalledOperandUse() { return Op<CalledOperandOpEndIdx>(); }
 
@@ -1545,10 +1541,12 @@ public:
     return paramHasAttr(ArgNo, Attribute::InAlloca);
   }
 
-  /// Determine whether this argument is passed by value or in an alloca.
-  bool isByValOrInAllocaArgument(unsigned ArgNo) const {
+  /// Determine whether this argument is passed by value, in an alloca, or is
+  /// preallocated.
+  bool isPassPointeeByValueArgument(unsigned ArgNo) const {
     return paramHasAttr(ArgNo, Attribute::ByVal) ||
-           paramHasAttr(ArgNo, Attribute::InAlloca);
+           paramHasAttr(ArgNo, Attribute::InAlloca) ||
+           paramHasAttr(ArgNo, Attribute::Preallocated);
   }
 
   /// Determine if there are is an inalloca argument. Only the last argument can
@@ -1577,10 +1575,8 @@ public:
            dataOperandHasImpliedAttr(OpNo + 1, Attribute::ReadNone);
   }
 
-  /// Extract the alignment of the return value.
-  /// FIXME: Remove this function once transition to Align is over.
-  /// Use getRetAlign() instead.
-  unsigned getRetAlignment() const {
+  LLVM_ATTRIBUTE_DEPRECATED(unsigned getRetAlignment() const,
+                            "Use getRetAlign() instead") {
     if (const auto MA = Attrs.getRetAlignment())
       return MA->value();
     return 0;
@@ -1590,9 +1586,8 @@ public:
   MaybeAlign getRetAlign() const { return Attrs.getRetAlignment(); }
 
   /// Extract the alignment for a call or parameter (0=unknown).
-  /// FIXME: Remove this function once transition to Align is over.
-  /// Use getParamAlign() instead.
-  unsigned getParamAlignment(unsigned ArgNo) const {
+  LLVM_ATTRIBUTE_DEPRECATED(unsigned getParamAlignment(unsigned ArgNo) const,
+                            "Use getParamAlign() instead") {
     if (const auto MA = Attrs.getParamAlignment(ArgNo))
       return MA->value();
     return 0;
@@ -1606,6 +1601,12 @@ public:
   /// Extract the byval type for a call or parameter.
   Type *getParamByValType(unsigned ArgNo) const {
     Type *Ty = Attrs.getParamByValType(ArgNo);
+    return Ty ? Ty : getArgOperand(ArgNo)->getType()->getPointerElementType();
+  }
+
+  /// Extract the preallocated type for a call or parameter.
+  Type *getParamPreallocatedType(unsigned ArgNo) const {
+    Type *Ty = Attrs.getParamPreallocatedType(ArgNo);
     return Ty ? Ty : getArgOperand(ArgNo)->getType()->getPointerElementType();
   }
 
@@ -1719,6 +1720,9 @@ public:
   void setCannotDuplicate() {
     addAttribute(AttributeList::FunctionIndex, Attribute::NoDuplicate);
   }
+
+  /// Determine if the call cannot be tail merged.
+  bool cannotMerge() const { return hasFnAttr(Attribute::NoMerge); }
 
   /// Determine if the invoke is convergent
   bool isConvergent() const { return hasFnAttr(Attribute::Convergent); }
@@ -2097,16 +2101,14 @@ public:
   op_iterator populateBundleOperandInfos(ArrayRef<OperandBundleDef> Bundles,
                                          const unsigned BeginIndex);
 
+public:
   /// Return the BundleOpInfo for the operand at index OpIdx.
   ///
   /// It is an error to call this with an OpIdx that does not correspond to an
   /// bundle operand.
+  BundleOpInfo &getBundleOpInfoForOperand(unsigned OpIdx);
   const BundleOpInfo &getBundleOpInfoForOperand(unsigned OpIdx) const {
-    for (auto &BOI : bundle_op_infos())
-      if (BOI.Begin <= OpIdx && OpIdx < BOI.End)
-        return BOI;
-
-    llvm_unreachable("Did not find operand bundle for operand!");
+    return const_cast<CallBase *>(this)->getBundleOpInfoForOperand(OpIdx);
   }
 
 protected:

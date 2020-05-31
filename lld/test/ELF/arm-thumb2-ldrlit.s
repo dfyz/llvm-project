@@ -44,32 +44,59 @@ target2:
  .thumb_func
 _start:
  nop
- ldr r0, dat1
- ldr r1, dat2
+/// ldr r0, dat1
+ .inst.w 0xf85f0004
+ .reloc 2, R_ARM_THM_PC12, dat1
+/// ldr r1, dat2
+ .inst.w 0xf85f1004
+ .reloc 6, R_ARM_THM_PC12, dat2
  nop
- ldr r2, dat3
- ldr r3, dat4
- .balign 4
- ldr r0, target1
+/// ldr r2, dat3
+ .inst.w 0xf85f2004
+ .reloc 0xc, R_ARM_THM_PC12, dat3
+/// ldr r3, dat4
+ .inst.w 0xf85f3004
+ .reloc 0x10, R_ARM_THM_PC12, dat4
+
+/// ldr r0, target1
+ .inst.w 0xf85f0004
+ .reloc 0x14, R_ARM_THM_PC12, target1
+
  nop
- ldr r1, target2
+/// ldr r1, target2
+ .inst.w 0xf85f1004
+ .reloc 0x1a, R_ARM_THM_PC12, target2
 
  .section .text.pos, "ax", %progbits
  .balign 4
  .global pos
  .thumb_func
 pos:
- ldr r2, target3
+/// ldr r2, target3
+ .inst.w 0xf85f2004
+ .reloc 0, R_ARM_THM_PC12, target3
  nop
- ldr r3, target4
- .balign 4
- ldr r0, dat5
- ldr r1, dat6
+/// ldr r3, target4
+ .inst.w 0xf85f3004
+ .reloc 6, R_ARM_THM_PC12, target4
  nop
- ldr r2, dat7
- ldr r3, dat8
+/// ldr r0, dat5
+ .inst.w 0xf85f0004
+ .reloc 0xc, R_ARM_THM_PC12, dat5
+/// ldr r1, dat6
+ .inst.w 0xf85f1004
+ .reloc 0x10, R_ARM_THM_PC12, dat6
+ nop
+/// ldr r2, dat7
+ .inst.w 0xf85f2004
+ .reloc 0x16, R_ARM_THM_PC12, dat7
+/// ldr r3, dat8
+ .inst.w 0xf85f3004
+ .reloc 0x1a, R_ARM_THM_PC12, dat8
 /// positive addend in instruction, all others are -4 (PC bias)
- ldr.w r4, dat5 + 8
+///ldr.w r4, dat5 + 8
+ .inst 0xf8df4004
+ .reloc 0x1e, R_ARM_THM_PC12, dat5
 
  .section .text.high, "ax", %progbits
  .balign 4
@@ -100,12 +127,12 @@ dat8:
 // SYMS:     Name: dat4
 // SYMS-NEXT:     Value: 0x8015
 
-// CHECK: 00008f00 target1:
+// CHECK: 00008f00 <target1>:
 // CHECK-NEXT:     8f00: bx      lr
-// CHECK: 00008f02 target2:
+// CHECK: 00008f02 <target2>:
 // CHECK-NEXT:     8f02: bx      lr
 
-// CHECK: 00009000 _start:
+// CHECK: 00009000 <_start>:
 // CHECK-NEXT:     9000: nop
 /// AlignDown(0x9002+4, 4) - 0xff2 = 0x8012
 // CHECK-NEXT:     9002: ldr.w   r0, [pc, #-4082]
@@ -122,7 +149,7 @@ dat8:
 /// AlignDown(0x901a+4, 4) - 0x11a = 0x8f02
 // CHECK-NEXT:     901a: ldr.w   r1, [pc, #-282]
 
-// CHECK: 00010000 pos:
+// CHECK: 00010000 <pos>:
 /// AlignDown(0x10000+4, 4) + 0x1c = 0x10100
 // CHECK-NEXT:    10000: ldr.w   r2, [pc, #252]
 // CHECK-NEXT:    10004: nop
@@ -141,10 +168,10 @@ dat8:
 /// AlignDown(0x1001e+4, 4) + 0xff7 = 0x11017 = dat5 + 8
 // CHECK-NEXT:    1001e: ldr.w   r4, [pc, #4087]
 
-// CHECK: 00010100 target3:
+// CHECK: 00010100 <target3>:
 // CHECK-NEXT:    10100: bx      lr
 
-// CHECK: 00010102 target4:
+// CHECK: 00010102 <target4>:
 // CHECK-NEXT:    10102: bx      lr
 
 // SYMS:     Name: dat5

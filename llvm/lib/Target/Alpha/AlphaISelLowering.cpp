@@ -615,7 +615,7 @@ SDValue AlphaTargetLowering::LowerOperation(SDValue Op,
   case ISD::ConstantPool: {
     ConstantPoolSDNode *CP = cast<ConstantPoolSDNode>(Op);
     const Constant *C = CP->getConstVal();
-    SDValue CPI = DAG.getTargetConstantPool(C, MVT::i64, CP->getAlignment());
+    SDValue CPI = DAG.getTargetConstantPool(C, MVT::i64, CP->getAlign());
     // FIXME there isn't really any debug info here
 
     SDValue Hi = DAG.getNode(AlphaISD::GPRelHi,  dl, MVT::i64, CPI,

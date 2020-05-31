@@ -20,4 +20,5 @@ AlphaMCAsmInfo::AlphaMCAsmInfo(const Triple & /*TT*/, const MCTargetOptions & /*
   PrivateLabelPrefix = "$";
   GPRel32Directive = "\t.gprel32\t";
   WeakRefDirective = "\t.weak\t";
+  UseIntegratedAssembler = false;
 }

@@ -3381,6 +3381,7 @@ private:
                             getAdjustedAlignment(&LI, 0), DL);
     Value *V = UndefValue::get(LI.getType());
     Splitter.emitSplitOps(LI.getType(), V, LI.getName() + ".fca");
+    Visited.erase(&LI);
     LI.replaceAllUsesWith(V);
     LI.eraseFromParent();
     return true;
@@ -3427,6 +3428,7 @@ private:
     StoreOpSplitter Splitter(&SI, *U, V->getType(), AATags,
                              getAdjustedAlignment(&SI, 0), DL);
     Splitter.emitSplitOps(V->getType(), V, V->getName() + ".fca");
+    Visited.erase(&SI);
     SI.eraseFromParent();
     return true;
   }
@@ -3473,17 +3475,64 @@ private:
 
     Value *NSel = Builder.CreateSelect(Sel->getCondition(), NTrue, NFalse,
                                        Sel->getName() + ".sroa.sel");
+    Visited.erase(&GEPI);
     GEPI.replaceAllUsesWith(NSel);
     GEPI.eraseFromParent();
+    Instruction *NSelI = cast<Instruction>(NSel);
+    Visited.insert(NSelI);
+    enqueueUsers(*NSelI);
 
     LLVM_DEBUG(dbgs() << "\n          to: " << *NTrue
                       << "\n              " << *NFalse
                       << "\n              " << *NSel << '\n');
 
-    if (isa<Instruction>(NTrue))
-      visit(cast<Instruction>(NTrue));
-    if (isa<Instruction>(NFalse))
-      visit(cast<Instruction>(NFalse));
+    return true;
+  }
+
+  // Fold gep (phi ptr1, ptr2) => phi gep(ptr1), gep(ptr2)
+  bool foldGEPPhi(GetElementPtrInst &GEPI) {
+    if (!GEPI.hasAllConstantIndices())
+      return false;
+
+    PHINode *PHI = cast<PHINode>(GEPI.getPointerOperand());
+    if (GEPI.getParent() != PHI->getParent() ||
+        llvm::any_of(PHI->incoming_values(), [](Value *In)
+          { Instruction *I = dyn_cast<Instruction>(In);
+            return !I || isa<GetElementPtrInst>(I) || isa<PHINode>(I) ||
+                   !I->getParent()->isLegalToHoistInto();
+          }))
+      return false;
+
+    LLVM_DEBUG(dbgs() << "  Rewriting gep(phi) -> phi(gep):"
+                      << "\n    original: " << *PHI
+                      << "\n              " << GEPI
+                      << "\n          to: ");
+
+    SmallVector<Value *, 4> Index(GEPI.idx_begin(), GEPI.idx_end());
+    bool IsInBounds = GEPI.isInBounds();
+    IRBuilderTy PHIBuilder(GEPI.getParent()->getFirstNonPHI());
+    PHINode *NewPN = PHIBuilder.CreatePHI(GEPI.getType(),
+                                          PHI->getNumIncomingValues(),
+                                          PHI->getName() + ".sroa.phi");
+    for (unsigned I = 0, E = PHI->getNumIncomingValues(); I != E; ++I) {
+      Instruction *In = cast<Instruction>(PHI->getIncomingValue(I));
+
+      IRBuilderTy B(In->getParent(), std::next(In->getIterator()));
+      Value *NewVal = IsInBounds
+          ? B.CreateInBoundsGEP(In, Index, In->getName() + ".sroa.gep")
+          : B.CreateGEP(In, Index, In->getName() + ".sroa.gep");
+      NewPN->addIncoming(NewVal, PHI->getIncomingBlock(I));
+    }
+
+    Visited.erase(&GEPI);
+    GEPI.replaceAllUsesWith(NewPN);
+    GEPI.eraseFromParent();
+    Visited.insert(NewPN);
+    enqueueUsers(*NewPN);
+
+    LLVM_DEBUG(for (Value *In : NewPN->incoming_values())
+                 dbgs() << "\n              " << *In;
+               dbgs() << "\n              " << *NewPN << '\n');
 
     return true;
   }
@@ -3491,6 +3540,10 @@ private:
   bool visitGetElementPtrInst(GetElementPtrInst &GEPI) {
     if (isa<SelectInst>(GEPI.getPointerOperand()) &&
         foldGEPSelect(GEPI))
+      return true;
+
+    if (isa<PHINode>(GEPI.getPointerOperand()) &&
+        foldGEPPhi(GEPI))
       return true;
 
     enqueueUsers(GEPI);

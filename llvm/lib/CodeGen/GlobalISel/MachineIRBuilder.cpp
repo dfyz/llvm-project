@@ -243,7 +243,7 @@ MachineInstrBuilder MachineIRBuilder::buildMaskLowPtrBits(const DstOp &Res,
   LLT PtrTy = Res.getLLTTy(*getMRI());
   LLT MaskTy = LLT::scalar(PtrTy.getSizeInBits());
   Register MaskReg = getMRI()->createGenericVirtualRegister(MaskTy);
-  buildConstant(MaskReg, maskTrailingOnes<uint64_t>(NumBits));
+  buildConstant(MaskReg, maskTrailingZeros<uint64_t>(NumBits));
   return buildPtrMask(Res, Op0, MaskReg);
 }
 
@@ -374,6 +374,23 @@ MachineInstrBuilder MachineIRBuilder::buildLoadInstr(unsigned Opcode,
   Addr.addSrcToMIB(MIB);
   MIB.addMemOperand(&MMO);
   return MIB;
+}
+
+MachineInstrBuilder MachineIRBuilder::buildLoadFromOffset(
+  const DstOp &Dst, const SrcOp &BasePtr,
+  MachineMemOperand &BaseMMO, int64_t Offset) {
+  LLT LoadTy = Dst.getLLTTy(*getMRI());
+  MachineMemOperand *OffsetMMO =
+    getMF().getMachineMemOperand(&BaseMMO, Offset, LoadTy.getSizeInBytes());
+
+  if (Offset == 0) // This may be a size or type changing load.
+    return buildLoad(Dst, BasePtr, *OffsetMMO);
+
+  LLT PtrTy = BasePtr.getLLTTy(*getMRI());
+  LLT OffsetTy = LLT::scalar(PtrTy.getSizeInBits());
+  auto ConstOffset = buildConstant(OffsetTy, Offset);
+  auto Ptr = buildPtrAdd(PtrTy, BasePtr, ConstOffset);
+  return buildLoad(Dst, Ptr, *OffsetMMO);
 }
 
 MachineInstrBuilder MachineIRBuilder::buildStore(const SrcOp &Val,

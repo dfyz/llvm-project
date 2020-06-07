@@ -19,6 +19,7 @@ AlphaTargetInfo::AlphaTargetInfo(const llvm::Triple &Triple, const TargetOptions
 
 void AlphaTargetInfo::getTargetDefines(const LangOptions &Opts, MacroBuilder &Builder) const {
   Builder.defineMacro("__alpha__");
+  Builder.defineMacro("__LONG_DOUBLE_128__");
 }
 
 ArrayRef<const char *> AlphaTargetInfo::getGCCRegNames() const {

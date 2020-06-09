@@ -10,7 +10,7 @@ func @shape_num_elements(%shape : !shape.shape) -> !shape.size {
   %num_elements = shape.reduce(%shape, %init) -> !shape.size {
     ^bb0(%index: index, %dim: !shape.size, %lci: !shape.size):
       %acc = "shape.add"(%lci, %dim) : (!shape.size, !shape.size) -> !shape.size
-      "shape.yield"(%acc) : (!shape.size) -> ()
+      shape.yield %acc : !shape.size
   }
   return %num_elements : !shape.size
 }
@@ -90,4 +90,14 @@ func @test_constraints() {
 func @test_mul(%lhs: !shape.size, %rhs: !shape.size) -> !shape.size {
   %product = shape.mul %lhs, %rhs
   return %product: !shape.size
+}
+
+func @const_size() {
+  // CHECK: %c1 = shape.const_size 1
+  // CHECK: %c2 = shape.const_size 2
+  // CHECK: %c2_0 = shape.const_size 2
+  %0 = shape.const_size 1
+  %1 = shape.const_size 2
+  %2 = shape.const_size 2
+  return
 }

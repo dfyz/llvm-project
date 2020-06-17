@@ -91,7 +91,7 @@ def immSExt16  : PatLeaf<(imm), [{ //imm fits in 16 bit sign extended field
 def immSExt16int  : PatLeaf<(imm), [{ //(int)imm fits in a 16 bit sign extended field
   return ((int64_t)N->getZExtValue() << 48) >> 48 ==
          ((int64_t)N->getZExtValue() << 32) >> 32;
-}], SExt16>;
+}]>;
 
 def zappat : PatFrag<(ops node:$LHS), (and node:$LHS, imm), [{
   ConstantSDNode *RHS = dyn_cast<ConstantSDNode>(N->getOperand(1));
@@ -1053,7 +1053,13 @@ def immConst2PartInt  : PatLeaf<(imm), [{
   return ((uval >> 32) == 0 && //empty upper bits
           val32 <= IMM_FULLHIGH);
 //          val32 >= IMM_FULLLOW  + IMM_LOW  * IMM_MULT); //Always True
-}], SExt32>;
+}]>;
+def largeSignedInt32 : PatLeaf<(imm), [{
+    //true if imm fits in a specially crafted LDAH LDA pair with additional zeroing at the end
+    //See https://devblogs.microsoft.com/oldnewthing/20170809-00/?p=96785 for more details
+    const auto val = static_cast<int64_t>(N->getZExtValue());
+    return val >= LARGE_SIGNED_INT32_LOW && val <= LARGE_SIGNED_INT32_HIGH;
+}]>;
 
 def : Pat<(i64 immConst2Part:$imm),
           (LDA (LL16 immConst2Part:$imm), (LDAH (LH16 immConst2Part:$imm), R31))>;
@@ -1066,7 +1072,9 @@ def : Pat<(i64 immSExt16int:$imm),
 def : Pat<(i64 immConst2PartInt:$imm),
           (ZAPNOTi (LDA (LL16 (i64 (SExt32 immConst2PartInt:$imm))),
                         (LDAH (LH16 (i64 (SExt32 immConst2PartInt:$imm))), R31)), 15)>;
-
+def : Pat<(i64 largeSignedInt32:$imm),
+          (ZAPNOTi (LDA (SExt16 immConst2PartInt:$imm),
+                        (LDAH -32768, R31)), 15)>;
 
 //TODO: I want to just define these like this!
 //def : Pat<(i64 0),

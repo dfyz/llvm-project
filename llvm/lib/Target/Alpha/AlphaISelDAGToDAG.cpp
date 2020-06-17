@@ -42,16 +42,20 @@ namespace {
   /// AlphaDAGToDAGISel - Alpha specific code to select Alpha machine
   /// instructions for SelectionDAG operations.
   class AlphaDAGToDAGISel : public SelectionDAGISel {
-    static const int64_t IMM_LOW  = -32768;
-    static const int64_t IMM_HIGH = 32767;
-    static const int64_t IMM_MULT = 65536;
-    static const int64_t IMM_FULLHIGH = IMM_HIGH + IMM_HIGH * IMM_MULT;
-    static const int64_t IMM_FULLLOW = IMM_LOW + IMM_LOW  * IMM_MULT;
+    static constexpr int64_t IMM_LOW  = -32768;
+    static constexpr int64_t IMM_HIGH = 32767;
+    static constexpr int64_t IMM_MULT = 65536;
+    static constexpr int64_t IMM_FULLHIGH = IMM_HIGH + IMM_HIGH * IMM_MULT;
+    static constexpr int64_t IMM_FULLLOW = IMM_LOW + IMM_LOW  * IMM_MULT;
+    static constexpr int64_t LARGE_SIGNED_INT32_LOW = 0x7FFF'8000LL;
+    static constexpr int64_t LARGE_SIGNED_INT32_HIGH = 0x7FFF'FFFFLL;
 
     static int64_t get_ldah16(int64_t x) {
       int64_t y = x / IMM_MULT;
       if (x % IMM_MULT > IMM_HIGH)
         ++y;
+      if (x % IMM_MULT < IMM_LOW)
+        --y;
       return y;
     }
 
@@ -267,14 +271,10 @@ SDNode *AlphaDAGToDAGISel::SelectImpl(SDNode *N) {
     }
 
     int64_t val = (int64_t)uval;
-    int32_t val32 = (int32_t)val;
-    if (val <= IMM_HIGH + IMM_HIGH * IMM_MULT &&
-        val >= IMM_LOW  + IMM_LOW  * IMM_MULT)
+    if (val <= IMM_FULLHIGH && val >= IMM_FULLLOW)
       break; //(LDAH (LDA))
-    if ((uval >> 32) == 0 && //empty upper bits
-        val32 <= IMM_HIGH + IMM_HIGH * IMM_MULT)
-      // val32 >= IMM_LOW  + IMM_LOW  * IMM_MULT) //always true
-      break; //(zext (LDAH (LDA)))
+    if ((uval >> 32) == 0) // empty upper bits
+      break; //(ZAPNOT (LDAH (LDA)))
     //Else use the constant pool
     ConstantInt *C = ConstantInt::get(
                                 Type::getInt64Ty(*CurDAG->getContext()), uval);

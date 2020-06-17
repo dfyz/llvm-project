@@ -178,6 +178,7 @@ void InputFile::parseRelocations(const section_64 &sec,
     Reloc r;
     r.type = rel.r_type;
     r.pcrel = rel.r_pcrel;
+    r.length = rel.r_length;
     uint64_t rawAddend = target->getImplicitAddend(mb, sec, rel);
 
     if (rel.r_extern) {
@@ -395,16 +396,6 @@ DylibFile::DylibFile(std::shared_ptr<llvm::MachO::InterfaceFile> interface,
   // should be parent'ed to the child.
   for (auto document : interface->documents())
     reexported.push_back(make<DylibFile>(document, umbrella));
-}
-
-DylibFile::DylibFile() : InputFile(DylibKind, MemoryBufferRef()) {}
-
-DylibFile *DylibFile::createLibSystemMock() {
-  auto *file = make<DylibFile>();
-  file->mb = MemoryBufferRef("", "/usr/lib/libSystem.B.dylib");
-  file->dylibName = "/usr/lib/libSystem.B.dylib";
-  file->symbols.push_back(symtab->addDylib("dyld_stub_binder", file));
-  return file;
 }
 
 ArchiveFile::ArchiveFile(std::unique_ptr<llvm::object::Archive> &&f)

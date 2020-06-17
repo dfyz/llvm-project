@@ -39,6 +39,8 @@ static cl::opt<bool> DisableOpenMPOptimizations(
 
 STATISTIC(NumOpenMPRuntimeCallsDeduplicated,
           "Number of OpenMP runtime calls deduplicated");
+STATISTIC(NumOpenMPParallelRegionsDeleted,
+          "Number of OpenMP parallel regions deleted");
 STATISTIC(NumOpenMPRuntimeFunctionsIdentified,
           "Number of OpenMP runtime functions identified");
 STATISTIC(NumOpenMPRuntimeFunctionUsesIdentified,
@@ -116,24 +118,32 @@ struct OpenMPOpt {
     /// true. The callback will be fed the function in which the use was
     /// encountered as second argument.
     void foreachUse(function_ref<bool(Use &, Function &)> CB) {
-      SmallVector<unsigned, 8> ToBeDeleted;
-      for (auto &It : UsesMap) {
-        ToBeDeleted.clear();
-        unsigned Idx = 0;
-        UseVector &UV = *It.second;
-        for (Use *U : UV) {
-          if (CB(*U, *It.first))
-            ToBeDeleted.push_back(Idx);
-          ++Idx;
-        }
+      for (auto &It : UsesMap)
+        foreachUse(CB, It.first, It.second.get());
+    }
 
-        // Remove the to-be-deleted indices in reverse order as prior
-        // modifcations will not modify the smaller indices.
-        while (!ToBeDeleted.empty()) {
-          unsigned Idx = ToBeDeleted.pop_back_val();
-          UV[Idx] = UV.back();
-          UV.pop_back();
-        }
+    /// Run the callback \p CB on each use within the function \p F and forget
+    /// the use if the result is true.
+    void foreachUse(function_ref<bool(Use &, Function &)> CB, Function *F,
+                    UseVector *Uses = nullptr) {
+      SmallVector<unsigned, 8> ToBeDeleted;
+      ToBeDeleted.clear();
+
+      unsigned Idx = 0;
+      UseVector &UV = Uses ? *Uses : getOrCreateUseVector(F);
+
+      for (Use *U : UV) {
+        if (CB(*U, *F))
+          ToBeDeleted.push_back(Idx);
+        ++Idx;
+      }
+
+      // Remove the to-be-deleted indices in reverse order as prior
+      // modifcations will not modify the smaller indices.
+      while (!ToBeDeleted.empty()) {
+        unsigned Idx = ToBeDeleted.pop_back_val();
+        UV[Idx] = UV.back();
+        UV.pop_back();
       }
     }
 
@@ -194,6 +204,7 @@ private:
       CGUpdater.removeCallSite(*CI);
       CI->eraseFromParent();
       Changed = true;
+      ++NumOpenMPParallelRegionsDeleted;
       return true;
     };
 

@@ -696,6 +696,7 @@ class Base(unittest2.TestCase):
         return os.path.join(self.getSourceDir(), name)
 
     def getReproducerArtifact(self, name):
+        lldbutil.mkdir_p(self.getReproducerDir())
         return os.path.join(self.getReproducerDir(), name)
 
     @classmethod
@@ -2018,9 +2019,17 @@ class TestBase(Base):
                 process = target.GetProcess()
                 if process:
                     rc = self.invoke(process, "Kill")
-                    self.assertTrue(rc.Success(), PROCESS_KILLED)
+                    assert rc.Success()
         for target in targets:
             self.dbg.DeleteTarget(target)
+
+        # Modules are not orphaned during reproducer replay because they're
+        # leaked on purpose.
+        if not configuration.is_reproducer():
+            # Assert that all targets are deleted.
+            assert self.dbg.GetNumTargets() == 0
+            # Assert that the global module cache is empty.
+            assert lldb.SBModule.GetNumberAllocatedModules() == 0
 
         # Do this last, to make sure it's in reverse order from how we setup.
         Base.tearDown(self)

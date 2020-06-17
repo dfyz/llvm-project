@@ -4,3 +4,4 @@ clang:
   * fix "Def isn't really dead" due to $28 not being dead
   * fix BSR and $t12 interaction
   * fix floating point comparison selection
+  * fix 2007-11-27-mulneg3

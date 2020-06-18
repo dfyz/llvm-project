@@ -938,12 +938,12 @@ void SIRegisterInfo::buildSGPRSpillLoadStore(MachineBasicBlock::iterator MI,
     } else {
       SavedExecReg =
           getMatchingSuperReg(getSubReg(SuperReg, SplitParts[FirstPart]),
-                              AMDGPU::sub0, &AMDGPU::SGPR_64RegClass);
+                              AMDGPU::sub0, &AMDGPU::SReg_64_XEXECRegClass);
       // If src/dst is an odd size it is possible subreg0 is not aligned.
       if (!SavedExecReg && NumSubRegs > 2)
         SavedExecReg =
             getMatchingSuperReg(getSubReg(SuperReg, SplitParts[FirstPart + 1]),
-                                AMDGPU::sub0, &AMDGPU::SGPR_64RegClass);
+                                AMDGPU::sub0, &AMDGPU::SReg_64_XEXECRegClass);
     }
 
     assert(SavedExecReg);
@@ -1977,4 +1977,20 @@ bool SIRegisterInfo::isConstantPhysReg(MCRegister PhysReg) const {
   default:
     return false;
   }
+}
+
+ArrayRef<MCPhysReg>
+SIRegisterInfo::getAllSGPR128(const MachineFunction &MF) const {
+  return makeArrayRef(AMDGPU::SGPR_128RegClass.begin(),
+                      ST.getMaxNumSGPRs(MF) / 4);
+}
+
+ArrayRef<MCPhysReg>
+SIRegisterInfo::getAllSGPR32(const MachineFunction &MF) const {
+  return makeArrayRef(AMDGPU::SGPR_32RegClass.begin(), ST.getMaxNumSGPRs(MF));
+}
+
+ArrayRef<MCPhysReg>
+SIRegisterInfo::getAllVGPR32(const MachineFunction &MF) const {
+  return makeArrayRef(AMDGPU::VGPR_32RegClass.begin(), ST.getMaxNumVGPRs(MF));
 }

@@ -55,10 +55,6 @@ namespace {
            FI != FE; ++FI) {
         MachineBasicBlock& MBB = *FI;
 
-        auto buildNOP = [&MBB, &dl, &TII](auto &&CurrentMI) {
-          BuildMI(MBB, CurrentMI, dl, TII->get(Alpha::NOP));
-        };
-
         bool ub = false;
         for (MachineBasicBlock::iterator I = MBB.begin(); I != MBB.end(); ) {
           if (count%4 == 0)
@@ -79,7 +75,7 @@ namespace {
                prev[0] = prev[1];
                prev[1] = prev[2];
                prev[2] = 0;
-               buildNOP(MI);
+               TII->insertNoop(MBB, MI);
                Changed = true; nopintro += 1;
                count += 1;
              } else if (prev[1] 
@@ -89,8 +85,8 @@ namespace {
                         MI.getOperand(1).getImm()) {
                prev[0] = prev[2];
                prev[1] = prev[2] = 0;
-               buildNOP(MI);
-               buildNOP(MI);
+               TII->insertNoop(MBB, MI);
+               TII->insertNoop(MBB, MI);
                Changed = true; nopintro += 2;
                count += 2;
              } else if (prev[2] 
@@ -99,9 +95,9 @@ namespace {
                         && prev[2]->getOperand(1).getImm() == 
                         MI.getOperand(1).getImm()) {
                prev[0] = prev[1] = prev[2] = 0;
-               buildNOP(MI);
-               buildNOP(MI);
-               buildNOP(MI);
+               TII->insertNoop(MBB, MI);
+               TII->insertNoop(MBB, MI);
+               TII->insertNoop(MBB, MI);
                Changed = true; nopintro += 3;
                count += 3;
              }
@@ -133,7 +129,7 @@ namespace {
         if (ub || AlignAll) {
           //we can align stuff for free at this point
           while (count % 4) {
-            buildNOP(MBB.end());
+            TII->insertNoop(MBB, MBB.end());
             ++count;
             ++nopalign;
             prev[0] = prev[1];

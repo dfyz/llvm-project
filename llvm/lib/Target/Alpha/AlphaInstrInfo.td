@@ -147,6 +147,8 @@ class BinOpFrag<dag res> : PatFrag<(ops node:$LHS, node:$RHS), res>;
 class CmpOpFrag<dag res> : PatFrag<(ops node:$R), res>;
 
 //Pseudo ops for selection
+let isTerminator = 1 in
+def NOP: PseudoInstAlpha<(outs), (ins), "bis $$31,$$31,$$31", [], s_pseudo>;
 
 def WTF : PseudoInstAlpha<(outs), (ins variable_ops), "#wtf", [], s_pseudo>;
 

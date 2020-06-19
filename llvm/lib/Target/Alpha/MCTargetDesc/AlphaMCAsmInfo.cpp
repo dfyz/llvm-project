@@ -21,4 +21,5 @@ AlphaMCAsmInfo::AlphaMCAsmInfo(const Triple & /*TT*/, const MCTargetOptions & /*
   GPRel32Directive = "\t.gprel32\t";
   WeakRefDirective = "\t.weak\t";
   UseIntegratedAssembler = false;
+  UsesELFSectionDirectiveForBSS = true;
 }

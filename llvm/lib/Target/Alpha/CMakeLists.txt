@@ -1,3 +1,5 @@
+add_llvm_component_group(Alpha)
+
 set(LLVM_TARGET_DEFINITIONS Alpha.td)
 
 tablegen(LLVM AlphaGenRegisterInfo.inc -gen-register-info)
@@ -19,6 +21,20 @@ add_llvm_target(AlphaCodeGen
   AlphaRegisterInfo.cpp
   AlphaSubtarget.cpp
   AlphaTargetMachine.cpp
+
+  LINK_COMPONENTS
+  AlphaDesc
+  AlphaInfo
+  AsmPrinter
+  CodeGen
+  Core
+  MC
+  SelectionDAG
+  Support
+  Target
+
+  ADD_TO_COMPONENT
+  Alpha
   )
 
 add_subdirectory(TargetInfo)

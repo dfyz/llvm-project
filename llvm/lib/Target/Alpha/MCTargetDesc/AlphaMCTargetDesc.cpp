@@ -44,7 +44,7 @@ static MCRegisterInfo *createAlphaMCRegisterInfo(const Triple & /*TT*/) {
 
 static MCSubtargetInfo *createAlphaMCSubtargetInfo(const Triple &TT, StringRef CPU,
                                                    StringRef FS) {
-  return createAlphaMCSubtargetInfoImpl(TT, CPU, FS);
+  return createAlphaMCSubtargetInfoImpl(TT, CPU, /*TuneCPU*/ CPU, FS);
 }
 
 // Force static initialization.

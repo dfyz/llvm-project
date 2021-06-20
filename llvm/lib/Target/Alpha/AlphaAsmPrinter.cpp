@@ -41,6 +41,7 @@ namespace {
     StringRef getPassName() const override {
       return "Alpha Assembly Printer";
     }
+    std::pair<const char *, uint64_t> getMnemonic(const MachineInstr *MI);
     void printInstruction(const MachineInstr *MI, uint64_t Address, raw_ostream &O);
     void emitInstruction(const MachineInstr *MI) override {
       SmallString<128> Str;

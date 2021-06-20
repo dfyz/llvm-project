@@ -23,20 +23,19 @@
 using namespace llvm;
 
 AlphaSubtarget &AlphaSubtarget::initializeSubtargetDependencies(
-    const std::string &CPU, const std::string &FS) {
-  std::string CPUName = CPU;
-  if (CPUName.empty())
-    CPUName = "generic";
+    StringRef CPU, StringRef FS) {
+  if (CPU.empty())
+    CPU = "generic";
 
   // Parse features string.
-  ParseSubtargetFeatures(CPUName, FS);
+  ParseSubtargetFeatures(CPU, /*TuneCPU*/ CPU, FS);
 
   // Initialize scheduling itinerary for the specified CPU.
-  InstrItins = getInstrItineraryForCPU(CPUName);
+  InstrItins = getInstrItineraryForCPU(CPU);
   return *this;
 }
 
-AlphaSubtarget::AlphaSubtarget(const Triple &TT, const std::string &CPU,
-                               const std::string &FS, const TargetMachine &TM)
-  : AlphaGenSubtargetInfo(TT, CPU, FS), HasCT(false),
+AlphaSubtarget::AlphaSubtarget(const Triple &TT, StringRef CPU,
+                               StringRef FS, const TargetMachine &TM)
+  : AlphaGenSubtargetInfo(TT, CPU, /*TuneCPU*/ CPU, FS), HasCT(false),
     FrameLowering(initializeSubtargetDependencies(CPU, FS)), TLInfo(TM, *this) {}

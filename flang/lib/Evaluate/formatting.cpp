@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "flang/Evaluate/formatting.h"
+#include "flang/Common/Fortran.h"
 #include "flang/Evaluate/call.h"
 #include "flang/Evaluate/constant.h"
 #include "flang/Evaluate/expression.h"
@@ -108,14 +109,16 @@ llvm::raw_ostream &ActualArgument::AsFortran(llvm::raw_ostream &o) const {
   if (keyword_) {
     o << keyword_->ToString() << '=';
   }
-  if (isAlternateReturn_) {
-    o << '*';
-  }
-  if (const auto *expr{UnwrapExpr()}) {
-    return expr->AsFortran(o);
-  } else {
-    return std::get<AssumedType>(u_).AsFortran(o);
-  }
+  std::visit(
+      common::visitors{
+          [&](const common::CopyableIndirection<Expr<SomeType>> &expr) {
+            expr.value().AsFortran(o);
+          },
+          [&](const AssumedType &assumedType) { assumedType.AsFortran(o); },
+          [&](const common::Label &label) { o << '*' << label; },
+      },
+      u_);
+  return o;
 }
 
 llvm::raw_ostream &SpecificIntrinsic::AsFortran(llvm::raw_ostream &o) const {
@@ -349,6 +352,7 @@ template <typename TO, TypeCategory FROMCAT>
 llvm::raw_ostream &Convert<TO, FROMCAT>::AsFortran(llvm::raw_ostream &o) const {
   static_assert(TO::category == TypeCategory::Integer ||
           TO::category == TypeCategory::Real ||
+          TO::category == TypeCategory::Complex ||
           TO::category == TypeCategory::Character ||
           TO::category == TypeCategory::Logical,
       "Convert<> to bad category!");
@@ -358,6 +362,8 @@ llvm::raw_ostream &Convert<TO, FROMCAT>::AsFortran(llvm::raw_ostream &o) const {
     this->left().AsFortran(o << "int(");
   } else if constexpr (TO::category == TypeCategory::Real) {
     this->left().AsFortran(o << "real(");
+  } else if constexpr (TO::category == TypeCategory::Complex) {
+    this->left().AsFortran(o << "cmplx(");
   } else {
     this->left().AsFortran(o << "logical(");
   }
@@ -469,13 +475,15 @@ std::string DynamicType::AsFortran() const {
   if (derived_) {
     CHECK(category_ == TypeCategory::Derived);
     return DerivedTypeSpecAsFortran(*derived_);
-  } else if (charLength_) {
+  } else if (charLengthParamValue_ || knownLength_) {
     std::string result{"CHARACTER(KIND="s + std::to_string(kind_) + ",LEN="};
-    if (charLength_->isAssumed()) {
+    if (knownLength_) {
+      result += std::to_string(*knownLength_) + "_8";
+    } else if (charLengthParamValue_->isAssumed()) {
       result += '*';
-    } else if (charLength_->isDeferred()) {
+    } else if (charLengthParamValue_->isDeferred()) {
       result += ':';
-    } else if (const auto &length{charLength_->GetExplicit()}) {
+    } else if (const auto &length{charLengthParamValue_->GetExplicit()}) {
       result += length->AsFortran();
     }
     return result + ')';
@@ -606,11 +614,9 @@ llvm::raw_ostream &BaseObject::AsFortran(llvm::raw_ostream &o) const {
   return EmitVar(o, u);
 }
 
-template <int KIND>
-llvm::raw_ostream &TypeParamInquiry<KIND>::AsFortran(
-    llvm::raw_ostream &o) const {
+llvm::raw_ostream &TypeParamInquiry::AsFortran(llvm::raw_ostream &o) const {
   if (base_) {
-    return base_->AsFortran(o) << '%';
+    base_.value().AsFortran(o) << '%';
   }
   return EmitVar(o, parameter_);
 }

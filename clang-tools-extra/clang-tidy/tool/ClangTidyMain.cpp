@@ -25,8 +25,6 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/WithColor.h"
 
-using namespace clang::ast_matchers;
-using namespace clang::driver;
 using namespace clang::tooling;
 using namespace llvm;
 
@@ -129,6 +127,15 @@ well.
 )"),
                                cl::init(false), cl::cat(ClangTidyCategory));
 
+static cl::opt<bool> FixNotes("fix-notes", cl::desc(R"(
+If a warning has no fix, but a single fix can 
+be found through an associated diagnostic note, 
+apply the fix. 
+Specifying this flag will implicitly enable the 
+'--fix' flag.
+)"),
+                              cl::init(false), cl::cat(ClangTidyCategory));
+
 static cl::opt<std::string> FormatStyle("format-style", cl::desc(R"(
 Style for formatting code around applied fixes:
   - 'none' (default) turns off formatting
@@ -169,6 +176,16 @@ attempt to find a file named .clang-tidy for
 each source file in its parent directories.
 )"),
                                    cl::init(""), cl::cat(ClangTidyCategory));
+
+static cl::opt<std::string> ConfigFile("config-file", cl::desc(R"(
+Specify the path of .clang-tidy or custom config file:
+ e.g. --config-file=/some/path/myTidyConfigFile
+This option internally works exactly the same way as
+ --config option after reading specified config file.
+Use either --config-file or --config, not both.
+)"),
+                                       cl::init(""),
+                                       cl::cat(ClangTidyCategory));
 
 static cl::opt<bool> DumpConfig("dump-config", cl::desc(R"(
 Dumps configuration in the YAML format to
@@ -229,6 +246,15 @@ over the real file system.
 )"),
                                        cl::value_desc("filename"),
                                        cl::cat(ClangTidyCategory));
+
+static cl::opt<bool> UseColor("use-color", cl::desc(R"(
+Use colors in diagnostics. If not set, colors
+will be used if the terminal connected to
+standard output supports colors.
+This option overrides the 'UseColor' option in
+.clang-tidy file, if any.
+)"),
+                              cl::init(false), cl::cat(ClangTidyCategory));
 
 namespace clang {
 namespace tidy {
@@ -292,22 +318,48 @@ static std::unique_ptr<ClangTidyOptionsProvider> createOptionsProvider(
     OverrideOptions.SystemHeaders = SystemHeaders;
   if (FormatStyle.getNumOccurrences() > 0)
     OverrideOptions.FormatStyle = FormatStyle;
+  if (UseColor.getNumOccurrences() > 0)
+    OverrideOptions.UseColor = UseColor;
 
-  if (!Config.empty()) {
-    if (llvm::ErrorOr<ClangTidyOptions> ParsedConfig =
-            parseConfiguration(Config)) {
+  auto LoadConfig =
+      [&](StringRef Configuration,
+          StringRef Source) -> std::unique_ptr<ClangTidyOptionsProvider> {
+    llvm::ErrorOr<ClangTidyOptions> ParsedConfig =
+        parseConfiguration(MemoryBufferRef(Configuration, Source));
+    if (ParsedConfig)
       return std::make_unique<ConfigOptionsProvider>(
-          GlobalOptions,
-          ClangTidyOptions::getDefaults().mergeWith(DefaultOptions, 0),
-          *ParsedConfig, OverrideOptions);
-    } else {
-      llvm::errs() << "Error: invalid configuration specified.\n"
-                   << ParsedConfig.getError().message() << "\n";
+          std::move(GlobalOptions),
+          ClangTidyOptions::getDefaults().merge(DefaultOptions, 0),
+          std::move(*ParsedConfig), std::move(OverrideOptions), std::move(FS));
+    llvm::errs() << "Error: invalid configuration specified.\n"
+                 << ParsedConfig.getError().message() << "\n";
+    return nullptr;
+  };
+
+  if (ConfigFile.getNumOccurrences() > 0) {
+    if (Config.getNumOccurrences() > 0) {
+      llvm::errs() << "Error: --config-file and --config are "
+                      "mutually exclusive. Specify only one.\n";
       return nullptr;
     }
+
+    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> Text =
+        llvm::MemoryBuffer::getFile(ConfigFile);
+    if (std::error_code EC = Text.getError()) {
+      llvm::errs() << "Error: can't read config-file '" << ConfigFile
+                   << "': " << EC.message() << "\n";
+      return nullptr;
+    }
+
+    return LoadConfig((*Text)->getBuffer(), ConfigFile);
   }
-  return std::make_unique<FileOptionsProvider>(GlobalOptions, DefaultOptions,
-                                                OverrideOptions, std::move(FS));
+
+  if (Config.getNumOccurrences() > 0)
+    return LoadConfig(Config, "<command-line-config>");
+
+  return std::make_unique<FileOptionsProvider>(
+      std::move(GlobalOptions), std::move(DefaultOptions),
+      std::move(OverrideOptions), std::move(FS));
 }
 
 llvm::IntrusiveRefCntPtr<vfs::FileSystem>
@@ -350,7 +402,7 @@ int clangTidyMain(int argc, const char **argv) {
         getVfsFromFile(VfsOverlay, BaseFS);
     if (!VfsFromFile)
       return 1;
-    BaseFS->pushOverlay(VfsFromFile);
+    BaseFS->pushOverlay(std::move(VfsFromFile));
   }
 
   auto OwningOptionsProvider = createOptionsProvider(BaseFS);
@@ -414,9 +466,8 @@ int clangTidyMain(int argc, const char **argv) {
   if (DumpConfig) {
     EffectiveOptions.CheckOptions =
         getCheckOptions(EffectiveOptions, AllowEnablingAnalyzerAlphaCheckers);
-    llvm::outs() << configurationAsText(
-                        ClangTidyOptions::getDefaults().mergeWith(
-                            EffectiveOptions, 0))
+    llvm::outs() << configurationAsText(ClangTidyOptions::getDefaults().merge(
+                        EffectiveOptions, 0))
                  << "\n";
     return 0;
   }
@@ -441,18 +492,22 @@ int clangTidyMain(int argc, const char **argv) {
                            AllowEnablingAnalyzerAlphaCheckers);
   std::vector<ClangTidyError> Errors =
       runClangTidy(Context, OptionsParser->getCompilations(), PathList, BaseFS,
-                   EnableCheckProfile, ProfilePrefix);
+                   FixNotes, EnableCheckProfile, ProfilePrefix);
   bool FoundErrors = llvm::find_if(Errors, [](const ClangTidyError &E) {
                        return E.DiagLevel == ClangTidyError::Error;
                      }) != Errors.end();
 
-  const bool DisableFixes = Fix && FoundErrors && !FixErrors;
+  // --fix-errors and --fix-notes imply --fix.
+  FixBehaviour Behaviour = FixNotes             ? FB_FixNotes
+                           : (Fix || FixErrors) ? FB_Fix
+                                                : FB_NoFix;
+
+  const bool DisableFixes = FoundErrors && !FixErrors;
 
   unsigned WErrorCount = 0;
 
-  // -fix-errors implies -fix.
-  handleErrors(Errors, Context, (FixErrors || Fix) && !DisableFixes, WErrorCount,
-               BaseFS);
+  handleErrors(Errors, Context, DisableFixes ? FB_NoFix : Behaviour,
+               WErrorCount, BaseFS);
 
   if (!ExportFixes.empty() && !Errors.empty()) {
     std::error_code EC;
@@ -466,7 +521,7 @@ int clangTidyMain(int argc, const char **argv) {
 
   if (!Quiet) {
     printStats(Context.getStats());
-    if (DisableFixes)
+    if (DisableFixes && Behaviour != FB_NoFix)
       llvm::errs()
           << "Found compiler errors, but -fix-errors was not specified.\n"
              "Fixes have NOT been applied.\n\n";

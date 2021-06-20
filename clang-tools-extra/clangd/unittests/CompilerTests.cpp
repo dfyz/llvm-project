@@ -19,7 +19,7 @@ namespace {
 using testing::IsEmpty;
 
 TEST(BuildCompilerInvocation, DropsPCH) {
-  MockFSProvider FS;
+  MockFS FS;
   IgnoreDiagnostics Diags;
   TestTU TU;
   TU.AdditionalFiles["test.h.pch"] = "";
@@ -49,6 +49,11 @@ TEST(BuildCompilerInvocation, DropsPCH) {
                   ->getPreprocessorOpts()
                   .PCHThroughHeader,
               IsEmpty());
+}
+
+TEST(BuildCompilerInvocation, PragmaDebugCrash) {
+  TestTU TU = TestTU::withCode("#pragma clang __debug parser_crash");
+  TU.build(); // no-crash
 }
 
 } // namespace

@@ -8,11 +8,13 @@
 
 #include "flang/Evaluate/variable.h"
 #include "flang/Common/idioms.h"
+#include "flang/Evaluate/check-expression.h"
 #include "flang/Evaluate/fold.h"
 #include "flang/Evaluate/tools.h"
 #include "flang/Parser/char-block.h"
 #include "flang/Parser/characters.h"
 #include "flang/Parser/message.h"
+#include "flang/Semantics/scope.h"
 #include "flang/Semantics/symbol.h"
 #include <type_traits>
 
@@ -203,9 +205,11 @@ std::optional<Expr<SomeCharacter>> Substring::Fold(FoldingContext &context) {
       *ubi = *length;
     }
     if (lbi && literal) {
-      CHECK(*ubi >= *lbi);
       auto newStaticData{StaticDataObject::Create()};
-      auto items{*ubi - *lbi + 1};
+      auto items{0}; // If the lower bound is greater, the length is 0
+      if (*ubi >= *lbi) {
+        items = *ubi - *lbi + 1;
+      }
       auto width{(*literal)->itemBytes()};
       auto bytes{items * width};
       auto startByte{(*lbi - 1) * width};
@@ -254,21 +258,18 @@ DescriptorInquiry::DescriptorInquiry(NamedEntity &&base, Field field, int dim)
 }
 
 // LEN()
-static std::optional<Expr<SubscriptInteger>> SymbolLEN(const Symbol &sym) {
-  if (auto dyType{DynamicType::From(sym)}) {
-    if (const semantics::ParamValue * len{dyType->charLength()}) {
-      if (len->isExplicit()) {
-        if (auto intExpr{len->GetExplicit()}) {
-          return ConvertToType<SubscriptInteger>(*std::move(intExpr));
-        } else {
-          // There was an error constructing this symbol's type.  It should
-          // have a length expression, but we couldn't retrieve it
-          return std::nullopt;
-        }
-      } else {
-        return Expr<SubscriptInteger>{
-            DescriptorInquiry{NamedEntity{sym}, DescriptorInquiry::Field::Len}};
-      }
+static std::optional<Expr<SubscriptInteger>> SymbolLEN(const Symbol &symbol) {
+  const Symbol &ultimate{symbol.GetUltimate()};
+  if (const auto *assoc{ultimate.detailsIf<semantics::AssocEntityDetails>()}) {
+    if (const auto *chExpr{UnwrapExpr<Expr<SomeCharacter>>(assoc->expr())}) {
+      return chExpr->LEN();
+    }
+  } else if (auto dyType{DynamicType::From(ultimate)}) {
+    if (auto len{dyType->GetCharLength()}) {
+      return len;
+    } else if (IsDescriptor(ultimate) && !ultimate.owner().IsDerivedType()) {
+      return Expr<SubscriptInteger>{DescriptorInquiry{
+          NamedEntity{symbol}, DescriptorInquiry::Field::Len}};
     }
   }
   return std::nullopt;
@@ -343,12 +344,16 @@ std::optional<Expr<SubscriptInteger>> ProcedureDesignator::LEN() const {
             return c.value().LEN();
           },
           [](const SpecificIntrinsic &i) -> T {
-            if (i.name == "char") {
-              return Expr<SubscriptInteger>{1};
-            }
-            // Some other cases whose results' lengths can be determined
+            // Some cases whose results' lengths can be determined
             // from the lengths of their arguments are handled in
-            // ProcedureRef::LEN().
+            // ProcedureRef::LEN() before coming here.
+            if (const auto &result{i.characteristics.value().functionResult}) {
+              if (const auto *type{result->GetTypeAndShape()}) {
+                if (auto length{type->type().GetCharLength()}) {
+                  return std::move(*length);
+                }
+              }
+            }
             return std::nullopt;
           },
       },
@@ -564,10 +569,17 @@ template <typename T> const Symbol *Designator<T>::GetLastSymbol() const {
 template <typename T>
 std::optional<DynamicType> Designator<T>::GetType() const {
   if constexpr (IsLengthlessIntrinsicType<Result>) {
-    return {Result::GetType()};
-  } else {
-    return DynamicType::From(GetLastSymbol());
+    return Result::GetType();
+  } else if (const Symbol * symbol{GetLastSymbol()}) {
+    return DynamicType::From(*symbol);
+  } else if constexpr (Result::category == TypeCategory::Character) {
+    if (const Substring * substring{std::get_if<Substring>(&u)}) {
+      const auto *parent{substring->GetParentIf<StaticDataObject::Pointer>()};
+      CHECK(parent);
+      return DynamicType{TypeCategory::Character, (*parent)->itemBytes()};
+    }
   }
+  return std::nullopt;
 }
 
 static NamedEntity AsNamedEntity(const SymbolVector &x) {
@@ -630,9 +642,7 @@ bool NamedEntity::operator==(const NamedEntity &that) const {
     return !that.IsSymbol() && GetComponent() == that.GetComponent();
   }
 }
-template <int KIND>
-bool TypeParamInquiry<KIND>::operator==(
-    const TypeParamInquiry<KIND> &that) const {
+bool TypeParamInquiry::operator==(const TypeParamInquiry &that) const {
   return &*parameter_ == &*that.parameter_ && base_ == that.base_;
 }
 bool Triplet::operator==(const Triplet &that) const {

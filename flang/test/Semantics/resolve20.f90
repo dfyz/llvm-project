@@ -1,4 +1,5 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %S/test_errors.sh %s %t %flang_fc1
+! REQUIRES: shell
 module m
   abstract interface
     subroutine foo
@@ -61,7 +62,18 @@ module m
     procedure(proc), deferred :: p1
   end type t1
 
+  abstract interface
+    function f()
+    end function
+  end interface
+
 contains
   subroutine bar
+  end subroutine
+  subroutine test
+    !ERROR: Abstract interface 'foo' may not be called
+    call foo()
+    !ERROR: Abstract interface 'f' may not be called
+    x = f()
   end subroutine
 end module

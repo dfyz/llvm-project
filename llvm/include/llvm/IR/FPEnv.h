@@ -12,15 +12,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_IR_FLOATINGPOINT_H
-#define LLVM_IR_FLOATINGPOINT_H
+#ifndef LLVM_IR_FPENV_H
+#define LLVM_IR_FPENV_H
 
-#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/StringRef.h"
-#include <stdint.h>
 
 namespace llvm {
+class StringRef;
 
 namespace fp {
 

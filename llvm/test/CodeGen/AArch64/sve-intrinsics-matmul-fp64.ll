@@ -1,6 +1,5 @@
 ; RUN: llc -mtriple=aarch64-none-linux-gnu -mattr=+sve,+f64mm -asm-verbose=0 < %s -o - | FileCheck %s
 
-
 define <vscale x 2 x double> @fmmla_d(<vscale x 2 x double> %r, <vscale x 2 x double> %a, <vscale x 2 x double> %b) nounwind {
 entry:
 ; CHECK-LABEL: fmmla_d:

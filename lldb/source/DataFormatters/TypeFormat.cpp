@@ -27,8 +27,7 @@
 using namespace lldb;
 using namespace lldb_private;
 
-TypeFormatImpl::TypeFormatImpl(const Flags &flags)
-    : m_flags(flags), m_my_revision(0) {}
+TypeFormatImpl::TypeFormatImpl(const Flags &flags) : m_flags(flags) {}
 
 TypeFormatImpl::~TypeFormatImpl() {}
 
@@ -48,7 +47,7 @@ bool TypeFormatImpl_Format::FormatObject(ValueObject *valobj,
     ExecutionContext exe_ctx(valobj->GetExecutionContextRef());
     DataExtractor data;
 
-    if (context_type == Value::eContextTypeRegisterInfo) {
+    if (context_type == Value::ContextType::RegisterInfo) {
       const RegisterInfo *reg_info = value.GetRegisterInfo();
       if (reg_info) {
         Status error;

@@ -1,5 +1,5 @@
-// RUN: mlir-opt %s -inline="disable-simplify" | FileCheck %s
-// RUN: mlir-opt %s -inline="disable-simplify" -mlir-print-debuginfo | FileCheck %s --check-prefix INLINE-LOC
+// RUN: mlir-opt %s -inline='default-pipeline=''' | FileCheck %s
+// RUN: mlir-opt %s -inline='default-pipeline=''' -mlir-print-debuginfo -mlir-print-local-scope | FileCheck %s --check-prefix INLINE-LOC
 // RUN: mlir-opt %s -inline | FileCheck %s --check-prefix INLINE_SIMPLIFY
 
 // Inline a function that takes an argument.
@@ -64,8 +64,8 @@ func @inline_with_locations(%arg0 : i32) -> i32 {
 }
 
 
-// Check that external functions are not inlined.
-func @func_external()
+// Check that external function declarations are not inlined.
+func private @func_external()
 
 // CHECK-LABEL: func @no_inline_external
 func @no_inline_external() {
@@ -140,9 +140,9 @@ func @convert_callee_fn_multiblock() -> i32 {
 
 // CHECK-LABEL: func @inline_convert_result_multiblock
 func @inline_convert_result_multiblock() -> i16 {
-// CHECK:   br ^bb1
+// CHECK:   br ^bb1 {inlined_conversion}
 // CHECK: ^bb1:
-// CHECK:   %[[C:.+]] = constant 0 : i32
+// CHECK:   %[[C:.+]] = constant {inlined_conversion} 0 : i32
 // CHECK:   br ^bb2(%[[C]] : i32)
 // CHECK: ^bb2(%[[BBARG:.+]]: i32):
 // CHECK:   %[[CAST_RESULT:.+]] = "test.cast"(%[[BBARG]]) : (i32) -> i16
@@ -181,5 +181,11 @@ func @inline_simplify() -> i32 {
   // INLINE_SIMPLIFY-NEXT: return %[[CST]]
   %fn = call @simplify_return_reference() : () -> (() -> i32)
   %res = call_indirect %fn() : () -> i32
+  return %res : i32
+}
+
+// CHECK-LABEL: func @no_inline_invalid_call
+func @no_inline_invalid_call() -> i32 {
+  %res = "test.conversion_call_op"() { callee=@convert_callee_fn_multiblock, noinline } : () -> (i32)
   return %res : i32
 }

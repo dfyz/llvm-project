@@ -9,13 +9,16 @@
 #ifndef LLVM_SUPPORT_WITHCOLOR_H
 #define LLVM_SUPPORT_WITHCOLOR_H
 
-#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/raw_ostream.h"
 
 namespace llvm {
 
 class Error;
-class raw_ostream;
 class StringRef;
+
+namespace cl {
+class OptionCategory;
+}
 
 extern cl::OptionCategory ColorCategory;
 
@@ -133,4 +136,4 @@ public:
 
 } // end namespace llvm
 
-#endif // LLVM_LIB_DEBUGINFO_WITHCOLOR_H
+#endif // LLVM_SUPPORT_WITHCOLOR_H

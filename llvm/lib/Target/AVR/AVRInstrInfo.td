@@ -59,6 +59,12 @@ def AVRlsr : SDNode<"AVRISD::LSR", SDTIntUnaryOp>;
 def AVRrol : SDNode<"AVRISD::ROL", SDTIntUnaryOp>;
 def AVRror : SDNode<"AVRISD::ROR", SDTIntUnaryOp>;
 def AVRasr : SDNode<"AVRISD::ASR", SDTIntUnaryOp>;
+def AVRlslbn : SDNode<"AVRISD::LSLBN", SDTIntBinOp>;
+def AVRlsrbn : SDNode<"AVRISD::LSRBN", SDTIntBinOp>;
+def AVRasrbn : SDNode<"AVRISD::ASRBN", SDTIntBinOp>;
+def AVRlslwn : SDNode<"AVRISD::LSLWN", SDTIntBinOp>;
+def AVRlsrwn : SDNode<"AVRISD::LSRWN", SDTIntBinOp>;
+def AVRasrwn : SDNode<"AVRISD::ASRWN", SDTIntBinOp>;
 
 // Pseudo shift nodes for non-constant shift amounts.
 def AVRlslLoop : SDNode<"AVRISD::LSLLOOP", SDTIntShiftOp>;
@@ -66,6 +72,9 @@ def AVRlsrLoop : SDNode<"AVRISD::LSRLOOP", SDTIntShiftOp>;
 def AVRrolLoop : SDNode<"AVRISD::ROLLOOP", SDTIntShiftOp>;
 def AVRrorLoop : SDNode<"AVRISD::RORLOOP", SDTIntShiftOp>;
 def AVRasrLoop : SDNode<"AVRISD::ASRLOOP", SDTIntShiftOp>;
+
+// SWAP node.
+def AVRSwap : SDNode<"AVRISD::SWAP", SDTIntUnaryOp>;
 
 //===----------------------------------------------------------------------===//
 // AVR Operands, Complex Patterns and Transformations Definitions.
@@ -193,6 +202,7 @@ def brtarget_13 : Operand<OtherVT>
 def call_target : Operand<iPTR>
 {
     let EncoderMethod = "encodeCallTarget";
+    let DecoderMethod = "decodeCallTarget";
 }
 
 // A 16-bit address (which can lead to an R_AVR_16 relocation).
@@ -731,13 +741,23 @@ Defs = [SREG] in
                       "comw\t$rd",
                       [(set i16:$rd, (not i16:$src)), (implicit SREG)]>;
 
-  //:TODO: optimize NEG for wider types
   def NEGRd : FRd<0b1001,
                   0b0100001,
                   (outs GPR8:$rd),
                   (ins GPR8:$src),
                   "neg\t$rd",
                   [(set i8:$rd, (ineg i8:$src)), (implicit SREG)]>;
+
+  // NEGW Rd+1:Rd
+  //
+  // Expands to:
+  // neg Rd+1
+  // neg Rd
+  // sbc Rd+1, r1
+  def NEGWRd : Pseudo<(outs DREGS:$rd),
+                      (ins DREGS:$src),
+                      "negw\t$rd",
+                      [(set i16:$rd, (ineg i16:$src)), (implicit SREG)]>;
 }
 
 // TST Rd
@@ -1652,6 +1672,18 @@ Defs = [SREG] in
                       "lslw\t$rd",
                       [(set i16:$rd, (AVRlsl i16:$src)), (implicit SREG)]>;
 
+  def LSLWNRd : Pseudo<(outs DLDREGS:$rd),
+                       (ins DREGS:$src, imm16:$bits),
+                       "lslwn\t$rd, $bits",
+                       [(set i16:$rd, (AVRlslwn i16:$src, imm:$bits)),
+                        (implicit SREG)]>;
+
+  def LSLBNRd : Pseudo<(outs LD8:$rd),
+                       (ins GPR8:$src, imm_ldi8:$bits),
+                       "lslbn\t$rd, $bits",
+                       [(set i8:$rd, (AVRlslbn i8:$src, imm:$bits)),
+                        (implicit SREG)]>;
+
   def LSRRd : FRd<0b1001,
                   0b0100110,
                   (outs GPR8:$rd),
@@ -1664,12 +1696,36 @@ Defs = [SREG] in
                       "lsrw\t$rd",
                       [(set i16:$rd, (AVRlsr i16:$src)), (implicit SREG)]>;
 
+  def LSRWNRd : Pseudo<(outs DLDREGS:$rd),
+                       (ins DREGS:$src, imm16:$bits),
+                       "lsrwn\t$rd, $bits",
+                       [(set i16:$rd, (AVRlsrwn i16:$src, imm:$bits)),
+                        (implicit SREG)]>;
+
+  def LSRBNRd : Pseudo<(outs LD8:$rd),
+                       (ins GPR8:$src, imm_ldi8:$bits),
+                       "lsrbn\t$rd, $bits",
+                       [(set i8:$rd, (AVRlsrbn i8:$src, imm:$bits)),
+                        (implicit SREG)]>;
+
   def ASRRd : FRd<0b1001,
                   0b0100101,
                   (outs GPR8:$rd),
                   (ins GPR8:$src),
                   "asr\t$rd",
                   [(set i8:$rd, (AVRasr i8:$src)), (implicit SREG)]>;
+
+  def ASRWNRd : Pseudo<(outs DLDREGS:$rd),
+                       (ins DREGS:$src, imm16:$bits),
+                       "asrwn\t$rd, $bits",
+                       [(set i16:$rd, (AVRasrwn i16:$src, imm:$bits)),
+                        (implicit SREG)]>;
+
+  def ASRBNRd : Pseudo<(outs LD8:$rd),
+                       (ins GPR8:$src, imm_ldi8:$bits),
+                       "asrbn\t$rd, $bits",
+                       [(set i8:$rd, (AVRasrbn i8:$src, imm:$bits)),
+                        (implicit SREG)]>;
 
   def ASRWRd : Pseudo<(outs DREGS:$rd),
                       (ins DREGS:$src),
@@ -1718,7 +1774,7 @@ def SWAPRd : FRd<0b1001,
                  (outs GPR8:$rd),
                  (ins GPR8:$src),
                  "swap\t$rd",
-                 [(set i8:$rd, (bswap i8:$src))]>;
+                 [(set i8:$rd, (AVRSwap i8:$src))]>;
 
 // IO register bit set/clear operations.
 //:TODO: add patterns when popcount(imm)==2 to be expanded with 2 sbi/cbi
@@ -2047,8 +2103,6 @@ def : Pat<(add i16:$src1, imm:$src2),
           (SUBIWRdK i16:$src1, (imm16_neg_XFORM imm:$src2))>;
 def : Pat<(addc i16:$src1, imm:$src2),
           (SUBIWRdK i16:$src1, (imm16_neg_XFORM imm:$src2))>;
-def : Pat<(adde i16:$src1, imm:$src2),
-          (SBCIWRdK i16:$src1, (imm16_neg_XFORM imm:$src2))>;
 
 def : Pat<(add i8:$src1, imm:$src2),
           (SUBIRdK i8:$src1, (imm8_neg_XFORM imm:$src2))>;
@@ -2093,12 +2147,7 @@ def : Pat<(store i16:$src, (i16 (AVRWrapper tglobaladdr:$dst))),
 def : Pat<(i16 (AVRWrapper tblockaddress:$dst)),
           (LDIWRdK tblockaddress:$dst)>;
 
-// hi-reg truncation : trunc(int16 >> 8)
-//:FIXME: i think it's better to emit an extract subreg node in the DAG than
-// all this mess once we get optimal shift code
-// lol... I think so, too. [@agnat]
-def : Pat<(i8 (trunc (AVRlsr (AVRlsr (AVRlsr (AVRlsr (AVRlsr (AVRlsr (AVRlsr
-                     (AVRlsr DREGS:$src)))))))))),
+def : Pat<(i8 (trunc (AVRlsrwn DLDREGS:$src, (i16 8)))),
           (EXTRACT_SUBREG DREGS:$src, sub_hi)>;
 
 // :FIXME: DAGCombiner produces an shl node after legalization from these seq:

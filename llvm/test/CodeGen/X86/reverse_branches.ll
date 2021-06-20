@@ -30,7 +30,7 @@ define i32 @test_branches_order() uwtable ssp {
 ; CHECK-NEXT:    .cfi_offset %r14, -32
 ; CHECK-NEXT:    .cfi_offset %r15, -24
 ; CHECK-NEXT:    .cfi_offset %rbp, -16
-; CHECK-NEXT:    movq ___stack_chk_guard@{{.*}}(%rip), %rax
+; CHECK-NEXT:    movq ___stack_chk_guard@GOTPCREL(%rip), %rax
 ; CHECK-NEXT:    movq (%rax), %rax
 ; CHECK-NEXT:    movq %rax, {{[0-9]+}}(%rsp)
 ; CHECK-NEXT:    xorl %r12d, %r12d
@@ -48,29 +48,29 @@ define i32 @test_branches_order() uwtable ssp {
 ; CHECK-NEXT:    jg LBB0_7
 ; CHECK-NEXT:  ## %bb.2: ## %for.cond1.preheader
 ; CHECK-NEXT:    ## in Loop: Header=BB0_1 Depth=1
-; CHECK-NEXT:    movl $-1, %r13d
-; CHECK-NEXT:    movq %r15, %rbx
-; CHECK-NEXT:    movq %r14, %rbp
+; CHECK-NEXT:    movl $-1, %ebp
+; CHECK-NEXT:    movq %r15, %rdi
+; CHECK-NEXT:    movq %r14, %rbx
 ; CHECK-NEXT:    .p2align 4, 0x90
 ; CHECK-NEXT:  LBB0_3: ## %for.cond1
 ; CHECK-NEXT:    ## Parent Loop BB0_1 Depth=1
 ; CHECK-NEXT:    ## => This Inner Loop Header: Depth=2
-; CHECK-NEXT:    incl %r13d
-; CHECK-NEXT:    cmpl $999, %r13d ## imm = 0x3E7
+; CHECK-NEXT:    incl %ebp
+; CHECK-NEXT:    cmpl $999, %ebp ## imm = 0x3E7
 ; CHECK-NEXT:    jg LBB0_6
 ; CHECK-NEXT:  ## %bb.4: ## %for.body3
 ; CHECK-NEXT:    ## in Loop: Header=BB0_3 Depth=2
-; CHECK-NEXT:    addq $1002, %rbp ## imm = 0x3EA
-; CHECK-NEXT:    movq %rbx, %rdi
-; CHECK-NEXT:    addq $1001, %rbx ## imm = 0x3E9
+; CHECK-NEXT:    addq $1002, %rbx ## imm = 0x3EA
+; CHECK-NEXT:    leaq 1001(%rdi), %r13
 ; CHECK-NEXT:    movl $1000, %edx ## imm = 0x3E8
 ; CHECK-NEXT:    movl $120, %esi
 ; CHECK-NEXT:    callq _memchr
-; CHECK-NEXT:    cmpq %rax, %rbp
+; CHECK-NEXT:    cmpq %rax, %rbx
+; CHECK-NEXT:    movq %r13, %rdi
 ; CHECK-NEXT:    je LBB0_3
 ; CHECK-NEXT:    jmp LBB0_5
 ; CHECK-NEXT:  LBB0_7: ## %for.end11
-; CHECK-NEXT:    leaq {{.*}}(%rip), %rdi
+; CHECK-NEXT:    leaq L_.str2(%rip), %rdi
 ; CHECK-NEXT:    callq _puts
 ; CHECK-NEXT:    xorl %eax, %eax
 ; CHECK-NEXT:    movq %rsp, %rcx
@@ -121,14 +121,14 @@ define i32 @test_branches_order() uwtable ssp {
 ; CHECK-NEXT:    incq %rbp
 ; CHECK-NEXT:    jne LBB0_12
 ; CHECK-NEXT:  LBB0_5: ## %if.then
-; CHECK-NEXT:    leaq {{.*}}(%rip), %rdi
+; CHECK-NEXT:    leaq L_str4(%rip), %rdi
 ; CHECK-NEXT:    callq _puts
 ; CHECK-NEXT:    movl $1, %edi
 ; CHECK-NEXT:    callq _exit
 ; CHECK-NEXT:  LBB0_16: ## %for.end40
-; CHECK-NEXT:    leaq {{.*}}(%rip), %rdi
+; CHECK-NEXT:    leaq L_.str3(%rip), %rdi
 ; CHECK-NEXT:    callq _puts
-; CHECK-NEXT:    movq ___stack_chk_guard@{{.*}}(%rip), %rax
+; CHECK-NEXT:    movq ___stack_chk_guard@GOTPCREL(%rip), %rax
 ; CHECK-NEXT:    movq (%rax), %rax
 ; CHECK-NEXT:    cmpq {{[0-9]+}}(%rsp), %rax
 ; CHECK-NEXT:    jne LBB0_18

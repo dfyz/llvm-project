@@ -10,11 +10,11 @@
 #include "SBReproducerPrivate.h"
 #include "Utils.h"
 #include "lldb/API/SBStream.h"
+#include "lldb/Core/Declaration.h"
 #include "lldb/Host/PosixApi.h"
-#include "lldb/Symbol/Declaration.h"
 #include "lldb/Utility/Stream.h"
 
-#include <limits.h>
+#include <climits>
 
 using namespace lldb;
 using namespace lldb_private;
@@ -148,7 +148,7 @@ const lldb_private::Declaration *SBDeclaration::operator->() const {
 
 lldb_private::Declaration &SBDeclaration::ref() {
   if (m_opaque_up == nullptr)
-    m_opaque_up.reset(new lldb_private::Declaration());
+    m_opaque_up = std::make_unique<lldb_private::Declaration>();
   return *m_opaque_up;
 }
 

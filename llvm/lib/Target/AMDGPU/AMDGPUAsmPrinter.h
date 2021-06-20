@@ -14,19 +14,10 @@
 #ifndef LLVM_LIB_TARGET_AMDGPU_AMDGPUASMPRINTER_H
 #define LLVM_LIB_TARGET_AMDGPU_AMDGPUASMPRINTER_H
 
-#include "AMDGPU.h"
-#include "AMDKernelCodeT.h"
-#include "AMDGPUHSAMetadataStreamer.h"
 #include "SIProgramInfo.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/AsmPrinter.h"
-#include "llvm/Support/AMDHSAKernelDescriptor.h"
-#include <cstddef>
-#include <cstdint>
-#include <limits>
-#include <memory>
-#include <string>
-#include <vector>
+
+struct amd_kernel_code_t;
 
 namespace llvm {
 
@@ -35,6 +26,16 @@ class AMDGPUTargetStreamer;
 class MCCodeEmitter;
 class MCOperand;
 class GCNSubtarget;
+
+namespace AMDGPU {
+namespace HSAMD {
+class MetadataStreamer;
+}
+} // namespace AMDGPU
+
+namespace amdhsa {
+struct kernel_descriptor_t;
+}
 
 class AMDGPUAsmPrinter final : public AsmPrinter {
 private:
@@ -54,6 +55,10 @@ private:
     int32_t getTotalNumSGPRs(const GCNSubtarget &ST) const;
     int32_t getTotalNumVGPRs(const GCNSubtarget &ST) const;
   };
+
+  void initializeTargetID(const Module &M);
+
+  bool doInitialization(Module &M) override;
 
   SIProgramInfo CurrentProgramInfo;
   DenseMap<const Function *, SIFunctionResourceInfo> CallGraphResourceInfo;
@@ -78,6 +83,7 @@ private:
                          const SIProgramInfo &KernelInfo);
   void EmitPALMetadata(const MachineFunction &MF,
                        const SIProgramInfo &KernelInfo);
+  void emitPALFunctionMetadata(const MachineFunction &MF);
   void emitCommonFunctionComments(uint32_t NumVGPR,
                                   Optional<uint32_t> NumAGPR,
                                   uint32_t TotalNumVGPR,
@@ -96,6 +102,11 @@ private:
 public:
   explicit AMDGPUAsmPrinter(TargetMachine &TM,
                             std::unique_ptr<MCStreamer> Streamer);
+
+  // To memoize max SGPR usage of non-kernel functions of the module.
+  unsigned NonKernelMaxSGPRs = 0;
+  // To memoize max VGPR usage of non-kernel functions of the module.
+  unsigned NonKernelMaxVGPRs = 0;
 
   StringRef getPassName() const override;
 

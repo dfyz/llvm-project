@@ -42,7 +42,7 @@ public:
   //
   // To work around this, we relax that alignment to be just word-size
   // (8-bytes).
-  // Whitelisting the trap handlers for user space would be easy (_sigtramp) but
+  // Allowing the trap handlers for user space would be easy (_sigtramp) but
   // in other environments there can be a large number of different functions
   // involved in async traps.
   bool CallFrameAddressIsValid(lldb::addr_t cfa) override {
@@ -61,6 +61,8 @@ public:
     // Anything else if fair game..
     return true;
   }
+
+  lldb::addr_t FixAddress(lldb::addr_t pc, lldb::addr_t mask) override;
 
   // Static Functions
 

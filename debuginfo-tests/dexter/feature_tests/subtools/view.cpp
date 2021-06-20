@@ -1,3 +1,4 @@
+// REQUIRES: lldb
 // Purpose:
 //      Check the `view` subtool works with typical inputs.
 //
@@ -14,4 +15,4 @@ int main() {
     int a = 0;
     return 0; //DexLabel('ret')
 }
-// DexExpectWatchValue('a', '0', on_line='ret')
+// DexExpectWatchValue('a', '0', on_line=ref('ret'))

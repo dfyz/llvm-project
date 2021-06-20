@@ -22,10 +22,14 @@ UseBoolLiteralsCheck::UseBoolLiteralsCheck(StringRef Name,
     : ClangTidyCheck(Name, Context),
       IgnoreMacros(Options.getLocalOrGlobal("IgnoreMacros", true)) {}
 
+void UseBoolLiteralsCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
+  Options.store(Opts, "IgnoreMacros", IgnoreMacros);
+}
+
 void UseBoolLiteralsCheck::registerMatchers(MatchFinder *Finder) {
   Finder->addMatcher(
       traverse(
-          ast_type_traits::TK_AsIs,
+          TK_AsIs,
           implicitCastExpr(
               has(ignoringParenImpCasts(integerLiteral().bind("literal"))),
               hasImplicitDestinationType(qualType(booleanType())),
@@ -34,7 +38,7 @@ void UseBoolLiteralsCheck::registerMatchers(MatchFinder *Finder) {
       this);
 
   Finder->addMatcher(
-      traverse(ast_type_traits::TK_AsIs,
+      traverse(TK_AsIs,
                conditionalOperator(
                    hasParent(implicitCastExpr(
                        hasImplicitDestinationType(qualType(booleanType())),

@@ -9,6 +9,7 @@
 #ifndef LLVM_MC_MCTARGETOPTIONS_H
 #define LLVM_MC_MCTARGETOPTIONS_H
 
+#include "llvm/ADT/ArrayRef.h"
 #include <string>
 #include <vector>
 
@@ -21,6 +22,7 @@ enum class ExceptionHandling {
   ARM,      ///< ARM EHABI
   WinEH,    ///< Windows Exception Handling
   Wasm,     ///< WebAssembly Exception Handling
+  AIX,      ///< AIX Exception Handling
 };
 
 enum class DebugCompressionType {
@@ -59,6 +61,9 @@ public:
   std::string ABIName;
   std::string AssemblyLanguage;
   std::string SplitDwarfFile;
+
+  const char *Argv0 = nullptr;
+  ArrayRef<const char *> CommandLineArgs;
 
   /// Additional paths to search for `.include` directives when using the
   /// integrated assembler.

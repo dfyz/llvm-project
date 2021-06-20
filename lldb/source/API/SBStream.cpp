@@ -19,7 +19,7 @@
 using namespace lldb;
 using namespace lldb_private;
 
-SBStream::SBStream() : m_opaque_up(new StreamString()), m_is_file(false) {
+SBStream::SBStream() : m_opaque_up(new StreamString()) {
   LLDB_RECORD_CONSTRUCTOR_NO_ARGS(SBStream);
 }
 
@@ -177,7 +177,7 @@ lldb_private::Stream *SBStream::get() { return m_opaque_up.get(); }
 
 lldb_private::Stream &SBStream::ref() {
   if (m_opaque_up == nullptr)
-    m_opaque_up.reset(new StreamString());
+    m_opaque_up = std::make_unique<StreamString>();
   return *m_opaque_up;
 }
 

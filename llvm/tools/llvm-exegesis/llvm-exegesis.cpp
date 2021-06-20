@@ -32,6 +32,7 @@
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SourceMgr.h"
@@ -83,6 +84,21 @@ static cl::opt<exegesis::InstructionBenchmark::ModeE> BenchmarkMode(
                clEnumValN(exegesis::InstructionBenchmark::Unknown, "analysis",
                           "Analysis")));
 
+static cl::opt<exegesis::InstructionBenchmark::ResultAggregationModeE>
+    ResultAggMode(
+        "result-aggregation-mode",
+        cl::desc("How to aggregate multi-values result"), cl::cat(Options),
+        cl::values(clEnumValN(exegesis::InstructionBenchmark::Min, "min",
+                              "Keep min reading"),
+                   clEnumValN(exegesis::InstructionBenchmark::Max, "max",
+                              "Keep max reading"),
+                   clEnumValN(exegesis::InstructionBenchmark::Mean, "mean",
+                              "Compute mean of all readings"),
+                   clEnumValN(exegesis::InstructionBenchmark::MinVariance,
+                              "min-variance",
+                              "Keep readings set with min-variance")),
+        cl::init(exegesis::InstructionBenchmark::Min));
+
 static cl::opt<exegesis::InstructionBenchmark::RepetitionModeE> RepetitionMode(
     "repetition-mode", cl::desc("how to repeat the instruction snippet"),
     cl::cat(BenchmarkOptions),
@@ -99,6 +115,13 @@ static cl::opt<unsigned>
     NumRepetitions("num-repetitions",
                    cl::desc("number of time to repeat the asm snippet"),
                    cl::cat(BenchmarkOptions), cl::init(10000));
+
+static cl::opt<unsigned>
+    LoopBodySize("loop-body-size",
+                 cl::desc("when repeating the instruction snippet by looping "
+                          "over it, duplicate the snippet until the loop body "
+                          "contains at least this many instruction"),
+                 cl::cat(BenchmarkOptions), cl::init(0));
 
 static cl::opt<unsigned> MaxConfigsPerOpcode(
     "max-configs-per-opcode",
@@ -236,8 +259,9 @@ generateSnippets(const LLVMState &State, unsigned Opcode,
   const Instruction &Instr = State.getIC().getInstr(Opcode);
   const MCInstrDesc &InstrDesc = Instr.Description;
   // Ignore instructions that we cannot run.
-  if (InstrDesc.isPseudo())
-    return make_error<Failure>("Unsupported opcode: isPseudo");
+  if (InstrDesc.isPseudo() || InstrDesc.usesCustomInsertionHook())
+    return make_error<Failure>(
+        "Unsupported opcode: isPseudo/usesCustomInserter");
   if (InstrDesc.isBranch() || InstrDesc.isIndirectBranch())
     return make_error<Failure>("Unsupported opcode: isBranch/isIndirectBranch");
   if (InstrDesc.isCall() || InstrDesc.isReturn())
@@ -281,8 +305,13 @@ void benchmarkMain() {
 
   const LLVMState State(CpuName);
 
-  const std::unique_ptr<BenchmarkRunner> Runner = ExitOnErr(
-      State.getExegesisTarget().createBenchmarkRunner(BenchmarkMode, State));
+  // Preliminary check to ensure features needed for requested
+  // benchmark mode are present on target CPU and/or OS.
+  ExitOnErr(State.getExegesisTarget().checkFeatureSupport());
+
+  const std::unique_ptr<BenchmarkRunner> Runner =
+      ExitOnErr(State.getExegesisTarget().createBenchmarkRunner(
+          BenchmarkMode, State, ResultAggMode));
   if (!Runner) {
     ExitWithError("cannot create benchmark runner");
   }
@@ -343,7 +372,7 @@ void benchmarkMain() {
 
   for (const BenchmarkCode &Conf : Configurations) {
     InstructionBenchmark Result = ExitOnErr(Runner->runConfiguration(
-        Conf, NumRepetitions, Repetitors, DumpObjectToDisk));
+        Conf, NumRepetitions, LoopBodySize, Repetitors, DumpObjectToDisk));
     ExitOnFileError(BenchmarkFile, Result.writeYaml(State, BenchmarkFile));
   }
   exegesis::pfm::pfmTerminate();
@@ -377,7 +406,7 @@ static void analysisMain() {
   if (AnalysisClustersOutputFile.empty() &&
       AnalysisInconsistenciesOutputFile.empty()) {
     ExitWithError(
-        "for --mode=analysis: At least one of --analysis-clusters-output-file"
+        "for --mode=analysis: At least one of --analysis-clusters-output-file "
         "and --analysis-inconsistencies-output-file must be specified");
   }
 
@@ -407,6 +436,7 @@ static void analysisMain() {
   }
 
   std::unique_ptr<MCInstrInfo> InstrInfo(TheTarget->createMCInstrInfo());
+  assert(InstrInfo && "Unable to create instruction info!");
 
   const auto Clustering = ExitOnErr(InstructionBenchmarkClustering::create(
       Points, AnalysisClusteringAlgorithm, AnalysisDbscanNumPoints,
@@ -414,7 +444,7 @@ static void analysisMain() {
 
   const Analysis Analyzer(*TheTarget, std::move(InstrInfo), Clustering,
                           AnalysisInconsistencyEpsilon,
-                          AnalysisDisplayUnstableOpcodes);
+                          AnalysisDisplayUnstableOpcodes, CpuName);
 
   maybeRunAnalysis<Analysis::PrintClusters>(Analyzer, "analysis clusters",
                                             AnalysisClustersOutputFile);

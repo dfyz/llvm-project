@@ -50,7 +50,7 @@ IncludeStructure
 collectPatchedIncludes(llvm::StringRef ModifiedContents,
                        llvm::StringRef BaselineContents,
                        llvm::StringRef MainFileName = "main.cpp") {
-  MockFSProvider FS;
+  MockFS FS;
   auto TU = TestTU::withCode(BaselineContents);
   TU.Filename = MainFileName.str();
   // ms-compatibility changes meaning of #import, make sure it is turned off.
@@ -74,7 +74,7 @@ collectPatchedIncludes(llvm::StringRef ModifiedContents,
       prepareCompilerInstance(std::move(CI), &BaselinePreamble->Preamble,
                               llvm::MemoryBuffer::getMemBufferCopy(
                                   ModifiedContents.slice(0, Bounds.Size).str()),
-                              PI.FSProvider->getFileSystem(), Diags);
+                              PI.TFS->view(PI.CompileCommand.Directory), Diags);
   PreprocessOnlyAction Action;
   if (!Action.BeginSourceFile(*Clang, Clang->getFrontendOpts().Inputs[0])) {
     ADD_FAILURE() << "failed begin source file";
@@ -125,7 +125,7 @@ TEST(PreamblePatchTest, IncludeParsing) {
         #/**/include <b.h>)cpp",
   };
 
-  for (const auto Case : Cases) {
+  for (const auto &Case : Cases) {
     Annotations Test(Case);
     const auto Code = Test.code();
     SCOPED_TRACE(Code);
@@ -165,7 +165,7 @@ TEST(PreamblePatchTest, MainFileIsEscaped) {
 }
 
 TEST(PreamblePatchTest, PatchesPreambleIncludes) {
-  MockFSProvider FS;
+  MockFS FS;
   IgnoreDiagnostics Diags;
   auto TU = TestTU::withCode(R"cpp(
     #include "a.h"
@@ -201,7 +201,7 @@ llvm::Optional<ParsedAST> createPatchedAST(llvm::StringRef Baseline,
   }
 
   IgnoreDiagnostics Diags;
-  MockFSProvider FS;
+  MockFS FS;
   auto TU = TestTU::withCode(Modified);
   auto CI = buildCompilerInvocation(TU.inputs(FS), Diags);
   if (!CI) {
@@ -219,7 +219,7 @@ std::string getPreamblePatch(llvm::StringRef Baseline,
     ADD_FAILURE() << "Failed to build baseline preamble";
     return "";
   }
-  MockFSProvider FS;
+  MockFS FS;
   auto TU = TestTU::withCode(Modified);
   return PreamblePatch::create(testPath("main.cpp"), TU.inputs(FS),
                                *BaselinePreamble)
@@ -230,8 +230,8 @@ std::string getPreamblePatch(llvm::StringRef Baseline,
 TEST(PreamblePatchTest, Define) {
   // BAR should be defined while parsing the AST.
   struct {
-    llvm::StringLiteral Contents;
-    llvm::StringLiteral ExpectedPatch;
+    const char *const Contents;
+    const char *const ExpectedPatch;
   } Cases[] = {
       {
           R"cpp(
@@ -270,12 +270,16 @@ TEST(PreamblePatchTest, Define) {
     SCOPED_TRACE(Case.Contents);
     Annotations Modified(Case.Contents);
     EXPECT_THAT(getPreamblePatch("", Modified.code()),
-                MatchesRegex(Case.ExpectedPatch.str()));
+                MatchesRegex(Case.ExpectedPatch));
 
     auto AST = createPatchedAST("", Modified.code());
     ASSERT_TRUE(AST);
-    EXPECT_THAT(AST->getDiagnostics(),
-                Not(Contains(Field(&Diag::Range, Modified.range()))));
+    std::vector<Range> MacroRefRanges;
+    for (auto &M : AST->getMacros().MacroRefs) {
+      for (auto &O : M.getSecond())
+        MacroRefRanges.push_back(O.Rng);
+    }
+    EXPECT_THAT(MacroRefRanges, Contains(Modified.range()));
   }
 }
 
@@ -298,14 +302,12 @@ TEST(PreamblePatchTest, OrderingPreserved) {
 
   auto AST = createPatchedAST(Baseline, Modified.code());
   ASSERT_TRUE(AST);
-  EXPECT_THAT(AST->getDiagnostics(),
-              Not(Contains(Field(&Diag::Range, Modified.range()))));
 }
 
 TEST(PreamblePatchTest, LocateMacroAtWorks) {
   struct {
-    llvm::StringLiteral Baseline;
-    llvm::StringLiteral Modified;
+    const char *const Baseline;
+    const char *const Modified;
   } Cases[] = {
       // Addition of new directive
       {
@@ -415,10 +417,12 @@ TEST(PreamblePatchTest, LocateMacroAtDeletion) {
   }
 }
 
+MATCHER_P(referenceRangeIs, R, "") { return arg.Loc.range == R; }
+
 TEST(PreamblePatchTest, RefsToMacros) {
   struct {
-    llvm::StringLiteral Baseline;
-    llvm::StringLiteral Modified;
+    const char *const Baseline;
+    const char *const Modified;
   } Cases[] = {
       // Newly added
       {
@@ -450,9 +454,9 @@ TEST(PreamblePatchTest, RefsToMacros) {
     ASSERT_TRUE(AST);
 
     const auto &SM = AST->getSourceManager();
-    std::vector<Matcher<Location>> ExpectedLocations;
+    std::vector<Matcher<ReferencesResult::Reference>> ExpectedLocations;
     for (const auto &R : Modified.ranges())
-      ExpectedLocations.push_back(Field(&Location::range, R));
+      ExpectedLocations.push_back(referenceRangeIs(R));
 
     for (const auto &P : Modified.points()) {
       auto *MacroTok = AST->getTokens().spelledTokenAt(SM.getComposedLoc(
@@ -491,8 +495,8 @@ TEST(TranslatePreamblePatchLocation, Simple) {
 
 TEST(PreamblePatch, ModifiedBounds) {
   struct {
-    llvm::StringLiteral Baseline;
-    llvm::StringLiteral Modified;
+    const char *const Baseline;
+    const char *const Modified;
   } Cases[] = {
       // Size increased
       {
@@ -518,12 +522,12 @@ TEST(PreamblePatch, ModifiedBounds) {
 
     Annotations Modified(Case.Modified);
     TU.Code = Modified.code().str();
-    MockFSProvider FSProvider;
-    auto PP = PreamblePatch::create(testPath(TU.Filename),
-                                    TU.inputs(FSProvider), *BaselinePreamble);
+    MockFS FS;
+    auto PP = PreamblePatch::create(testPath(TU.Filename), TU.inputs(FS),
+                                    *BaselinePreamble);
 
     IgnoreDiagnostics Diags;
-    auto CI = buildCompilerInvocation(TU.inputs(FSProvider), Diags);
+    auto CI = buildCompilerInvocation(TU.inputs(FS), Diags);
     ASSERT_TRUE(CI);
 
     const auto ExpectedBounds =
@@ -532,6 +536,15 @@ TEST(PreamblePatch, ModifiedBounds) {
     EXPECT_EQ(PP.modifiedBounds().PreambleEndsAtStartOfLine,
               ExpectedBounds.PreambleEndsAtStartOfLine);
   }
+}
+
+TEST(PreamblePatch, DropsDiagnostics) {
+  llvm::StringLiteral Code = "#define FOO\nx;/* error-ok */";
+  // First check that this code generates diagnostics.
+  EXPECT_THAT(*TestTU::withCode(Code).build().getDiagnostics(),
+              testing::Not(testing::IsEmpty()));
+  // Ensure they are dropeed when a patched preamble is used.
+  EXPECT_FALSE(createPatchedAST("", Code)->getDiagnostics());
 }
 } // namespace
 } // namespace clangd

@@ -9,16 +9,19 @@
 #ifndef LLDB_INTERPRETER_SCRIPTINTERPRETER_H
 #define LLDB_INTERPRETER_SCRIPTINTERPRETER_H
 
-#include "lldb/lldb-private.h"
-
+#include "lldb/API/SBData.h"
+#include "lldb/API/SBError.h"
 #include "lldb/Breakpoint/BreakpointOptions.h"
+#include "lldb/Core/Communication.h"
 #include "lldb/Core/PluginInterface.h"
 #include "lldb/Core/SearchFilter.h"
+#include "lldb/Core/StreamFile.h"
+#include "lldb/Host/PseudoTerminal.h"
+#include "lldb/Interpreter/ScriptedProcessInterface.h"
 #include "lldb/Utility/Broadcaster.h"
 #include "lldb/Utility/Status.h"
 #include "lldb/Utility/StructuredData.h"
-
-#include "lldb/Host/PseudoTerminal.h"
+#include "lldb/lldb-private.h"
 
 namespace lldb_private {
 
@@ -32,6 +35,35 @@ private:
   ScriptInterpreterLocker(const ScriptInterpreterLocker &) = delete;
   const ScriptInterpreterLocker &
   operator=(const ScriptInterpreterLocker &) = delete;
+};
+
+class ScriptInterpreterIORedirect {
+public:
+  /// Create an IO redirect. If IO is enabled, this will redirects the output
+  /// to the command return object if set or to the debugger otherwise. If IO
+  /// is disabled, it will redirect all IO to /dev/null.
+  static llvm::Expected<std::unique_ptr<ScriptInterpreterIORedirect>>
+  Create(bool enable_io, Debugger &debugger, CommandReturnObject *result);
+
+  ~ScriptInterpreterIORedirect();
+
+  lldb::FileSP GetInputFile() const { return m_input_file_sp; }
+  lldb::FileSP GetOutputFile() const { return m_output_file_sp->GetFileSP(); }
+  lldb::FileSP GetErrorFile() const { return m_error_file_sp->GetFileSP(); }
+
+  /// Flush our output and error file handles.
+  void Flush();
+
+private:
+  ScriptInterpreterIORedirect(std::unique_ptr<File> input,
+                              std::unique_ptr<File> output);
+  ScriptInterpreterIORedirect(Debugger &debugger, CommandReturnObject *result);
+
+  lldb::FileSP m_input_file_sp;
+  lldb::StreamFileSP m_output_file_sp;
+  lldb::StreamFileSP m_error_file_sp;
+  Communication m_communication;
+  bool m_disconnect;
 };
 
 class ScriptInterpreter : public PluginInterface {
@@ -54,14 +86,15 @@ public:
     eScriptReturnTypeOpaqueObject
   };
 
-  ScriptInterpreter(Debugger &debugger, lldb::ScriptLanguage script_lang);
+  ScriptInterpreter(
+      Debugger &debugger, lldb::ScriptLanguage script_lang,
+      lldb::ScriptedProcessInterfaceUP scripted_process_interface_up = {});
 
-  ~ScriptInterpreter() override;
+  ~ScriptInterpreter() override = default;
 
   struct ExecuteScriptOptions {
   public:
-    ExecuteScriptOptions()
-        : m_enable_io(true), m_set_lldb_globals(true), m_maskout_errors(true) {}
+    ExecuteScriptOptions() {}
 
     bool GetEnableIO() const { return m_enable_io; }
 
@@ -88,9 +121,9 @@ public:
     }
 
   private:
-    bool m_enable_io;
-    bool m_set_lldb_globals;
-    bool m_maskout_errors;
+    bool m_enable_io = true;
+    bool m_set_lldb_globals = true;
+    bool m_maskout_errors = true;
   };
 
   virtual bool Interrupt() { return false; }
@@ -269,6 +302,23 @@ public:
     return lldb::eSearchDepthModule;
   }
 
+  virtual StructuredData::GenericSP
+  CreateScriptedStopHook(lldb::TargetSP target_sp, const char *class_name,
+                         StructuredDataImpl *args_data, Status &error) {
+    error.SetErrorString("Creating scripted stop-hooks with the current "
+                         "script interpreter is not supported.");
+    return StructuredData::GenericSP();
+  }
+
+  // This dispatches to the handle_stop method of the stop-hook class.  It
+  // returns a "should_stop" bool.
+  virtual bool
+  ScriptedStopHookHandleStop(StructuredData::GenericSP implementor_sp,
+                             ExecutionContext &exc_ctx,
+                             lldb::StreamSP stream_sp) {
+    return true;
+  }
+
   virtual StructuredData::ObjectSP
   LoadPluginModule(const FileSpec &file_spec, lldb_private::Status &error) {
     return StructuredData::ObjectSP();
@@ -288,18 +338,19 @@ public:
   }
 
   virtual void CollectDataForBreakpointCommandCallback(
-      std::vector<BreakpointOptions *> &options, CommandReturnObject &result);
+      std::vector<std::reference_wrapper<BreakpointOptions>> &options,
+      CommandReturnObject &result);
 
   virtual void
   CollectDataForWatchpointCommandCallback(WatchpointOptions *wp_options,
                                           CommandReturnObject &result);
 
   /// Set the specified text as the callback for the breakpoint.
-  Status
-  SetBreakpointCommandCallback(std::vector<BreakpointOptions *> &bp_options_vec,
-                               const char *callback_text);
+  Status SetBreakpointCommandCallback(
+      std::vector<std::reference_wrapper<BreakpointOptions>> &bp_options_vec,
+      const char *callback_text);
 
-  virtual Status SetBreakpointCommandCallback(BreakpointOptions *bp_options,
+  virtual Status SetBreakpointCommandCallback(BreakpointOptions &bp_options,
                                               const char *callback_text) {
     Status error;
     error.SetErrorString("unimplemented");
@@ -308,7 +359,7 @@ public:
 
   /// This one is for deserialization:
   virtual Status SetBreakpointCommandCallback(
-      BreakpointOptions *bp_options,
+      BreakpointOptions &bp_options,
       std::unique_ptr<BreakpointOptions::CommandData> &data_up) {
     Status error;
     error.SetErrorString("unimplemented");
@@ -316,15 +367,14 @@ public:
   }
 
   Status SetBreakpointCommandCallbackFunction(
-      std::vector<BreakpointOptions *> &bp_options_vec,
+      std::vector<std::reference_wrapper<BreakpointOptions>> &bp_options_vec,
       const char *function_name, StructuredData::ObjectSP extra_args_sp);
 
   /// Set a script function as the callback for the breakpoint.
   virtual Status
-  SetBreakpointCommandCallbackFunction(
-      BreakpointOptions *bp_options,
-      const char *function_name,
-      StructuredData::ObjectSP extra_args_sp) {
+  SetBreakpointCommandCallbackFunction(BreakpointOptions &bp_options,
+                                       const char *function_name,
+                                       StructuredData::ObjectSP extra_args_sp) {
     Status error;
     error.SetErrorString("unimplemented");
     return error;
@@ -461,7 +511,8 @@ public:
   virtual bool
   LoadScriptingModule(const char *filename, bool init_session,
                       lldb_private::Status &error,
-                      StructuredData::ObjectSP *module_sp = nullptr);
+                      StructuredData::ObjectSP *module_sp = nullptr,
+                      FileSpec extra_search_dir = {});
 
   virtual bool IsReservedWord(const char *word) { return false; }
 
@@ -481,9 +532,19 @@ public:
 
   lldb::ScriptLanguage GetLanguage() { return m_script_lang; }
 
+  ScriptedProcessInterface &GetScriptedProcessInterface() {
+    return *m_scripted_process_interface_up;
+  }
+
+  lldb::DataExtractorSP
+  GetDataExtractorFromSBData(const lldb::SBData &data) const;
+
+  Status GetStatusFromSBError(const lldb::SBError &error) const;
+
 protected:
   Debugger &m_debugger;
   lldb::ScriptLanguage m_script_lang;
+  lldb::ScriptedProcessInterfaceUP m_scripted_process_interface_up;
 };
 
 } // namespace lldb_private

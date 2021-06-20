@@ -60,10 +60,7 @@ CheckTy0Ty1MemSizeAlign(const LegalityQuery &Query,
 
 static bool CheckTyN(unsigned N, const LegalityQuery &Query,
                      std::initializer_list<LLT> SupportedValues) {
-  for (auto &Val : SupportedValues)
-    if (Val == Query.Types[N])
-      return true;
-  return false;
+  return llvm::is_contained(SupportedValues, Query.Types[N]);
 }
 
 MipsLegalizerInfo::MipsLegalizerInfo(const MipsSubtarget &ST) {
@@ -322,16 +319,18 @@ MipsLegalizerInfo::MipsLegalizerInfo(const MipsSubtarget &ST) {
 
   getActionDefinitionsBuilder(G_SEXT_INREG).lower();
 
-  computeTables();
+  getActionDefinitionsBuilder({G_MEMCPY, G_MEMMOVE, G_MEMSET}).libcall();
+
+  getLegacyLegalizerInfo().computeTables();
   verify(*ST.getInstrInfo());
 }
 
-bool MipsLegalizerInfo::legalizeCustom(MachineInstr &MI,
-                                       MachineRegisterInfo &MRI,
-                                       MachineIRBuilder &MIRBuilder,
-                                       GISelChangeObserver &Observer) const {
-
+bool MipsLegalizerInfo::legalizeCustom(LegalizerHelper &Helper,
+                                       MachineInstr &MI) const {
   using namespace TargetOpcode;
+
+  MachineIRBuilder &MIRBuilder = Helper.MIRBuilder;
+  MachineRegisterInfo &MRI = *MIRBuilder.getMRI();
 
   const LLT s32 = LLT::scalar(32);
   const LLT s64 = LLT::scalar(64);
@@ -497,10 +496,9 @@ static bool MSA2OpIntrinsicToGeneric(MachineInstr &MI, unsigned Opcode,
   return true;
 }
 
-bool MipsLegalizerInfo::legalizeIntrinsic(MachineInstr &MI,
-                                          MachineIRBuilder &MIRBuilder,
-                                          GISelChangeObserver &Observer) const {
-  MachineRegisterInfo &MRI = *MIRBuilder.getMRI();
+bool MipsLegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper,
+                                          MachineInstr &MI) const {
+  MachineIRBuilder &MIRBuilder = Helper.MIRBuilder;
   const MipsSubtarget &ST =
       static_cast<const MipsSubtarget &>(MI.getMF()->getSubtarget());
   const MipsInstrInfo &TII = *ST.getInstrInfo();
@@ -508,14 +506,6 @@ bool MipsLegalizerInfo::legalizeIntrinsic(MachineInstr &MI,
   const RegisterBankInfo &RBI = *ST.getRegBankInfo();
 
   switch (MI.getIntrinsicID()) {
-  case Intrinsic::memcpy:
-  case Intrinsic::memset:
-  case Intrinsic::memmove:
-    if (createMemLibcall(MIRBuilder, MRI, MI) ==
-        LegalizerHelper::UnableToLegalize)
-      return false;
-    MI.eraseFromParent();
-    return true;
   case Intrinsic::trap: {
     MachineInstr *Trap = MIRBuilder.buildInstr(Mips::TRAP);
     MI.eraseFromParent();

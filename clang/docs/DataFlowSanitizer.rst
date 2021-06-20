@@ -140,6 +140,11 @@ For example:
 Example
 =======
 
+DataFlowSanitizer supports up to 8 labels, to achieve low CPU and code
+size overhead. Base labels are simply 8-bit unsigned integers that are
+powers of 2 (i.e. 1, 2, 4, 8, ..., 128), and union labels are created
+by ORing base labels.
+
 The following program demonstrates label propagation by checking that
 the correct labels are propagated.
 
@@ -149,24 +154,36 @@ the correct labels are propagated.
   #include <assert.h>
 
   int main(void) {
-    int i = 1;
-    dfsan_label i_label = dfsan_create_label("i", 0);
+    int i = 100;
+    int j = 200;
+    int k = 300;
+    dfsan_label i_label = 1;
+    dfsan_label j_label = 2;
+    dfsan_label k_label = 4;
     dfsan_set_label(i_label, &i, sizeof(i));
-
-    int j = 2;
-    dfsan_label j_label = dfsan_create_label("j", 0);
     dfsan_set_label(j_label, &j, sizeof(j));
-
-    int k = 3;
-    dfsan_label k_label = dfsan_create_label("k", 0);
     dfsan_set_label(k_label, &k, sizeof(k));
 
     dfsan_label ij_label = dfsan_get_label(i + j);
+
+    assert(ij_label & i_label);  // ij_label has i_label
+    assert(ij_label & j_label);  // ij_label has j_label
+    assert(!(ij_label & k_label));  // ij_label doesn't have k_label
+    assert(ij_label == 3);  // Verifies all of the above
+
+    // Or, equivalently:
     assert(dfsan_has_label(ij_label, i_label));
     assert(dfsan_has_label(ij_label, j_label));
     assert(!dfsan_has_label(ij_label, k_label));
 
     dfsan_label ijk_label = dfsan_get_label(i + j + k);
+
+    assert(ijk_label & i_label);  // ijk_label has i_label
+    assert(ijk_label & j_label);  // ijk_label has j_label
+    assert(ijk_label & k_label);  // ijk_label has k_label
+    assert(ijk_label == 7);  // Verifies all of the above
+
+    // Or, equivalently:
     assert(dfsan_has_label(ijk_label, i_label));
     assert(dfsan_has_label(ijk_label, j_label));
     assert(dfsan_has_label(ijk_label, k_label));

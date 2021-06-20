@@ -43,7 +43,6 @@ class TestVSCode_attach(lldbvscode_testcase.VSCodeTestCaseBase):
         if continueToExit:
             self.continue_to_exit()
 
-
     @skipIfWindows
     @skipIfNetBSD # Hangs on NetBSD as well
     @skipIfRemote
@@ -91,7 +90,6 @@ class TestVSCode_attach(lldbvscode_testcase.VSCodeTestCaseBase):
         self.addTearDownHook(cleanup)
 
         popen = self.spawnSubprocess(program, [pid_file_path])
-        self.addTearDownHook(self.cleanupSubprocesses)
 
         pid = lldbutil.wait_for_file_on_target(self, pid_file_path)
 
@@ -118,11 +116,12 @@ class TestVSCode_attach(lldbvscode_testcase.VSCodeTestCaseBase):
     @skipIfWindows
     @skipIfDarwin
     @skipIfNetBSD # Hangs on NetBSD as well
+    @skipIf(archs=["arm", "aarch64"]) # Example of a flaky run http://lab.llvm.org:8011/builders/lldb-aarch64-ubuntu/builds/5527/steps/test/logs/stdio
     def test_commands(self):
         '''
             Tests the "initCommands", "preRunCommands", "stopCommands",
-            "exitCommands", and "attachCommands" that can be passed during
-            attach.
+            "exitCommands", "terminateCommands" and "attachCommands"
+            that can be passed during attach.
 
             "initCommands" are a list of LLDB commands that get executed
             before the targt is created.
@@ -136,6 +135,8 @@ class TestVSCode_attach(lldbvscode_testcase.VSCodeTestCaseBase):
             must have a valid process in the selected target in LLDB after
             they are done executing. This allows custom commands to create any
             kind of debug session.
+            "terminateCommands" are a list of LLDB commands that get executed when
+            the debugger session terminates.
         '''
         self.build_and_create_debug_adaptor()
         program = self.getBuildArtifact("a.out")
@@ -144,19 +145,22 @@ class TestVSCode_attach(lldbvscode_testcase.VSCodeTestCaseBase):
         # and use it for debugging
         attachCommands = [
             'target create -d "%s"' % (program),
-            'process launch'
+            'process launch --stop-at-entry'
         ]
         initCommands = ['target list', 'platform list']
         preRunCommands = ['image list a.out', 'image dump sections a.out']
+        postRunCommands = ['help trace', 'help process trace']
         stopCommands = ['frame variable', 'bt']
         exitCommands = ['expr 2+3', 'expr 3+4']
+        terminateCommands = ['expr 4+2']
         self.attach(program=program,
                     attachCommands=attachCommands,
                     initCommands=initCommands,
                     preRunCommands=preRunCommands,
                     stopCommands=stopCommands,
-                    exitCommands=exitCommands)
-
+                    exitCommands=exitCommands,
+                    terminateCommands=terminateCommands,
+                    postRunCommands=postRunCommands)
         # Get output from the console. This should contain both the
         # "initCommands" and the "preRunCommands".
         output = self.get_console()
@@ -164,6 +168,8 @@ class TestVSCode_attach(lldbvscode_testcase.VSCodeTestCaseBase):
         self.verify_commands('initCommands', output, initCommands)
         # Verify all "preRunCommands" were found in console output
         self.verify_commands('preRunCommands', output, preRunCommands)
+        # Verify all "postRunCommands" were found in console output
+        self.verify_commands('postRunCommands', output, postRunCommands)
 
         functions = ['main']
         breakpoint_ids = self.set_function_breakpoints(functions)
@@ -187,5 +193,37 @@ class TestVSCode_attach(lldbvscode_testcase.VSCodeTestCaseBase):
         self.continue_to_exit()
         # Get output from the console. This should contain both the
         # "exitCommands" that were run after the second breakpoint was hit
-        output = self.get_console(timeout=1.0)
+        # and the "terminateCommands" due to the debugging session ending
+        output = self.collect_console(duration=1.0)
         self.verify_commands('exitCommands', output, exitCommands)
+        self.verify_commands('terminateCommands', output, terminateCommands)
+
+    @skipIfWindows
+    @skipIfDarwin
+    @skipIfNetBSD # Hangs on NetBSD as well
+    @skipIf(archs=["arm", "aarch64"]) # Example of a flaky run http://lab.llvm.org:8011/builders/lldb-aarch64-ubuntu/builds/5517/steps/test/logs/stdio
+    def test_terminate_commands(self):
+        '''
+            Tests that the "terminateCommands", that can be passed during
+            attach, are run when the debugger is disconnected.
+        '''
+        self.build_and_create_debug_adaptor()
+        program = self.getBuildArtifact("a.out")
+        # Here we just create a target and launch the process as a way to test
+        # if we are able to use attach commands to create any kind of a target
+        # and use it for debugging
+        attachCommands = [
+            'target create -d "%s"' % (program),
+            'process launch'
+        ]
+        terminateCommands = ['expr 4+2']
+        self.attach(program=program,
+                    attachCommands=attachCommands,
+                    terminateCommands=terminateCommands,
+                    disconnectAutomatically=False)
+        self.get_console()
+        # Once it's disconnected the console should contain the
+        # "terminateCommands"
+        self.vscode.request_disconnect(terminateDebuggee=True)
+        output = self.collect_console(duration=1.0)
+        self.verify_commands('terminateCommands', output, terminateCommands)

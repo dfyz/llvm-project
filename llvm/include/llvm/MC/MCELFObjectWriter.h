@@ -23,7 +23,6 @@ namespace llvm {
 class MCAssembler;
 class MCContext;
 class MCFixup;
-class MCObjectWriter;
 class MCSymbol;
 class MCSymbolELF;
 class MCValue;
@@ -48,7 +47,7 @@ struct ELFRelocationEntry {
         << ", OriginalAddend=" << OriginalAddend;
   }
 
-  void dump() const { print(errs()); }
+  LLVM_DUMP_METHOD void dump() const { print(errs()); }
 };
 
 class MCELFObjectTargetWriter : public MCObjectTargetWriter {
@@ -65,7 +64,7 @@ protected:
 public:
   virtual ~MCELFObjectTargetWriter() = default;
 
-  virtual Triple::ObjectFormatType getFormat() const { return Triple::ELF; }
+  Triple::ObjectFormatType getFormat() const override { return Triple::ELF; }
   static bool classof(const MCObjectTargetWriter *W) {
     return W->getFormat() == Triple::ELF;
   }

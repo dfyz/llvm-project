@@ -369,10 +369,7 @@ static void initSlots2Values(const Function &F,
 const Value* PerFunctionMIParsingState::getIRValue(unsigned Slot) {
   if (Slots2Values.empty())
     initSlots2Values(MF.getFunction(), Slots2Values);
-  auto ValueInfo = Slots2Values.find(Slot);
-  if (ValueInfo == Slots2Values.end())
-    return nullptr;
-  return ValueInfo->second;
+  return Slots2Values.lookup(Slot);
 }
 
 namespace {
@@ -475,6 +472,7 @@ public:
   bool parseMetadataOperand(MachineOperand &Dest);
   bool parseCFIOffset(int &Offset);
   bool parseCFIRegister(Register &Reg);
+  bool parseCFIAddressSpace(unsigned &AddressSpace);
   bool parseCFIEscapeValues(std::string& Values);
   bool parseCFIOperand(MachineOperand &Dest);
   bool parseIRBlock(BasicBlock *&BB, const Function &F);
@@ -563,7 +561,7 @@ MIParser::MIParser(PerFunctionMIParsingState &PFS, SMDiagnostic &Error,
 
 void MIParser::lex(unsigned SkipChar) {
   CurrentSource = lexMIToken(
-      CurrentSource.data() + SkipChar, Token,
+      CurrentSource.slice(SkipChar, StringRef::npos), Token,
       [this](StringRef::iterator Loc, const Twine &Msg) { error(Loc, Msg); });
 }
 
@@ -984,12 +982,15 @@ bool MIParser::parse(MachineInstr *&MI) {
          Token.isNot(MIToken::kw_post_instr_symbol) &&
          Token.isNot(MIToken::kw_heap_alloc_marker) &&
          Token.isNot(MIToken::kw_debug_location) &&
+         Token.isNot(MIToken::kw_debug_instr_number) &&
          Token.isNot(MIToken::coloncolon) && Token.isNot(MIToken::lbrace)) {
     auto Loc = Token.location();
     Optional<unsigned> TiedDefIdx;
     if (parseMachineOperandAndTargetFlags(OpCode, Operands.size(), MO, TiedDefIdx))
       return true;
-    if (OpCode == TargetOpcode::DBG_VALUE && MO.isReg())
+    if ((OpCode == TargetOpcode::DBG_VALUE ||
+         OpCode == TargetOpcode::DBG_VALUE_LIST) &&
+        MO.isReg())
       MO.setIsDebug();
     Operands.push_back(
         ParsedMachineOperand(MO, Loc, Token.location(), TiedDefIdx));
@@ -1013,6 +1014,19 @@ bool MIParser::parse(MachineInstr *&MI) {
   if (Token.is(MIToken::kw_heap_alloc_marker))
     if (parseHeapAllocMarker(HeapAllocMarker))
       return true;
+
+  unsigned InstrNum = 0;
+  if (Token.is(MIToken::kw_debug_instr_number)) {
+    lex();
+    if (Token.isNot(MIToken::IntegerLiteral))
+      return error("expected an integer literal after 'debug-instr-number'");
+    if (getUnsigned(InstrNum))
+      return true;
+    lex();
+    // Lex past trailing comma if present.
+    if (Token.is(MIToken::comma))
+      lex();
+  }
 
   DebugLoc DebugLocation;
   if (Token.is(MIToken::kw_debug_location)) {
@@ -1070,6 +1084,8 @@ bool MIParser::parse(MachineInstr *&MI) {
     MI->setHeapAllocMarker(MF, HeapAllocMarker);
   if (!MemOperands.empty())
     MI->setMemRefs(MF, MemOperands);
+  if (InstrNum)
+    MI->setDebugInstrNum(InstrNum);
   return false;
 }
 
@@ -2192,6 +2208,16 @@ bool MIParser::parseCFIRegister(Register &Reg) {
   return false;
 }
 
+bool MIParser::parseCFIAddressSpace(unsigned &AddressSpace) {
+  if (Token.isNot(MIToken::IntegerLiteral))
+    return error("expected a cfi address space literal");
+  if (Token.integerValue().isSigned())
+    return error("expected an unsigned integer (cfi address space)");
+  AddressSpace = Token.integerValue().getZExtValue();
+  lex();
+  return false;
+}
+
 bool MIParser::parseCFIEscapeValues(std::string &Values) {
   do {
     if (Token.isNot(MIToken::HexLiteral))
@@ -2212,6 +2238,7 @@ bool MIParser::parseCFIOperand(MachineOperand &Dest) {
   lex();
   int Offset;
   Register Reg;
+  unsigned AddressSpace;
   unsigned CFIIndex;
   switch (Kind) {
   case MIToken::kw_cfi_same_value:
@@ -2257,6 +2284,14 @@ bool MIParser::parseCFIOperand(MachineOperand &Dest) {
       return true;
     CFIIndex =
         MF.addFrameInst(MCCFIInstruction::cfiDefCfa(nullptr, Reg, Offset));
+    break;
+  case MIToken::kw_cfi_llvm_def_aspace_cfa:
+    if (parseCFIRegister(Reg) || expectAndConsume(MIToken::comma) ||
+        parseCFIOffset(Offset) || expectAndConsume(MIToken::comma) ||
+        parseCFIAddressSpace(AddressSpace))
+      return true;
+    CFIIndex = MF.addFrameInst(MCCFIInstruction::createLLVMDefAspaceCfa(
+        nullptr, Reg, Offset, AddressSpace));
     break;
   case MIToken::kw_cfi_remember_state:
     CFIIndex = MF.addFrameInst(MCCFIInstruction::createRememberState(nullptr));
@@ -2605,6 +2640,7 @@ bool MIParser::parseMachineOperand(const unsigned OpCode, const unsigned OpIdx,
   case MIToken::kw_cfi_adjust_cfa_offset:
   case MIToken::kw_cfi_escape:
   case MIToken::kw_cfi_def_cfa:
+  case MIToken::kw_cfi_llvm_def_aspace_cfa:
   case MIToken::kw_cfi_register:
   case MIToken::kw_cfi_remember_state:
   case MIToken::kw_cfi_restore:
@@ -2713,7 +2749,7 @@ bool MIParser::parseOffset(int64_t &Offset) {
 }
 
 bool MIParser::parseAlignment(unsigned &Alignment) {
-  assert(Token.is(MIToken::kw_align));
+  assert(Token.is(MIToken::kw_align) || Token.is(MIToken::kw_basealign));
   lex();
   if (Token.isNot(MIToken::IntegerLiteral) || Token.integerValue().isSigned())
     return error("expected an integer literal after 'align'");
@@ -2775,6 +2811,9 @@ static bool parseIRValue(const MIToken &Token, PerFunctionMIParsingState &PFS,
     V = C;
     break;
   }
+  case MIToken::kw_unknown_address:
+    V = nullptr;
+    return false;
   default:
     llvm_unreachable("The current token should be an IR block reference");
   }
@@ -2935,12 +2974,13 @@ bool MIParser::parseMachinePointerInfo(MachinePointerInfo &Dest) {
   if (Token.isNot(MIToken::NamedIRValue) && Token.isNot(MIToken::IRValue) &&
       Token.isNot(MIToken::GlobalValue) &&
       Token.isNot(MIToken::NamedGlobalValue) &&
-      Token.isNot(MIToken::QuotedIRValue))
+      Token.isNot(MIToken::QuotedIRValue) &&
+      Token.isNot(MIToken::kw_unknown_address))
     return error("expected an IR value reference");
   const Value *V = nullptr;
   if (parseIRValue(V))
     return true;
-  if (!V->getType()->isPointerTy())
+  if (V && !V->getType()->isPointerTy())
     return error("expected a pointer IR value");
   lex();
   int64_t Offset = 0;
@@ -3061,6 +3101,12 @@ bool MIParser::parseMachineMemoryOperand(MachineMemOperand *&Dest) {
   while (consumeIfPresent(MIToken::comma)) {
     switch (Token.kind()) {
     case MIToken::kw_align:
+      // align is printed if it is different than size.
+      if (parseAlignment(BaseAlignment))
+        return true;
+      break;
+    case MIToken::kw_basealign:
+      // basealign is printed if it is different than align.
       if (parseAlignment(BaseAlignment))
         return true;
       break;
@@ -3153,10 +3199,7 @@ static void initSlots2BasicBlocks(
 static const BasicBlock *getIRBlockFromSlot(
     unsigned Slot,
     const DenseMap<unsigned, const BasicBlock *> &Slots2BasicBlocks) {
-  auto BlockInfo = Slots2BasicBlocks.find(Slot);
-  if (BlockInfo == Slots2BasicBlocks.end())
-    return nullptr;
-  return BlockInfo->second;
+  return Slots2BasicBlocks.lookup(Slot);
 }
 
 const BasicBlock *MIParser::getIRBlock(unsigned Slot) {

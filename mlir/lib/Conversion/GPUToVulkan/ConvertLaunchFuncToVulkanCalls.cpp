@@ -19,20 +19,13 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Function.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/FormatVariadic.h"
 
 using namespace mlir;
 
-static constexpr const char *kBindMemRef1DFloat = "bindMemRef1DFloat";
-static constexpr const char *kBindMemRef2DFloat = "bindMemRef2DFloat";
-static constexpr const char *kBindMemRef3DFloat = "bindMemRef3DFloat";
-static constexpr const char *kBindMemRef1DInt = "bindMemRef1DInt";
-static constexpr const char *kBindMemRef2DInt = "bindMemRef2DInt";
-static constexpr const char *kBindMemRef3DInt = "bindMemRef3DInt";
 static constexpr const char *kCInterfaceVulkanLaunch =
     "_mlir_ciface_vulkanLaunch";
 static constexpr const char *kDeinitVulkan = "deinitVulkan";
@@ -63,28 +56,16 @@ class VulkanLaunchFuncToVulkanCallsPass
     : public ConvertVulkanLaunchFuncToVulkanCallsBase<
           VulkanLaunchFuncToVulkanCallsPass> {
 private:
-  LLVM::LLVMDialect *getLLVMDialect() { return llvmDialect; }
-
-  llvm::LLVMContext &getLLVMContext() {
-    return getLLVMDialect()->getLLVMContext();
-  }
-
   void initializeCachedTypes() {
-    llvmDialect = getContext().getRegisteredDialect<LLVM::LLVMDialect>();
-    llvmFloatType = LLVM::LLVMType::getFloatTy(llvmDialect);
-    llvmVoidType = LLVM::LLVMType::getVoidTy(llvmDialect);
-    llvmPointerType = LLVM::LLVMType::getInt8PtrTy(llvmDialect);
-    llvmInt32Type = LLVM::LLVMType::getInt32Ty(llvmDialect);
-    llvmInt64Type = LLVM::LLVMType::getInt64Ty(llvmDialect);
-    llvmMemRef1DFloat = getMemRefType(1, llvmFloatType);
-    llvmMemRef2DFloat = getMemRefType(2, llvmFloatType);
-    llvmMemRef3DFloat = getMemRefType(3, llvmFloatType);
-    llvmMemRef1DInt = getMemRefType(1, llvmInt32Type);
-    llvmMemRef2DInt = getMemRefType(2, llvmInt32Type);
-    llvmMemRef3DInt = getMemRefType(3, llvmInt32Type);
+    llvmFloatType = Float32Type::get(&getContext());
+    llvmVoidType = LLVM::LLVMVoidType::get(&getContext());
+    llvmPointerType =
+        LLVM::LLVMPointerType::get(IntegerType::get(&getContext(), 8));
+    llvmInt32Type = IntegerType::get(&getContext(), 32);
+    llvmInt64Type = IntegerType::get(&getContext(), 64);
   }
 
-  LLVM::LLVMType getMemRefType(uint32_t rank, LLVM::LLVMType elemenType) {
+  Type getMemRefType(uint32_t rank, Type elemenType) {
     // According to the MLIR doc memref argument is converted into a
     // pointer-to-struct argument of type:
     // template <typename Elem, size_t Rank>
@@ -95,32 +76,25 @@ private:
     //   int64_t sizes[Rank]; // omitted when rank == 0
     //   int64_t strides[Rank]; // omitted when rank == 0
     // };
-    auto llvmPtrToElementType = elemenType.getPointerTo();
+    auto llvmPtrToElementType = LLVM::LLVMPointerType::get(elemenType);
     auto llvmArrayRankElementSizeType =
-        LLVM::LLVMType::getArrayTy(getInt64Type(), rank);
+        LLVM::LLVMArrayType::get(getInt64Type(), rank);
 
     // Create a type
     // `!llvm<"{ `element-type`*, `element-type`*, i64,
     // [`rank` x i64], [`rank` x i64]}">`.
-    return LLVM::LLVMType::getStructTy(
-        llvmDialect,
+    return LLVM::LLVMStructType::getLiteral(
+        &getContext(),
         {llvmPtrToElementType, llvmPtrToElementType, getInt64Type(),
          llvmArrayRankElementSizeType, llvmArrayRankElementSizeType});
   }
 
-  LLVM::LLVMType getFloatType() { return llvmFloatType; }
-  LLVM::LLVMType getVoidType() { return llvmVoidType; }
-  LLVM::LLVMType getPointerType() { return llvmPointerType; }
-  LLVM::LLVMType getInt32Type() { return llvmInt32Type; }
-  LLVM::LLVMType getInt64Type() { return llvmInt64Type; }
-  LLVM::LLVMType getMemRef1DFloat() { return llvmMemRef1DFloat; }
-  LLVM::LLVMType getMemRef2DFloat() { return llvmMemRef2DFloat; }
-  LLVM::LLVMType getMemRef3DFloat() { return llvmMemRef3DFloat; }
-  LLVM::LLVMType getMemRef1DInt() { return llvmMemRef1DInt; }
-  LLVM::LLVMType getMemRef2DInt() { return llvmMemRef2DInt; }
-  LLVM::LLVMType getMemRef3DInt() { return llvmMemRef3DInt; }
+  Type getVoidType() { return llvmVoidType; }
+  Type getPointerType() { return llvmPointerType; }
+  Type getInt32Type() { return llvmInt32Type; }
+  Type getInt64Type() { return llvmInt64Type; }
 
-  /// Creates a LLVM global for the given `name`.
+  /// Creates an LLVM global for the given `name`.
   Value createEntryPointNameConstant(StringRef name, Location loc,
                                      OpBuilder &builder);
 
@@ -154,14 +128,22 @@ private:
 
   /// Deduces a rank and element type from the given 'ptrToMemRefDescriptor`.
   LogicalResult deduceMemRefRankAndType(Value ptrToMemRefDescriptor,
-                                        uint32_t &rank, LLVM::LLVMType &type);
+                                        uint32_t &rank, Type &type);
 
   /// Returns a string representation from the given `type`.
-  StringRef stringifyType(LLVM::LLVMType type) {
-    if (type.isFloatTy())
+  StringRef stringifyType(Type type) {
+    if (type.isa<Float32Type>())
       return "Float";
-    if (type.isIntegerTy())
-      return "Int";
+    if (type.isa<Float16Type>())
+      return "Half";
+    if (auto intType = type.dyn_cast<IntegerType>()) {
+      if (intType.getWidth() == 32)
+        return "Int32";
+      if (intType.getWidth() == 16)
+        return "Int16";
+      if (intType.getWidth() == 8)
+        return "Int8";
+    }
 
     llvm_unreachable("unsupported type");
   }
@@ -170,18 +152,11 @@ public:
   void runOnOperation() override;
 
 private:
-  LLVM::LLVMDialect *llvmDialect;
-  LLVM::LLVMType llvmFloatType;
-  LLVM::LLVMType llvmVoidType;
-  LLVM::LLVMType llvmPointerType;
-  LLVM::LLVMType llvmInt32Type;
-  LLVM::LLVMType llvmInt64Type;
-  LLVM::LLVMType llvmMemRef1DFloat;
-  LLVM::LLVMType llvmMemRef2DFloat;
-  LLVM::LLVMType llvmMemRef3DFloat;
-  LLVM::LLVMType llvmMemRef1DInt;
-  LLVM::LLVMType llvmMemRef2DInt;
-  LLVM::LLVMType llvmMemRef3DInt;
+  Type llvmFloatType;
+  Type llvmVoidType;
+  Type llvmPointerType;
+  Type llvmInt32Type;
+  Type llvmInt64Type;
 
   // TODO: Use an associative array to support multiple vulkan launch calls.
   std::pair<StringAttr, StringAttr> spirvAttributes;
@@ -214,7 +189,7 @@ void VulkanLaunchFuncToVulkanCallsPass::collectSPIRVAttributes(
   // Check that `kSPIRVBinary` and `kSPIRVEntryPoint` are present in attributes
   // for the given vulkan launch call.
   auto spirvBlobAttr =
-      vulkanLaunchCallOp.getAttrOfType<StringAttr>(kSPIRVBlobAttrName);
+      vulkanLaunchCallOp->getAttrOfType<StringAttr>(kSPIRVBlobAttrName);
   if (!spirvBlobAttr) {
     vulkanLaunchCallOp.emitError()
         << "missing " << kSPIRVBlobAttrName << " attribute";
@@ -222,7 +197,7 @@ void VulkanLaunchFuncToVulkanCallsPass::collectSPIRVAttributes(
   }
 
   auto spirvEntryPointNameAttr =
-      vulkanLaunchCallOp.getAttrOfType<StringAttr>(kSPIRVEntryPointAttrName);
+      vulkanLaunchCallOp->getAttrOfType<StringAttr>(kSPIRVEntryPointAttrName);
   if (!spirvEntryPointNameAttr) {
     vulkanLaunchCallOp.emitError()
         << "missing " << kSPIRVEntryPointAttrName << " attribute";
@@ -255,7 +230,7 @@ void VulkanLaunchFuncToVulkanCallsPass::createBindMemRefCalls(
 
     auto ptrToMemRefDescriptor = en.value();
     uint32_t rank = 0;
-    LLVM::LLVMType type;
+    Type type;
     if (failed(deduceMemRefRankAndType(ptrToMemRefDescriptor, rank, type))) {
       cInterfaceVulkanLaunchCallOp.emitError()
           << "invalid memref descriptor " << ptrToMemRefDescriptor.getType();
@@ -264,24 +239,32 @@ void VulkanLaunchFuncToVulkanCallsPass::createBindMemRefCalls(
 
     auto symbolName =
         llvm::formatv("bindMemRef{0}D{1}", rank, stringifyType(type)).str();
+    // Special case for fp16 type. Since it is not a supported type in C we use
+    // int16_t and bitcast the descriptor.
+    if (type.isa<Float16Type>()) {
+      auto memRefTy = getMemRefType(rank, IntegerType::get(&getContext(), 16));
+      ptrToMemRefDescriptor = builder.create<LLVM::BitcastOp>(
+          loc, LLVM::LLVMPointerType::get(memRefTy), ptrToMemRefDescriptor);
+    }
     // Create call to `bindMemRef`.
     builder.create<LLVM::CallOp>(
-        loc, ArrayRef<Type>{getVoidType()},
+        loc, TypeRange{getVoidType()},
         builder.getSymbolRefAttr(
             StringRef(symbolName.data(), symbolName.size())),
-        ArrayRef<Value>{vulkanRuntime, descriptorSet, descriptorBinding,
-                        ptrToMemRefDescriptor});
+        ValueRange{vulkanRuntime, descriptorSet, descriptorBinding,
+                   ptrToMemRefDescriptor});
   }
 }
 
 LogicalResult VulkanLaunchFuncToVulkanCallsPass::deduceMemRefRankAndType(
-    Value ptrToMemRefDescriptor, uint32_t &rank, LLVM::LLVMType &type) {
+    Value ptrToMemRefDescriptor, uint32_t &rank, Type &type) {
   auto llvmPtrDescriptorTy =
-      ptrToMemRefDescriptor.getType().dyn_cast<LLVM::LLVMType>();
+      ptrToMemRefDescriptor.getType().dyn_cast<LLVM::LLVMPointerType>();
   if (!llvmPtrDescriptorTy)
     return failure();
 
-  auto llvmDescriptorTy = llvmPtrDescriptorTy.getPointerElementTy();
+  auto llvmDescriptorTy =
+      llvmPtrDescriptorTy.getElementType().dyn_cast<LLVM::LLVMStructType>();
   // template <typename Elem, size_t Rank>
   // struct {
   //   Elem *allocated;
@@ -290,84 +273,85 @@ LogicalResult VulkanLaunchFuncToVulkanCallsPass::deduceMemRefRankAndType(
   //   int64_t sizes[Rank]; // omitted when rank == 0
   //   int64_t strides[Rank]; // omitted when rank == 0
   // };
-  if (!llvmDescriptorTy || !llvmDescriptorTy.isStructTy())
+  if (!llvmDescriptorTy)
     return failure();
 
-  type = llvmDescriptorTy.getStructElementType(0).getPointerElementTy();
-  if (llvmDescriptorTy.getStructNumElements() == 3) {
+  type = llvmDescriptorTy.getBody()[0]
+             .cast<LLVM::LLVMPointerType>()
+             .getElementType();
+  if (llvmDescriptorTy.getBody().size() == 3) {
     rank = 0;
     return success();
   }
-  rank = llvmDescriptorTy.getStructElementType(3).getArrayNumElements();
+  rank = llvmDescriptorTy.getBody()[3]
+             .cast<LLVM::LLVMArrayType>()
+             .getNumElements();
   return success();
 }
 
 void VulkanLaunchFuncToVulkanCallsPass::declareVulkanFunctions(Location loc) {
   ModuleOp module = getOperation();
-  OpBuilder builder(module.getBody()->getTerminator());
+  auto builder = OpBuilder::atBlockEnd(module.getBody());
 
   if (!module.lookupSymbol(kSetEntryPoint)) {
     builder.create<LLVM::LLVMFuncOp>(
         loc, kSetEntryPoint,
-        LLVM::LLVMType::getFunctionTy(getVoidType(),
-                                      {getPointerType(), getPointerType()},
-                                      /*isVarArg=*/false));
+        LLVM::LLVMFunctionType::get(getVoidType(),
+                                    {getPointerType(), getPointerType()}));
   }
 
   if (!module.lookupSymbol(kSetNumWorkGroups)) {
     builder.create<LLVM::LLVMFuncOp>(
         loc, kSetNumWorkGroups,
-        LLVM::LLVMType::getFunctionTy(
-            getVoidType(),
-            {getPointerType(), getInt64Type(), getInt64Type(), getInt64Type()},
-            /*isVarArg=*/false));
+        LLVM::LLVMFunctionType::get(getVoidType(),
+                                    {getPointerType(), getInt64Type(),
+                                     getInt64Type(), getInt64Type()}));
   }
 
   if (!module.lookupSymbol(kSetBinaryShader)) {
     builder.create<LLVM::LLVMFuncOp>(
         loc, kSetBinaryShader,
-        LLVM::LLVMType::getFunctionTy(
-            getVoidType(), {getPointerType(), getPointerType(), getInt32Type()},
-            /*isVarArg=*/false));
+        LLVM::LLVMFunctionType::get(
+            getVoidType(),
+            {getPointerType(), getPointerType(), getInt32Type()}));
   }
 
   if (!module.lookupSymbol(kRunOnVulkan)) {
     builder.create<LLVM::LLVMFuncOp>(
         loc, kRunOnVulkan,
-        LLVM::LLVMType::getFunctionTy(getVoidType(), {getPointerType()},
-                                      /*isVarArg=*/false));
+        LLVM::LLVMFunctionType::get(getVoidType(), {getPointerType()}));
   }
 
-#define CREATE_VULKAN_BIND_FUNC(MemRefType)                                    \
-  if (!module.lookupSymbol(kBind##MemRefType)) {                               \
-    builder.create<LLVM::LLVMFuncOp>(                                          \
-        loc, kBind##MemRefType,                                                \
-        LLVM::LLVMType::getFunctionTy(getVoidType(),                           \
-                                      {getPointerType(), getInt32Type(),       \
-                                       getInt32Type(),                         \
-                                       get##MemRefType().getPointerTo()},      \
-                                      /*isVarArg=*/false));                    \
+  for (unsigned i = 1; i <= 3; i++) {
+    SmallVector<Type, 5> types{
+        Float32Type::get(&getContext()), IntegerType::get(&getContext(), 32),
+        IntegerType::get(&getContext(), 16), IntegerType::get(&getContext(), 8),
+        Float16Type::get(&getContext())};
+    for (auto type : types) {
+      std::string fnName = "bindMemRef" + std::to_string(i) + "D" +
+                           std::string(stringifyType(type));
+      if (type.isa<Float16Type>())
+        type = IntegerType::get(&getContext(), 16);
+      if (!module.lookupSymbol(fnName)) {
+        auto fnType = LLVM::LLVMFunctionType::get(
+            getVoidType(),
+            {getPointerType(), getInt32Type(), getInt32Type(),
+             LLVM::LLVMPointerType::get(getMemRefType(i, type))},
+            /*isVarArg=*/false);
+        builder.create<LLVM::LLVMFuncOp>(loc, fnName, fnType);
+      }
+    }
   }
-
-  CREATE_VULKAN_BIND_FUNC(MemRef1DFloat);
-  CREATE_VULKAN_BIND_FUNC(MemRef2DFloat);
-  CREATE_VULKAN_BIND_FUNC(MemRef3DFloat);
-  CREATE_VULKAN_BIND_FUNC(MemRef1DInt);
-  CREATE_VULKAN_BIND_FUNC(MemRef2DInt);
-  CREATE_VULKAN_BIND_FUNC(MemRef3DInt);
 
   if (!module.lookupSymbol(kInitVulkan)) {
     builder.create<LLVM::LLVMFuncOp>(
-        loc, kInitVulkan,
-        LLVM::LLVMType::getFunctionTy(getPointerType(), {},
-                                      /*isVarArg=*/false));
+        loc, kInitVulkan, LLVM::LLVMFunctionType::get(getPointerType(), {}));
   }
 
   if (!module.lookupSymbol(kDeinitVulkan)) {
     builder.create<LLVM::LLVMFuncOp>(
         loc, kDeinitVulkan,
-        LLVM::LLVMType::getFunctionTy(getVoidType(), {getPointerType()},
-                                      /*isVarArg=*/false));
+        LLVM::LLVMFunctionType::get(getVoidType(), {getPointerType()}));
   }
 }
 
@@ -380,8 +364,7 @@ Value VulkanLaunchFuncToVulkanCallsPass::createEntryPointNameConstant(
 
   std::string entryPointGlobalName = (name + "_spv_entry_point_name").str();
   return LLVM::createGlobalString(loc, builder, entryPointGlobalName,
-                                  shaderName, LLVM::Linkage::Internal,
-                                  getLLVMDialect());
+                                  shaderName, LLVM::Linkage::Internal);
 }
 
 void VulkanLaunchFuncToVulkanCallsPass::translateVulkanLaunchCall(
@@ -390,8 +373,8 @@ void VulkanLaunchFuncToVulkanCallsPass::translateVulkanLaunchCall(
   Location loc = cInterfaceVulkanLaunchCallOp.getLoc();
   // Create call to `initVulkan`.
   auto initVulkanCall = builder.create<LLVM::CallOp>(
-      loc, ArrayRef<Type>{getPointerType()},
-      builder.getSymbolRefAttr(kInitVulkan), ArrayRef<Value>{});
+      loc, TypeRange{getPointerType()}, builder.getSymbolRefAttr(kInitVulkan),
+      ValueRange{});
   // The result of `initVulkan` function is a pointer to Vulkan runtime, we
   // need to pass that pointer to each Vulkan runtime call.
   auto vulkanRuntime = initVulkanCall.getResult(0);
@@ -400,7 +383,7 @@ void VulkanLaunchFuncToVulkanCallsPass::translateVulkanLaunchCall(
   // that data to runtime call.
   Value ptrToSPIRVBinary = LLVM::createGlobalString(
       loc, builder, kSPIRVBinary, spirvAttributes.first.getValue(),
-      LLVM::Linkage::Internal, getLLVMDialect());
+      LLVM::Linkage::Internal);
 
   // Create LLVM constant for the size of SPIR-V binary shader.
   Value binarySize = builder.create<LLVM::ConstantOp>(
@@ -413,35 +396,34 @@ void VulkanLaunchFuncToVulkanCallsPass::translateVulkanLaunchCall(
   // Create call to `setBinaryShader` runtime function with the given pointer to
   // SPIR-V binary and binary size.
   builder.create<LLVM::CallOp>(
-      loc, ArrayRef<Type>{getVoidType()},
-      builder.getSymbolRefAttr(kSetBinaryShader),
-      ArrayRef<Value>{vulkanRuntime, ptrToSPIRVBinary, binarySize});
+      loc, TypeRange{getVoidType()}, builder.getSymbolRefAttr(kSetBinaryShader),
+      ValueRange{vulkanRuntime, ptrToSPIRVBinary, binarySize});
   // Create LLVM global with entry point name.
   Value entryPointName = createEntryPointNameConstant(
       spirvAttributes.second.getValue(), loc, builder);
   // Create call to `setEntryPoint` runtime function with the given pointer to
   // entry point name.
-  builder.create<LLVM::CallOp>(loc, ArrayRef<Type>{getVoidType()},
+  builder.create<LLVM::CallOp>(loc, TypeRange{getVoidType()},
                                builder.getSymbolRefAttr(kSetEntryPoint),
-                               ArrayRef<Value>{vulkanRuntime, entryPointName});
+                               ValueRange{vulkanRuntime, entryPointName});
 
   // Create number of local workgroup for each dimension.
   builder.create<LLVM::CallOp>(
-      loc, ArrayRef<Type>{getVoidType()},
+      loc, TypeRange{getVoidType()},
       builder.getSymbolRefAttr(kSetNumWorkGroups),
-      ArrayRef<Value>{vulkanRuntime, cInterfaceVulkanLaunchCallOp.getOperand(0),
-                      cInterfaceVulkanLaunchCallOp.getOperand(1),
-                      cInterfaceVulkanLaunchCallOp.getOperand(2)});
+      ValueRange{vulkanRuntime, cInterfaceVulkanLaunchCallOp.getOperand(0),
+                 cInterfaceVulkanLaunchCallOp.getOperand(1),
+                 cInterfaceVulkanLaunchCallOp.getOperand(2)});
 
   // Create call to `runOnVulkan` runtime function.
-  builder.create<LLVM::CallOp>(loc, ArrayRef<Type>{getVoidType()},
+  builder.create<LLVM::CallOp>(loc, TypeRange{getVoidType()},
                                builder.getSymbolRefAttr(kRunOnVulkan),
-                               ArrayRef<Value>{vulkanRuntime});
+                               ValueRange{vulkanRuntime});
 
   // Create call to 'deinitVulkan' runtime function.
-  builder.create<LLVM::CallOp>(loc, ArrayRef<Type>{getVoidType()},
+  builder.create<LLVM::CallOp>(loc, TypeRange{getVoidType()},
                                builder.getSymbolRefAttr(kDeinitVulkan),
-                               ArrayRef<Value>{vulkanRuntime});
+                               ValueRange{vulkanRuntime});
 
   // Declare runtime functions.
   declareVulkanFunctions(loc);

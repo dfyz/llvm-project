@@ -17,7 +17,7 @@ using namespace llvm;
 MCDisassembler::~MCDisassembler() = default;
 
 Optional<MCDisassembler::DecodeStatus>
-MCDisassembler::onSymbolStart(StringRef Name, uint64_t &Size,
+MCDisassembler::onSymbolStart(SymbolInfoTy &Symbol, uint64_t &Size,
                               ArrayRef<uint8_t> Bytes, uint64_t Address,
                               raw_ostream &CStream) const {
   return None;
@@ -47,7 +47,7 @@ void MCDisassembler::setSymbolizer(std::unique_ptr<MCSymbolizer> Symzer) {
   case XCOFF::XMC_##A:                                                         \
     return P;
 
-uint8_t getSMCPriority(XCOFF::StorageMappingClass SMC) {
+static uint8_t getSMCPriority(XCOFF::StorageMappingClass SMC) {
   switch (SMC) {
     SMC_PCASE(PR, 1)
     SMC_PCASE(RO, 1)

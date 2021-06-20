@@ -723,21 +723,8 @@ getExprOpValue(const MCExpr *Expr, SmallVectorImpl<MCFixup> &Fixups,
     return 0;
   }
 
-  if (Kind == MCExpr::SymbolRef) {
-    Mips::Fixups FixupKind = Mips::Fixups(0);
-
-    switch(cast<MCSymbolRefExpr>(Expr)->getKind()) {
-    default: llvm_unreachable("Unknown fixup kind!");
-      break;
-    case MCSymbolRefExpr::VK_None:
-      // FIXME: This is ok for O32/N32 but not N64.
-      FixupKind = Mips::fixup_Mips_32;
-      break;
-    } // switch
-
-    Fixups.push_back(MCFixup::create(0, Expr, MCFixupKind(FixupKind)));
-    return 0;
-  }
+  if (Kind == MCExpr::SymbolRef)
+    Ctx.reportError(Expr->getLoc(), "expected an immediate");
   return 0;
 }
 
@@ -753,9 +740,8 @@ getMachineOpValue(const MCInst &MI, const MCOperand &MO,
     return RegNo;
   } else if (MO.isImm()) {
     return static_cast<unsigned>(MO.getImm());
-  } else if (MO.isFPImm()) {
-    return static_cast<unsigned>(APFloat(MO.getFPImm())
-        .bitcastToAPInt().getHiBits(32).getLimitedValue());
+  } else if (MO.isDFPImm()) {
+    return static_cast<unsigned>(bit_cast<double>(MO.getDFPImm()));
   }
   // MO must be an Expr.
   assert(MO.isExpr());

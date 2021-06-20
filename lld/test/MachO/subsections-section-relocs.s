@@ -1,11 +1,8 @@
 # REQUIRES: x86
-# RUN: mkdir -p %t
-# RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %s -o %t/test.o
+# RUN: rm -rf %t; split-file %s %t
+# RUN: llvm-mc -filetype=obj -triple=x86_64-apple-darwin %t/test.s -o %t/test.o
 
-# RUN: echo "_bar_str" > %t/order-file
-# RUN: echo "_foo_str" >> %t/order-file
-
-# RUN: lld -flavor darwinnew -o %t/test %t/test.o -order_file %t/order-file
+# RUN: %lld -o %t/test %t/test.o -order_file %t/order-file
 # RUN: llvm-objdump --section-headers -d --no-show-raw-insn %t/test | FileCheck %s
 # CHECK-LABEL: Sections:
 # CHECK:       __cstring {{[^ ]*}} {{0*}}[[#%x, CSTRING_ADDR:]]
@@ -20,6 +17,11 @@
 # STRINGS: Private symbol
 # STRINGS: foo
 
+#--- order-file
+_bar_str
+_foo_str
+
+#--- test.s
 .text
 .globl _main, _foo_str, _bar_str
 
@@ -37,10 +39,13 @@ _bar_str:
 
 ## References to this generate a section relocation
 ## N.B.: ld64 doesn't actually reorder symbols in __cstring based on the order
-##       file. Only our implementation does. However, I'm not sure how else to
-##       test section relocations that target an address inside a relocated
-##       symbol: using a non-__cstring section would cause llvm-mc to emit a
-##       symbol relocation instead using the nearest symbol.
+##       file. Our implementation only does does so if --no-literal-merge is
+##       specified. I'm not sure how else to test section relocations that
+##       target an address inside a relocated symbol: using a non-__cstring
+##       section would cause llvm-mc to emit a symbol relocation instead using
+##       the nearest symbol. It might be more consistent for LLD to disable
+##       symbol-based cstring reordering altogether and leave this functionality
+##       untested, at least until we find a real-world use case...
 L_.str:
   .asciz "Private symbol"
 

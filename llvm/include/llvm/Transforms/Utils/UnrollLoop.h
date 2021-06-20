@@ -66,14 +66,9 @@ enum class LoopUnrollResult {
 
 struct UnrollLoopOptions {
   unsigned Count;
-  unsigned TripCount;
   bool Force;
-  bool AllowRuntime;
+  bool Runtime;
   bool AllowExpensiveTripCount;
-  bool PreserveCondBr;
-  bool PreserveOnlyFirst;
-  unsigned TripMultiple;
-  unsigned PeelCount;
   bool UnrollRemainder;
   bool ForgetAllSCEV;
 };
@@ -91,15 +86,6 @@ bool UnrollRuntimeLoopRemainder(
     LoopInfo *LI, ScalarEvolution *SE, DominatorTree *DT, AssumptionCache *AC,
     const TargetTransformInfo *TTI, bool PreserveLCSSA,
     Loop **ResultLoop = nullptr);
-
-void computePeelCount(Loop *L, unsigned LoopSize,
-                      TargetTransformInfo::UnrollingPreferences &UP,
-                      unsigned &TripCount, ScalarEvolution &SE);
-
-bool canPeel(Loop *L);
-
-bool peelLoop(Loop *L, unsigned PeelCount, LoopInfo *LI, ScalarEvolution *SE,
-              DominatorTree *DT, AssumptionCache *AC, bool PreserveLCSSA);
 
 LoopUnrollResult UnrollAndJamLoop(Loop *L, unsigned Count, unsigned TripCount,
                                   unsigned TripMultiple, bool UnrollRemainder,
@@ -119,6 +105,7 @@ bool computeUnrollCount(Loop *L, const TargetTransformInfo &TTI,
                         unsigned MaxTripCount, bool MaxOrZero,
                         unsigned &TripMultiple, unsigned LoopSize,
                         TargetTransformInfo::UnrollingPreferences &UP,
+                        TargetTransformInfo::PeelingPreferences &PP,
                         bool &UseUpperBound);
 
 void simplifyLoopAfterUnroll(Loop *L, bool SimplifyIVs, LoopInfo *LI,
@@ -133,9 +120,7 @@ TargetTransformInfo::UnrollingPreferences gatherUnrollingPreferences(
     BlockFrequencyInfo *BFI, ProfileSummaryInfo *PSI, int OptLevel,
     Optional<unsigned> UserThreshold, Optional<unsigned> UserCount,
     Optional<bool> UserAllowPartial, Optional<bool> UserRuntime,
-    Optional<bool> UserUpperBound, Optional<bool> UserAllowPeeling,
-    Optional<bool> UserAllowProfileBasedPeeling,
-    Optional<unsigned> UserFullUnrollMaxCount);
+    Optional<bool> UserUpperBound, Optional<unsigned> UserFullUnrollMaxCount);
 
 unsigned ApproximateLoopSize(const Loop *L, unsigned &NumCalls,
                              bool &NotDuplicatable, bool &Convergent,

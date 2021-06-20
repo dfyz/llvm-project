@@ -37,10 +37,9 @@ void NORETURN ReportMmapFailureAndDie(uptr size, const char *mem_type,
                                       const char *mmap_type, error_t err,
                                       bool raw_report) {
   static int recursion_count;
-  if (SANITIZER_RTEMS || raw_report || recursion_count) {
-    // If we are on RTEMS or raw report is requested or we went into recursion,
-    // just die.  The Report() and CHECK calls below may call mmap recursively
-    // and fail.
+  if (raw_report || recursion_count) {
+    // If raw report is requested or we went into recursion just die.  The
+    // Report() and CHECK calls below may call mmap recursively and fail.
     RawWrite("ERROR: Failed to mmap\n");
     Die();
   }
@@ -87,7 +86,7 @@ const char *StripModuleName(const char *module) {
 void ReportErrorSummary(const char *error_message, const char *alt_tool_name) {
   if (!common_flags()->print_summary)
     return;
-  InternalScopedString buff(kMaxSummaryLength);
+  InternalScopedString buff;
   buff.append("SUMMARY: %s: %s",
               alt_tool_name ? alt_tool_name : SanitizerToolName, error_message);
   __sanitizer_report_error_summary(buff.data());
@@ -270,6 +269,14 @@ uptr ReadBinaryNameCached(/*out*/char *buf, uptr buf_len) {
   if (buf_len == 0)
     return 0;
   internal_memcpy(buf, binary_name_cache_str, name_len);
+  buf[name_len] = '\0';
+  return name_len;
+}
+
+uptr ReadBinaryDir(/*out*/ char *buf, uptr buf_len) {
+  ReadBinaryNameCached(buf, buf_len);
+  const char *exec_name_pos = StripModuleName(buf);
+  uptr name_len = exec_name_pos - buf;
   buf[name_len] = '\0';
   return name_len;
 }

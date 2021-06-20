@@ -78,10 +78,12 @@ protected:
   void init(unsigned Size);
 
 public:
+  static constexpr uintptr_t TombstoneIntVal =
+      static_cast<uintptr_t>(-1)
+      << PointerLikeTypeTraits<StringMapEntryBase *>::NumLowBitsAvailable;
+
   static StringMapEntryBase *getTombstoneVal() {
-    uintptr_t Val = static_cast<uintptr_t>(-1);
-    Val <<= PointerLikeTypeTraits<StringMapEntryBase *>::NumLowBitsAvailable;
-    return reinterpret_cast<StringMapEntryBase *>(Val);
+    return reinterpret_cast<StringMapEntryBase *>(TombstoneIntVal);
   }
 
   unsigned getNumBuckets() const { return NumBuckets; }
@@ -248,6 +250,26 @@ public:
     return count(MapEntry.getKey());
   }
 
+  /// equal - check whether both of the containers are equal.
+  bool operator==(const StringMap &RHS) const {
+    if (size() != RHS.size())
+      return false;
+
+    for (const auto &KeyValue : *this) {
+      auto FindInRHS = RHS.find(KeyValue.getKey());
+
+      if (FindInRHS == RHS.end())
+        return false;
+
+      if (!(KeyValue.getValue() == FindInRHS->getValue()))
+        return false;
+    }
+
+    return true;
+  }
+
+  bool operator!=(const StringMap &RHS) const { return !(*this == RHS); }
+
   /// insert - Insert the specified key/value pair into the map.  If the key
   /// already exists in the map, return false and ignore the request, otherwise
   /// insert it and return true.
@@ -367,7 +389,9 @@ public:
     return static_cast<DerivedTy &>(*this);
   }
 
-  bool operator==(const DerivedTy &RHS) const { return Ptr == RHS.Ptr; }
+  friend bool operator==(const DerivedTy &LHS, const DerivedTy &RHS) {
+    return LHS.Ptr == RHS.Ptr;
+  }
 
   DerivedTy &operator++() { // Preincrement
     ++Ptr;

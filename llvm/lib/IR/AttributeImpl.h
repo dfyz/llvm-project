@@ -64,6 +64,7 @@ public:
 
   Attribute::AttrKind getKindAsEnum() const;
   uint64_t getValueAsInt() const;
+  bool getValueAsBool() const;
 
   StringRef getKindAsString() const;
   StringRef getValueAsString() const;
@@ -121,7 +122,10 @@ protected:
 
 public:
   EnumAttributeImpl(Attribute::AttrKind Kind)
-      : AttributeImpl(EnumAttrEntry), Kind(Kind) {}
+      : AttributeImpl(EnumAttrEntry), Kind(Kind) {
+    assert(Kind != Attribute::AttrKind::None &&
+           "Can't create a None attribute!");
+  }
 
   Attribute::AttrKind getEnumKind() const { return Kind; }
 };
@@ -193,11 +197,11 @@ class AttributeBitSet {
 
 public:
   bool hasAttribute(Attribute::AttrKind Kind) const {
-    return AvailableAttrs[Kind / 8] & ((uint64_t)1) << (Kind % 8);
+    return AvailableAttrs[Kind / 8] & (1 << (Kind % 8));
   }
 
   void addAttribute(Attribute::AttrKind Kind) {
-    AvailableAttrs[Kind / 8] |= 1ULL << (Kind % 8);
+    AvailableAttrs[Kind / 8] |= 1 << (Kind % 8);
   }
 };
 
@@ -249,9 +253,13 @@ public:
   uint64_t getDereferenceableBytes() const;
   uint64_t getDereferenceableOrNullBytes() const;
   std::pair<unsigned, Optional<unsigned>> getAllocSizeArgs() const;
+  std::pair<unsigned, unsigned> getVScaleRangeArgs() const;
   std::string getAsString(bool InAttrGrp) const;
   Type *getByValType() const;
+  Type *getStructRetType() const;
+  Type *getByRefType() const;
   Type *getPreallocatedType() const;
+  Type *getInAllocaType() const;
 
   using iterator = const Attribute *;
 
@@ -282,6 +290,8 @@ private:
   unsigned NumAttrSets; ///< Number of entries in this set.
   /// Available enum function attributes.
   AttributeBitSet AvailableFunctionAttrs;
+  /// Union of enum attributes available at any index.
+  AttributeBitSet AvailableSomewhereAttrs;
 
   // Helper fn for TrailingObjects class.
   size_t numTrailingObjects(OverloadToken<AttributeSet>) { return NumAttrSets; }
@@ -298,6 +308,12 @@ public:
   bool hasFnAttribute(Attribute::AttrKind Kind) const {
     return AvailableFunctionAttrs.hasAttribute(Kind);
   }
+
+  /// Return true if the specified attribute is set for at least one
+  /// parameter or for the return value. If Index is not nullptr, the index
+  /// of a parameter with the specified attribute is provided.
+  bool hasAttrSomewhere(Attribute::AttrKind Kind,
+                        unsigned *Index = nullptr) const;
 
   using iterator = const AttributeSet *;
 

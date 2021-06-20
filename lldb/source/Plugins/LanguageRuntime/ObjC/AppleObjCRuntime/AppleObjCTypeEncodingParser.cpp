@@ -25,9 +25,9 @@ AppleObjCTypeEncodingParser::AppleObjCTypeEncodingParser(
     ObjCLanguageRuntime &runtime)
     : ObjCLanguageRuntime::EncodingToType(), m_runtime(runtime) {
   if (!m_scratch_ast_ctx_up)
-    m_scratch_ast_ctx_up.reset(new TypeSystemClang(
+    m_scratch_ast_ctx_up = std::make_unique<TypeSystemClang>(
         "AppleObjCTypeEncodingParser ASTContext",
-        runtime.GetProcess()->GetTarget().GetArchitecture().GetTriple()));
+        runtime.GetProcess()->GetTarget().GetArchitecture().GetTriple());
 }
 
 std::string AppleObjCTypeEncodingParser::ReadStructName(StringLexer &type) {
@@ -59,7 +59,7 @@ uint32_t AppleObjCTypeEncodingParser::ReadNumber(StringLexer &type) {
 // "{CGRect=\"origin\"{CGPoint=\"x\"d\"y\"d}\"size\"{CGSize=\"width\"d\"height\"d}}"
 
 AppleObjCTypeEncodingParser::StructElement::StructElement()
-    : name(""), type(clang::QualType()), bitfield(0) {}
+    : name(""), type(clang::QualType()) {}
 
 AppleObjCTypeEncodingParser::StructElement
 AppleObjCTypeEncodingParser::ReadStructElement(TypeSystemClang &ast_ctx,

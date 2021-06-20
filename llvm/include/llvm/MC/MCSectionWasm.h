@@ -13,15 +13,14 @@
 #ifndef LLVM_MC_MCSECTIONWASM_H
 #define LLVM_MC_MCSECTIONWASM_H
 
-#include "llvm/ADT/Twine.h"
 #include "llvm/MC/MCSection.h"
-#include "llvm/MC/MCSymbolWasm.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/raw_ostream.h"
 
 namespace llvm {
 
 class MCSymbol;
+class MCSymbolWasm;
+class StringRef;
+class raw_ostream;
 
 /// This represents a section on wasm.
 class MCSectionWasm final : public MCSection {
@@ -38,14 +37,18 @@ class MCSectionWasm final : public MCSection {
   // segment
   uint32_t SegmentIndex = 0;
 
-  // Whether this data segment is passive
+  // For data sections, whether to use a passive segment
   bool IsPassive = false;
+
+  // For data sections, bitfield of WasmSegmentFlag
+  unsigned SegmentFlags;
 
   // The storage of Name is owned by MCContext's WasmUniquingMap.
   friend class MCContext;
-  MCSectionWasm(StringRef Name, SectionKind K, const MCSymbolWasm *group,
-                unsigned UniqueID, MCSymbol *Begin)
-      : MCSection(SV_Wasm, Name, K, Begin), UniqueID(UniqueID), Group(group) {}
+  MCSectionWasm(StringRef Name, SectionKind K, unsigned SegmentFlags,
+                const MCSymbolWasm *Group, unsigned UniqueID, MCSymbol *Begin)
+      : MCSection(SV_Wasm, Name, K, Begin), UniqueID(UniqueID), Group(Group),
+        SegmentFlags(SegmentFlags) {}
 
 public:
   /// Decides whether a '.section' directive should be printed before the
@@ -53,6 +56,7 @@ public:
   bool shouldOmitSectionDirective(StringRef Name, const MCAsmInfo &MAI) const;
 
   const MCSymbolWasm *getGroup() const { return Group; }
+  unsigned getSegmentFlags() const { return SegmentFlags; }
 
   void PrintSwitchToSection(const MCAsmInfo &MAI, const Triple &T,
                             raw_ostream &OS,

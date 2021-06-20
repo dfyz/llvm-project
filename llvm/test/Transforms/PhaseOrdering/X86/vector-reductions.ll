@@ -8,7 +8,7 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 define i32 @ext_ext_or_reduction_v4i32(<4 x i32> %x, <4 x i32> %y) {
 ; CHECK-LABEL: @ext_ext_or_reduction_v4i32(
 ; CHECK-NEXT:    [[Z:%.*]] = and <4 x i32> [[Y:%.*]], [[X:%.*]]
-; CHECK-NEXT:    [[TMP1:%.*]] = call i32 @llvm.experimental.vector.reduce.or.v4i32(<4 x i32> [[Z]])
+; CHECK-NEXT:    [[TMP1:%.*]] = call i32 @llvm.vector.reduce.or.v4i32(<4 x i32> [[Z]])
 ; CHECK-NEXT:    ret i32 [[TMP1]]
 ;
   %z = and <4 x i32> %x, %y
@@ -24,12 +24,12 @@ define i32 @ext_ext_or_reduction_v4i32(<4 x i32> %x, <4 x i32> %y) {
 
 define i32 @ext_ext_partial_add_reduction_v4i32(<4 x i32> %x) {
 ; CHECK-LABEL: @ext_ext_partial_add_reduction_v4i32(
-; CHECK-NEXT:    [[TMP1:%.*]] = shufflevector <4 x i32> [[X:%.*]], <4 x i32> undef, <4 x i32> <i32 1, i32 undef, i32 undef, i32 undef>
-; CHECK-NEXT:    [[TMP2:%.*]] = add <4 x i32> [[TMP1]], [[X]]
-; CHECK-NEXT:    [[TMP3:%.*]] = shufflevector <4 x i32> [[X]], <4 x i32> undef, <4 x i32> <i32 2, i32 undef, i32 undef, i32 undef>
-; CHECK-NEXT:    [[TMP4:%.*]] = add <4 x i32> [[TMP2]], [[TMP3]]
-; CHECK-NEXT:    [[TMP5:%.*]] = extractelement <4 x i32> [[TMP4]], i64 0
-; CHECK-NEXT:    ret i32 [[TMP5]]
+; CHECK-NEXT:    [[SHIFT:%.*]] = shufflevector <4 x i32> [[X:%.*]], <4 x i32> poison, <4 x i32> <i32 1, i32 undef, i32 undef, i32 undef>
+; CHECK-NEXT:    [[TMP1:%.*]] = add <4 x i32> [[SHIFT]], [[X]]
+; CHECK-NEXT:    [[SHIFT1:%.*]] = shufflevector <4 x i32> [[X]], <4 x i32> poison, <4 x i32> <i32 2, i32 undef, i32 undef, i32 undef>
+; CHECK-NEXT:    [[TMP2:%.*]] = add <4 x i32> [[TMP1]], [[SHIFT1]]
+; CHECK-NEXT:    [[X210:%.*]] = extractelement <4 x i32> [[TMP2]], i64 0
+; CHECK-NEXT:    ret i32 [[X210]]
 ;
   %x0 = extractelement <4 x i32> %x, i32 0
   %x1 = extractelement <4 x i32> %x, i32 1
@@ -41,14 +41,14 @@ define i32 @ext_ext_partial_add_reduction_v4i32(<4 x i32> %x) {
 
 define i32 @ext_ext_partial_add_reduction_and_extra_add_v4i32(<4 x i32> %x, <4 x i32> %y) {
 ; CHECK-LABEL: @ext_ext_partial_add_reduction_and_extra_add_v4i32(
-; CHECK-NEXT:    [[TMP1:%.*]] = shufflevector <4 x i32> [[Y:%.*]], <4 x i32> undef, <4 x i32> <i32 1, i32 undef, i32 undef, i32 undef>
-; CHECK-NEXT:    [[TMP2:%.*]] = shufflevector <4 x i32> [[Y]], <4 x i32> undef, <4 x i32> <i32 2, i32 undef, i32 undef, i32 undef>
-; CHECK-NEXT:    [[TMP3:%.*]] = shufflevector <4 x i32> [[X:%.*]], <4 x i32> undef, <4 x i32> <i32 2, i32 undef, i32 undef, i32 undef>
-; CHECK-NEXT:    [[TMP4:%.*]] = add <4 x i32> [[TMP3]], [[Y]]
-; CHECK-NEXT:    [[TMP5:%.*]] = add <4 x i32> [[TMP4]], [[TMP1]]
-; CHECK-NEXT:    [[TMP6:%.*]] = add <4 x i32> [[TMP5]], [[TMP2]]
-; CHECK-NEXT:    [[TMP7:%.*]] = extractelement <4 x i32> [[TMP6]], i32 0
-; CHECK-NEXT:    ret i32 [[TMP7]]
+; CHECK-NEXT:    [[SHIFT:%.*]] = shufflevector <4 x i32> [[X:%.*]], <4 x i32> poison, <4 x i32> <i32 2, i32 undef, i32 undef, i32 undef>
+; CHECK-NEXT:    [[TMP1:%.*]] = add <4 x i32> [[SHIFT]], [[Y:%.*]]
+; CHECK-NEXT:    [[SHIFT1:%.*]] = shufflevector <4 x i32> [[Y]], <4 x i32> poison, <4 x i32> <i32 1, i32 undef, i32 undef, i32 undef>
+; CHECK-NEXT:    [[TMP2:%.*]] = add <4 x i32> [[TMP1]], [[SHIFT1]]
+; CHECK-NEXT:    [[SHIFT2:%.*]] = shufflevector <4 x i32> [[Y]], <4 x i32> poison, <4 x i32> <i32 2, i32 undef, i32 undef, i32 undef>
+; CHECK-NEXT:    [[TMP3:%.*]] = add <4 x i32> [[TMP2]], [[SHIFT2]]
+; CHECK-NEXT:    [[X2Y210:%.*]] = extractelement <4 x i32> [[TMP3]], i32 0
+; CHECK-NEXT:    ret i32 [[X2Y210]]
 ;
   %y0 = extractelement <4 x i32> %y, i32 0
   %y1 = extractelement <4 x i32> %y, i32 1
@@ -71,12 +71,10 @@ define i32 @TestVectorsEqual(i32* noalias %Vec0, i32* noalias %Vec1, i32 %Tolera
 ; CHECK-NEXT:    [[TMP2:%.*]] = bitcast i32* [[VEC1:%.*]] to <4 x i32>*
 ; CHECK-NEXT:    [[TMP3:%.*]] = load <4 x i32>, <4 x i32>* [[TMP2]], align 4
 ; CHECK-NEXT:    [[TMP4:%.*]] = sub nsw <4 x i32> [[TMP1]], [[TMP3]]
-; CHECK-NEXT:    [[TMP5:%.*]] = icmp slt <4 x i32> [[TMP4]], zeroinitializer
-; CHECK-NEXT:    [[TMP6:%.*]] = sub nsw <4 x i32> zeroinitializer, [[TMP4]]
-; CHECK-NEXT:    [[TMP7:%.*]] = select <4 x i1> [[TMP5]], <4 x i32> [[TMP6]], <4 x i32> [[TMP4]]
-; CHECK-NEXT:    [[TMP8:%.*]] = call i32 @llvm.experimental.vector.reduce.add.v4i32(<4 x i32> [[TMP7]])
-; CHECK-NEXT:    [[CMP5:%.*]] = icmp sle i32 [[TMP8]], [[TOLERANCE:%.*]]
-; CHECK-NEXT:    [[COND6:%.*]] = zext i1 [[CMP5]] to i32
+; CHECK-NEXT:    [[TMP5:%.*]] = call <4 x i32> @llvm.abs.v4i32(<4 x i32> [[TMP4]], i1 true)
+; CHECK-NEXT:    [[TMP6:%.*]] = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> [[TMP5]])
+; CHECK-NEXT:    [[CMP5_NOT:%.*]] = icmp sle i32 [[TMP6]], [[TOLERANCE:%.*]]
+; CHECK-NEXT:    [[COND6:%.*]] = zext i1 [[CMP5_NOT]] to i32
 ; CHECK-NEXT:    ret i32 [[COND6]]
 ;
 entry:
@@ -132,11 +130,10 @@ define i32 @TestVectorsEqual_alt(i32* noalias %Vec0, i32* noalias %Vec1, i32 %To
 ; CHECK-NEXT:    [[TMP1:%.*]] = load <4 x i32>, <4 x i32>* [[TMP0]], align 4
 ; CHECK-NEXT:    [[TMP2:%.*]] = bitcast i32* [[VEC1:%.*]] to <4 x i32>*
 ; CHECK-NEXT:    [[TMP3:%.*]] = load <4 x i32>, <4 x i32>* [[TMP2]], align 4
-; CHECK-NEXT:    [[TMP4:%.*]] = call i32 @llvm.experimental.vector.reduce.add.v4i32(<4 x i32> [[TMP1]])
-; CHECK-NEXT:    [[TMP5:%.*]] = call i32 @llvm.experimental.vector.reduce.add.v4i32(<4 x i32> [[TMP3]])
-; CHECK-NEXT:    [[ADD_3:%.*]] = sub i32 [[TMP4]], [[TMP5]]
-; CHECK-NEXT:    [[CMP3:%.*]] = icmp ule i32 [[ADD_3]], [[TOLERANCE:%.*]]
-; CHECK-NEXT:    [[COND:%.*]] = zext i1 [[CMP3]] to i32
+; CHECK-NEXT:    [[TMP4:%.*]] = sub <4 x i32> [[TMP1]], [[TMP3]]
+; CHECK-NEXT:    [[TMP5:%.*]] = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> [[TMP4]])
+; CHECK-NEXT:    [[CMP3_NOT:%.*]] = icmp ule i32 [[TMP5]], [[TOLERANCE:%.*]]
+; CHECK-NEXT:    [[COND:%.*]] = zext i1 [[CMP3_NOT]] to i32
 ; CHECK-NEXT:    ret i32 [[COND]]
 ;
 entry:
@@ -182,7 +179,7 @@ define i32 @TestVectorsEqualFP(float* noalias %Vec0, float* noalias %Vec1, float
 ; CHECK-NEXT:    [[TMP3:%.*]] = load <4 x float>, <4 x float>* [[TMP2]], align 4
 ; CHECK-NEXT:    [[TMP4:%.*]] = fsub fast <4 x float> [[TMP1]], [[TMP3]]
 ; CHECK-NEXT:    [[TMP5:%.*]] = call fast <4 x float> @llvm.fabs.v4f32(<4 x float> [[TMP4]])
-; CHECK-NEXT:    [[TMP6:%.*]] = call fast float @llvm.experimental.vector.reduce.v2.fadd.f32.v4f32(float 0.000000e+00, <4 x float> [[TMP5]])
+; CHECK-NEXT:    [[TMP6:%.*]] = call fast float @llvm.vector.reduce.fadd.v4f32(float -0.000000e+00, <4 x float> [[TMP5]])
 ; CHECK-NEXT:    [[CMP4:%.*]] = fcmp fast ole float [[TMP6]], [[TOLERANCE:%.*]]
 ; CHECK-NEXT:    [[COND5:%.*]] = zext i1 [[CMP4]] to i32
 ; CHECK-NEXT:    ret i32 [[COND5]]
@@ -241,7 +238,7 @@ define i32 @TestVectorsEqualFP_alt(float* noalias %Vec0, float* noalias %Vec1, f
 ; CHECK-NEXT:    [[TMP2:%.*]] = bitcast float* [[VEC1:%.*]] to <4 x float>*
 ; CHECK-NEXT:    [[TMP3:%.*]] = load <4 x float>, <4 x float>* [[TMP2]], align 4
 ; CHECK-NEXT:    [[TMP4:%.*]] = fsub fast <4 x float> [[TMP1]], [[TMP3]]
-; CHECK-NEXT:    [[TMP5:%.*]] = call fast float @llvm.experimental.vector.reduce.v2.fadd.f32.v4f32(float 0.000000e+00, <4 x float> [[TMP4]])
+; CHECK-NEXT:    [[TMP5:%.*]] = call fast float @llvm.vector.reduce.fadd.v4f32(float -0.000000e+00, <4 x float> [[TMP4]])
 ; CHECK-NEXT:    [[CMP3:%.*]] = fcmp fast ole float [[TMP5]], [[TOLERANCE:%.*]]
 ; CHECK-NEXT:    [[COND:%.*]] = zext i1 [[CMP3]] to i32
 ; CHECK-NEXT:    ret i32 [[COND]]
@@ -278,4 +275,63 @@ for.end:
   %2 = zext i1 %cmp3 to i64
   %cond = select i1 %cmp3, i32 1, i32 0
   ret i32 %cond
+}
+
+; PR43745 - https://bugs.llvm.org/show_bug.cgi?id=43745
+
+; FIXME: this should be vectorized
+define i1 @cmp_lt_gt(double %a, double %b, double %c) {
+; CHECK-LABEL: @cmp_lt_gt(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[FNEG:%.*]] = fneg double [[B:%.*]]
+; CHECK-NEXT:    [[ADD:%.*]] = fsub double [[C:%.*]], [[B]]
+; CHECK-NEXT:    [[MUL:%.*]] = fmul double [[A:%.*]], 2.000000e+00
+; CHECK-NEXT:    [[DIV:%.*]] = fdiv double [[ADD]], [[MUL]]
+; CHECK-NEXT:    [[SUB:%.*]] = fsub double [[FNEG]], [[C]]
+; CHECK-NEXT:    [[DIV3:%.*]] = fdiv double [[SUB]], [[MUL]]
+; CHECK-NEXT:    [[CMP:%.*]] = fcmp olt double [[DIV]], 0x3EB0C6F7A0B5ED8D
+; CHECK-NEXT:    [[CMP4:%.*]] = fcmp olt double [[DIV3]], 0x3EB0C6F7A0B5ED8D
+; CHECK-NEXT:    [[OR_COND:%.*]] = select i1 [[CMP]], i1 [[CMP4]], i1 false
+; CHECK-NEXT:    br i1 [[OR_COND]], label [[CLEANUP:%.*]], label [[LOR_LHS_FALSE:%.*]]
+; CHECK:       lor.lhs.false:
+; CHECK-NEXT:    [[CMP5:%.*]] = fcmp ule double [[DIV]], 1.000000e+00
+; CHECK-NEXT:    [[CMP7:%.*]] = fcmp ule double [[DIV3]], 1.000000e+00
+; CHECK-NEXT:    [[OR_COND1:%.*]] = select i1 [[CMP5]], i1 true, i1 [[CMP7]]
+; CHECK-NEXT:    ret i1 [[OR_COND1]]
+; CHECK:       cleanup:
+; CHECK-NEXT:    ret i1 false
+;
+entry:
+  %fneg = fneg double %b
+  %add = fadd double %fneg, %c
+  %mul = fmul double 2.0, %a
+  %div = fdiv double %add, %mul
+  %fneg1 = fneg double %b
+  %sub = fsub double %fneg1, %c
+  %mul2 = fmul double 2.0, %a
+  %div3 = fdiv double %sub, %mul2
+  %cmp = fcmp olt double %div, 0x3EB0C6F7A0B5ED8D
+  br i1 %cmp, label %land.lhs.true, label %lor.lhs.false
+
+land.lhs.true:
+  %cmp4 = fcmp olt double %div3, 0x3EB0C6F7A0B5ED8D
+  br i1 %cmp4, label %if.then, label %lor.lhs.false
+
+lor.lhs.false:
+  %cmp5 = fcmp ogt double %div, 1.0
+  br i1 %cmp5, label %land.lhs.true6, label %if.end
+
+land.lhs.true6:
+  %cmp7 = fcmp ogt double %div3, 1.0
+  br i1 %cmp7, label %if.then, label %if.end
+
+if.then:
+  br label %cleanup
+
+if.end:
+  br label %cleanup
+
+cleanup:
+  %retval.0 = phi i1 [ false, %if.then ], [ true, %if.end ]
+  ret i1 %retval.0
 }

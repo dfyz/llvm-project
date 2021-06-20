@@ -10,12 +10,13 @@ declare void @baz()
 define void @test1(i32 %a) gc "statepoint-example" {
 ; CHECK-LABEL: test1:
 ; CHECK:       ## %bb.0: ## %entry
-; CHECK-NEXT:    pushq %rax
+; CHECK-NEXT:    pushq %rbx
 ; CHECK-NEXT:    .cfi_def_cfa_offset 16
-; CHECK-NEXT:    movl %edi, {{[-0-9]+}}(%r{{[sb]}}p) ## 4-byte Spill
-; CHECK-NEXT:    callq _bar ## 4-byte Folded Reload
+; CHECK-NEXT:    .cfi_offset %rbx, -16
+; CHECK-NEXT:    movl %edi, %ebx
+; CHECK-NEXT:    callq _bar
 ; CHECK-NEXT:  Ltmp0:
-; CHECK-NEXT:    popq %rax
+; CHECK-NEXT:    popq %rbx
 ; CHECK-NEXT:    retq
 entry:
   %statepoint_token1 = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 2882400000, i32 0, void ()* @bar, i32 0, i32 0, i32 0, i32 0) ["deopt" (i32 %a)]
@@ -54,17 +55,41 @@ entry:
 define void @test3(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e, i32 %f, i32 %g, i32 %h, i32 %i) gc "statepoint-example" {
 ; CHECK-LABEL: test3:
 ; CHECK:       ## %bb.0: ## %entry
-; CHECK-NEXT:    subq $24, %rsp
+; CHECK-NEXT:    pushq %rbp
+; CHECK-NEXT:    .cfi_def_cfa_offset 16
+; CHECK-NEXT:    pushq %r15
+; CHECK-NEXT:    .cfi_def_cfa_offset 24
+; CHECK-NEXT:    pushq %r14
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
-; CHECK-NEXT:    movl %edi, {{[-0-9]+}}(%r{{[sb]}}p) ## 4-byte Spill
-; CHECK-NEXT:    movl %esi, {{[-0-9]+}}(%r{{[sb]}}p) ## 4-byte Spill
-; CHECK-NEXT:    movl %edx, {{[-0-9]+}}(%r{{[sb]}}p) ## 4-byte Spill
-; CHECK-NEXT:    movl %ecx, {{[-0-9]+}}(%r{{[sb]}}p) ## 4-byte Spill
-; CHECK-NEXT:    movl %r8d, {{[-0-9]+}}(%r{{[sb]}}p) ## 4-byte Spill
-; CHECK-NEXT:    movl %r9d, (%rsp) ## 4-byte Spill
-; CHECK-NEXT:    callq _bar ## 24-byte Folded Reload
+; CHECK-NEXT:    pushq %r13
+; CHECK-NEXT:    .cfi_def_cfa_offset 40
+; CHECK-NEXT:    pushq %r12
+; CHECK-NEXT:    .cfi_def_cfa_offset 48
+; CHECK-NEXT:    pushq %rbx
+; CHECK-NEXT:    .cfi_def_cfa_offset 56
+; CHECK-NEXT:    pushq %rax
+; CHECK-NEXT:    .cfi_def_cfa_offset 64
+; CHECK-NEXT:    .cfi_offset %rbx, -56
+; CHECK-NEXT:    .cfi_offset %r12, -48
+; CHECK-NEXT:    .cfi_offset %r13, -40
+; CHECK-NEXT:    .cfi_offset %r14, -32
+; CHECK-NEXT:    .cfi_offset %r15, -24
+; CHECK-NEXT:    .cfi_offset %rbp, -16
+; CHECK-NEXT:    movl %r9d, %r14d
+; CHECK-NEXT:    movl %r8d, %r15d
+; CHECK-NEXT:    movl %ecx, %r12d
+; CHECK-NEXT:    movl %edx, %r13d
+; CHECK-NEXT:    movl %esi, %ebx
+; CHECK-NEXT:    movl %edi, %ebp
+; CHECK-NEXT:    callq _bar
 ; CHECK-NEXT:  Ltmp3:
-; CHECK-NEXT:    addq $24, %rsp
+; CHECK-NEXT:    addq $8, %rsp
+; CHECK-NEXT:    popq %rbx
+; CHECK-NEXT:    popq %r12
+; CHECK-NEXT:    popq %r13
+; CHECK-NEXT:    popq %r14
+; CHECK-NEXT:    popq %r15
+; CHECK-NEXT:    popq %rbp
 ; CHECK-NEXT:    retq
 entry:
   %statepoint_token1 = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 2882400000, i32 0, void ()* @bar, i32 0, i32 0, i32 0, i32 0) ["deopt" (i32 %a, i32 %b, i32 %c, i32 %d, i32 %e, i32 %f, i32 %g, i32 %h, i32 %i)]
@@ -78,17 +103,41 @@ entry:
 define void @test4(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e, i32 %f, i32 %g, i32 %h, i32 %i, i32 %j, i32 %k, i32 %l, i32 %m, i32 %n, i32 %o, i32 %p, i32 %q, i32 %r, i32 %s, i32 %t, i32 %u, i32 %v, i32 %w, i32 %x, i32 %y, i32 %z) gc "statepoint-example" {
 ; CHECK-LABEL: test4:
 ; CHECK:       ## %bb.0: ## %entry
-; CHECK-NEXT:    subq $24, %rsp
+; CHECK-NEXT:    pushq %rbp
+; CHECK-NEXT:    .cfi_def_cfa_offset 16
+; CHECK-NEXT:    pushq %r15
+; CHECK-NEXT:    .cfi_def_cfa_offset 24
+; CHECK-NEXT:    pushq %r14
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
-; CHECK-NEXT:    movl %edi, {{[-0-9]+}}(%r{{[sb]}}p) ## 4-byte Spill
-; CHECK-NEXT:    movl %esi, {{[-0-9]+}}(%r{{[sb]}}p) ## 4-byte Spill
-; CHECK-NEXT:    movl %edx, {{[-0-9]+}}(%r{{[sb]}}p) ## 4-byte Spill
-; CHECK-NEXT:    movl %ecx, {{[-0-9]+}}(%r{{[sb]}}p) ## 4-byte Spill
-; CHECK-NEXT:    movl %r8d, {{[-0-9]+}}(%r{{[sb]}}p) ## 4-byte Spill
-; CHECK-NEXT:    movl %r9d, (%rsp) ## 4-byte Spill
-; CHECK-NEXT:    callq _bar ## 24-byte Folded Reload
+; CHECK-NEXT:    pushq %r13
+; CHECK-NEXT:    .cfi_def_cfa_offset 40
+; CHECK-NEXT:    pushq %r12
+; CHECK-NEXT:    .cfi_def_cfa_offset 48
+; CHECK-NEXT:    pushq %rbx
+; CHECK-NEXT:    .cfi_def_cfa_offset 56
+; CHECK-NEXT:    pushq %rax
+; CHECK-NEXT:    .cfi_def_cfa_offset 64
+; CHECK-NEXT:    .cfi_offset %rbx, -56
+; CHECK-NEXT:    .cfi_offset %r12, -48
+; CHECK-NEXT:    .cfi_offset %r13, -40
+; CHECK-NEXT:    .cfi_offset %r14, -32
+; CHECK-NEXT:    .cfi_offset %r15, -24
+; CHECK-NEXT:    .cfi_offset %rbp, -16
+; CHECK-NEXT:    movl %r9d, %r14d
+; CHECK-NEXT:    movl %r8d, %r15d
+; CHECK-NEXT:    movl %ecx, %r12d
+; CHECK-NEXT:    movl %edx, %r13d
+; CHECK-NEXT:    movl %esi, %ebx
+; CHECK-NEXT:    movl %edi, %ebp
+; CHECK-NEXT:    callq _bar
 ; CHECK-NEXT:  Ltmp4:
-; CHECK-NEXT:    addq $24, %rsp
+; CHECK-NEXT:    addq $8, %rsp
+; CHECK-NEXT:    popq %rbx
+; CHECK-NEXT:    popq %r12
+; CHECK-NEXT:    popq %r13
+; CHECK-NEXT:    popq %r14
+; CHECK-NEXT:    popq %r15
+; CHECK-NEXT:    popq %rbp
 ; CHECK-NEXT:    retq
 entry:
   %statepoint_token1 = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 2882400000, i32 0, void ()* @bar, i32 0, i32 0, i32 0, i32 0) ["deopt" (i32 %a, i32 %b, i32 %c, i32 %d, i32 %e, i32 %f, i32 %g, i32 %h, i32 %i, i32 %j, i32 %k, i32 %l, i32 %m, i32 %n, i32 %o, i32 %p, i32 %q, i32 %r, i32 %s, i32 %t, i32 %u, i32 %v, i32 %w, i32 %x, i32 %y, i32 %z)]
@@ -115,10 +164,10 @@ define  i32 addrspace(1)* @test5(i32 %a, i32 addrspace(1)* %p) gc "statepoint-ex
 ; CHECK-NEXT:    popq %rbx
 ; CHECK-NEXT:    retq
 entry:
-  %token = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 2882400000, i32 0, void ()* @bar, i32 0, i32 0, i32 0, i32 0, i32 addrspace(1)* %p, i32 addrspace(1)* %p) ["deopt"(i32 %a)]
-  %p2 = call i32 addrspace(1)* @llvm.experimental.gc.relocate.p1i32(token %token,  i32 8, i32 8)
-  %token2 = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 2882400000, i32 0, void ()* @bar, i32 0, i32 0, i32 0, i32 0, i32 addrspace(1)* %p2, i32 addrspace(1)* %p2) ["deopt"(i32 %a)]
-  %p3 = call i32 addrspace(1)* @llvm.experimental.gc.relocate.p1i32(token %token2,  i32 8, i32 8)
+  %token = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 2882400000, i32 0, void ()* @bar, i32 0, i32 0, i32 0, i32 0) ["gc-live" (i32 addrspace(1)* %p, i32 addrspace(1)* %p), "deopt"(i32 %a)]
+  %p2 = call i32 addrspace(1)* @llvm.experimental.gc.relocate.p1i32(token %token,  i32 1, i32 1)
+  %token2 = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 2882400000, i32 0, void ()* @bar, i32 0, i32 0, i32 0, i32 0) ["gc-live" (i32 addrspace(1)* %p2, i32 addrspace(1)* %p2), "deopt"(i32 %a)]
+  %p3 = call i32 addrspace(1)* @llvm.experimental.gc.relocate.p1i32(token %token2,  i32 1, i32 1)
   ret i32 addrspace(1)* %p3
 }
 
@@ -185,34 +234,34 @@ define void @test7(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e, i32 %f, i32 %g, i32 %
 ; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
 ; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
 ; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
-; CHECK-NEXT:    movl %edi, %edi
-; CHECK-NEXT:    movl %esi, %esi
-; CHECK-NEXT:    movl %edx, %edx
-; CHECK-NEXT:    movl %ecx, %ecx
-; CHECK-NEXT:    movl %r8d, %r8d
-; CHECK-NEXT:    movl %r9d, %r9d
+; CHECK-NEXT:    movl %edi, %r13d
+; CHECK-NEXT:    movl %esi, %ebx
+; CHECK-NEXT:    movl %edx, %ebp
+; CHECK-NEXT:    movl %ecx, %r14d
+; CHECK-NEXT:    movl %r8d, %r15d
+; CHECK-NEXT:    movl %r9d, %r12d
 ; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
 ; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
 ; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
 ; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
-; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %ebp
-; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %r13d
-; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %r12d
-; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %r15d
-; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %r14d
-; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %ebx
-; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %r11d
-; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %r10d
 ; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
-; CHECK-NEXT:    movq %rdi, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
-; CHECK-NEXT:    movq %rsi, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
-; CHECK-NEXT:    movq %rdx, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
-; CHECK-NEXT:    movq %rcx, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
-; CHECK-NEXT:    movq %r8, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
-; CHECK-NEXT:    movq %r9, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
 ; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
-; CHECK-NEXT:    movq %r10, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
-; CHECK-NEXT:    movq %r11, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
+; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
+; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
+; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
+; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
+; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
+; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
+; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
+; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
+; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
+; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
+; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
+; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
+; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
+; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
+; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
+; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
 ; CHECK-NEXT:    callq _bar ## 160-byte Folded Reload
 ; CHECK-NEXT:  Ltmp9:
 ; CHECK-NEXT:    addq $168, %rsp
@@ -271,16 +320,20 @@ define void @test8(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e, i32 %f, i32 %g, i32 %
 ; CHECK-NEXT:    .cfi_def_cfa_offset 48
 ; CHECK-NEXT:    pushq %rbx
 ; CHECK-NEXT:    .cfi_def_cfa_offset 56
-; CHECK-NEXT:    subq $104, %rsp
-; CHECK-NEXT:    .cfi_def_cfa_offset 160
+; CHECK-NEXT:    subq $136, %rsp
+; CHECK-NEXT:    .cfi_def_cfa_offset 192
 ; CHECK-NEXT:    .cfi_offset %rbx, -56
 ; CHECK-NEXT:    .cfi_offset %r12, -48
 ; CHECK-NEXT:    .cfi_offset %r13, -40
 ; CHECK-NEXT:    .cfi_offset %r14, -32
 ; CHECK-NEXT:    .cfi_offset %r15, -24
 ; CHECK-NEXT:    .cfi_offset %rbp, -16
-; CHECK-NEXT:    movl %r9d, %r10d
-; CHECK-NEXT:    movl %r8d, %r9d
+; CHECK-NEXT:    movl %r9d, {{[-0-9]+}}(%r{{[sb]}}p) ## 4-byte Spill
+; CHECK-NEXT:    movl %r8d, (%rsp) ## 4-byte Spill
+; CHECK-NEXT:    movl %ecx, %r12d
+; CHECK-NEXT:    movl %edx, %r13d
+; CHECK-NEXT:    movl %esi, %ebx
+; CHECK-NEXT:    movl %edi, %ebp
 ; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
 ; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
 ; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
@@ -299,27 +352,25 @@ define void @test8(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e, i32 %f, i32 %g, i32 %
 ; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
 ; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
 ; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
-; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %ebp
-; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %r13d
-; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %r12d
-; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %r15d
+; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
+; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
+; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
+; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
+; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
+; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
+; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
+; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
+; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
+; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
+; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
+; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
+; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
+; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
 ; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %r14d
-; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %ebx
-; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %r11d
-; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %r8d
-; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %eax
-; CHECK-NEXT:    movb %dil, {{[-0-9]+}}(%r{{[sb]}}p) ## 1-byte Spill
-; CHECK-NEXT:    movb %sil, {{[-0-9]+}}(%r{{[sb]}}p) ## 1-byte Spill
-; CHECK-NEXT:    movb %dl, {{[-0-9]+}}(%r{{[sb]}}p) ## 1-byte Spill
-; CHECK-NEXT:    movb %cl, (%rsp) ## 1-byte Spill
-; CHECK-NEXT:    movw %r9w, {{[-0-9]+}}(%r{{[sb]}}p) ## 2-byte Spill
-; CHECK-NEXT:    movw %r10w, {{[-0-9]+}}(%r{{[sb]}}p) ## 2-byte Spill
-; CHECK-NEXT:    movq %rax, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
-; CHECK-NEXT:    movq %r8, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
-; CHECK-NEXT:    movq %r11, {{[-0-9]+}}(%r{{[sb]}}p) ## 8-byte Spill
-; CHECK-NEXT:    callq _bar ## 104-byte Folded Reload
+; CHECK-NEXT:    movl {{[0-9]+}}(%rsp), %r15d
+; CHECK-NEXT:    callq _bar ## 132-byte Folded Reload
 ; CHECK-NEXT:  Ltmp10:
-; CHECK-NEXT:    addq $104, %rsp
+; CHECK-NEXT:    addq $136, %rsp
 ; CHECK-NEXT:    popq %rbx
 ; CHECK-NEXT:    popq %r12
 ; CHECK-NEXT:    popq %r13
@@ -363,17 +414,41 @@ entry:
 define void @test9(i32 %a, i32 %b, i32 %c, i32 %d, i32 %e, i32 %f, i32 %g, i32 %h, i32 %i, i32 %j, i32 %k, i32 %l, i32 %m, i32 %n, i32 %o, i32 %p, i32 %q, i32 %r, i32 %s, i32 %t, i32 %u, i32 %v, i32 %w, i32 %x, i32 %y, i32 %z) gc "statepoint-example" {
 ; CHECK-LABEL: test9:
 ; CHECK:       ## %bb.0: ## %entry
-; CHECK-NEXT:    subq $24, %rsp
+; CHECK-NEXT:    pushq %rbp
+; CHECK-NEXT:    .cfi_def_cfa_offset 16
+; CHECK-NEXT:    pushq %r15
+; CHECK-NEXT:    .cfi_def_cfa_offset 24
+; CHECK-NEXT:    pushq %r14
 ; CHECK-NEXT:    .cfi_def_cfa_offset 32
-; CHECK-NEXT:    movl %edi, {{[-0-9]+}}(%r{{[sb]}}p) ## 4-byte Spill
-; CHECK-NEXT:    movl %esi, {{[-0-9]+}}(%r{{[sb]}}p) ## 4-byte Spill
-; CHECK-NEXT:    movl %edx, {{[-0-9]+}}(%r{{[sb]}}p) ## 4-byte Spill
-; CHECK-NEXT:    movl %ecx, {{[-0-9]+}}(%r{{[sb]}}p) ## 4-byte Spill
-; CHECK-NEXT:    movl %r8d, {{[-0-9]+}}(%r{{[sb]}}p) ## 4-byte Spill
-; CHECK-NEXT:    movl %r9d, (%rsp) ## 4-byte Spill
-; CHECK-NEXT:    callq _bar ## 24-byte Folded Reload
+; CHECK-NEXT:    pushq %r13
+; CHECK-NEXT:    .cfi_def_cfa_offset 40
+; CHECK-NEXT:    pushq %r12
+; CHECK-NEXT:    .cfi_def_cfa_offset 48
+; CHECK-NEXT:    pushq %rbx
+; CHECK-NEXT:    .cfi_def_cfa_offset 56
+; CHECK-NEXT:    pushq %rax
+; CHECK-NEXT:    .cfi_def_cfa_offset 64
+; CHECK-NEXT:    .cfi_offset %rbx, -56
+; CHECK-NEXT:    .cfi_offset %r12, -48
+; CHECK-NEXT:    .cfi_offset %r13, -40
+; CHECK-NEXT:    .cfi_offset %r14, -32
+; CHECK-NEXT:    .cfi_offset %r15, -24
+; CHECK-NEXT:    .cfi_offset %rbp, -16
+; CHECK-NEXT:    movl %r9d, %r14d
+; CHECK-NEXT:    movl %r8d, %r15d
+; CHECK-NEXT:    movl %ecx, %r12d
+; CHECK-NEXT:    movl %edx, %r13d
+; CHECK-NEXT:    movl %esi, %ebx
+; CHECK-NEXT:    movl %edi, %ebp
+; CHECK-NEXT:    callq _bar
 ; CHECK-NEXT:  Ltmp11:
-; CHECK-NEXT:    addq $24, %rsp
+; CHECK-NEXT:    addq $8, %rsp
+; CHECK-NEXT:    popq %rbx
+; CHECK-NEXT:    popq %r12
+; CHECK-NEXT:    popq %r13
+; CHECK-NEXT:    popq %r14
+; CHECK-NEXT:    popq %r15
+; CHECK-NEXT:    popq %rbp
 ; CHECK-NEXT:    retq
 
 entry:
@@ -624,13 +699,13 @@ entry:
 define void @addr_func() gc "statepoint-example" {
 ; CHECK-LABEL: addr_func:
 ; CHECK:       ## %bb.0: ## %entry
-; CHECK-NEXT:    pushq %rax
+; CHECK-NEXT:    pushq %rbx
 ; CHECK-NEXT:    .cfi_def_cfa_offset 16
-; CHECK-NEXT:    movq _bar@{{.*}}(%rip), %rax
-; CHECK-NEXT:    movq %rax, (%rsp) ## 8-byte Spill
-; CHECK-NEXT:    callq _bar ## 8-byte Folded Reload
+; CHECK-NEXT:    .cfi_offset %rbx, -16
+; CHECK-NEXT:    movq _bar@GOTPCREL(%rip), %rbx
+; CHECK-NEXT:    callq _bar
 ; CHECK-NEXT:  Ltmp15:
-; CHECK-NEXT:    popq %rax
+; CHECK-NEXT:    popq %rbx
 ; CHECK-NEXT:    retq
 entry:
   %statepoint_token1 = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 2882400000, i32 0, void ()* @bar, i32 0, i32 0, i64 0, i64 0) ["deopt" (void ()* @bar, void ()* @bar, void ()* @bar)]
@@ -642,13 +717,13 @@ entry:
 define void @addr_global() gc "statepoint-example" {
 ; CHECK-LABEL: addr_global:
 ; CHECK:       ## %bb.0: ## %entry
-; CHECK-NEXT:    pushq %rax
+; CHECK-NEXT:    pushq %rbx
 ; CHECK-NEXT:    .cfi_def_cfa_offset 16
-; CHECK-NEXT:    movq _G@{{.*}}(%rip), %rax
-; CHECK-NEXT:    movq %rax, (%rsp) ## 8-byte Spill
-; CHECK-NEXT:    callq _bar ## 8-byte Folded Reload
+; CHECK-NEXT:    .cfi_offset %rbx, -16
+; CHECK-NEXT:    movq _G@GOTPCREL(%rip), %rbx
+; CHECK-NEXT:    callq _bar
 ; CHECK-NEXT:  Ltmp16:
-; CHECK-NEXT:    popq %rax
+; CHECK-NEXT:    popq %rbx
 ; CHECK-NEXT:    retq
 entry:
   %statepoint_token1 = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 2882400000, i32 0, void ()* @bar, i32 0, i32 0, i64 0, i64 0) ["deopt" (i32* @G, i32* @G, i32* @G)]
@@ -683,12 +758,12 @@ define i32 addrspace(1)*  @test_fpconst_deopt(i32 addrspace(1)* %in) gc "statepo
 ; CHECK-NEXT:    movq (%rsp), %rax
 ; CHECK-NEXT:    popq %rcx
 ; CHECK-NEXT:    retq
-    %statepoint_token = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 2, i32 5, void ()* nonnull @bar, i32 0, i32 0, i32 0, i32 0, i32 addrspace(1)* %in) ["deopt" (
+    %statepoint_token = call token (i64, i32, void ()*, i32, i32, ...) @llvm.experimental.gc.statepoint.p0f_isVoidf(i64 2, i32 5, void ()* nonnull @bar, i32 0, i32 0, i32 0, i32 0) ["gc-live" (i32 addrspace(1)* %in), "deopt" (
     float 0x40421A1CA0000000, float 0x40459A1CA0000000, float 0x40401A1CA0000000, float 0x40479A1CA0000000, float 0x403C343940000000,
     float 0x403E343940000000, float 0x40469A1CA0000000, float 0x40489A1CA0000000, float 0x404A9A1CA0000000, float 0x40499A1CA0000000,
     float 0xC05FCD2F20000000, float 0xC05C0D2F20000000, float 0xC060269780000000, float 0xC05B8D2F20000000, float 0xC060669780000000,
     float 0xC05B0D2F20000000, float 0xC060A69780000000, float 0xC05A8D2F20000000, float 0xC060E69780000000, float 0x40439A1CA0000000)]
-    %out = call coldcc i32 addrspace(1)* @llvm.experimental.gc.relocate.p1i32(token %statepoint_token, i32 7, i32 7)
+    %out = call coldcc i32 addrspace(1)* @llvm.experimental.gc.relocate.p1i32(token %statepoint_token, i32 0, i32 0)
     ret i32 addrspace(1)* %out
 }
 

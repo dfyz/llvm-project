@@ -17,6 +17,7 @@
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/FunctionExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Config/llvm-config.h" // for LLVM_ON_UNIX
 #include "llvm/Support/Compiler.h"
 #include <ciso646> // So we can check the C++ standard lib macros.
@@ -210,13 +211,23 @@ void llvm_execute_on_thread_async(
     return heavyweight_hardware_concurrency();
   }
 
-  /// Returns a default thread strategy where all available hardware ressources
+  /// Returns a default thread strategy where all available hardware resources
   /// are to be used, except for those initially excluded by an affinity mask.
   /// This function takes affinity into consideration. Returns 1 when LLVM is
   /// configured with LLVM_ENABLE_THREADS=OFF.
   inline ThreadPoolStrategy hardware_concurrency(unsigned ThreadCount = 0) {
     ThreadPoolStrategy S;
     S.ThreadsRequested = ThreadCount;
+    return S;
+  }
+
+  /// Returns an optimal thread strategy to execute specified amount of tasks.
+  /// This strategy should prevent us from creating too many threads if we
+  /// occasionaly have an unexpectedly small amount of tasks.
+  inline ThreadPoolStrategy optimal_concurrency(unsigned TaskCount = 0) {
+    ThreadPoolStrategy S;
+    S.Limit = true;
+    S.ThreadsRequested = TaskCount;
     return S;
   }
 

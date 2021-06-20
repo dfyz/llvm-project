@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "fold-implementation.h"
+#include "fold-reduction.h"
 
 namespace Fortran::evaluate {
 
@@ -29,21 +30,21 @@ Expr<Type<TypeCategory::Real, KIND>> FoldIntrinsicFunction(
       name == "log_gamma" || name == "sin" || name == "sinh" ||
       name == "sqrt" || name == "tan" || name == "tanh") {
     CHECK(args.size() == 1);
-    if (auto callable{context.hostIntrinsicsLibrary()
-                          .GetHostProcedureWrapper<Scalar, T, T>(name)}) {
+    if (auto callable{GetHostRuntimeWrapper<T, T>(name)}) {
       return FoldElementalIntrinsic<T, T>(
           context, std::move(funcRef), *callable);
     } else {
       context.messages().Say(
           "%s(real(kind=%d)) cannot be folded on host"_en_US, name, KIND);
     }
+  } else if (name == "amax0" || name == "amin0" || name == "amin1" ||
+      name == "amax1" || name == "dmin1" || name == "dmax1") {
+    return RewriteSpecificMINorMAX(context, std::move(funcRef));
   } else if (name == "atan" || name == "atan2" || name == "hypot" ||
       name == "mod") {
-    std::string localName{name == "atan2" ? "atan" : name};
+    std::string localName{name == "atan" ? "atan2" : name};
     CHECK(args.size() == 2);
-    if (auto callable{
-            context.hostIntrinsicsLibrary()
-                .GetHostProcedureWrapper<Scalar, T, T, T>(localName)}) {
+    if (auto callable{GetHostRuntimeWrapper<T, T, T>(localName)}) {
       return FoldElementalIntrinsic<T, T, T>(
           context, std::move(funcRef), *callable);
     } else {
@@ -55,9 +56,7 @@ Expr<Type<TypeCategory::Real, KIND>> FoldIntrinsicFunction(
     if (args.size() == 2) { // elemental
       // runtime functions use int arg
       using Int4 = Type<TypeCategory::Integer, 4>;
-      if (auto callable{
-              context.hostIntrinsicsLibrary()
-                  .GetHostProcedureWrapper<Scalar, T, Int4, T>(name)}) {
+      if (auto callable{GetHostRuntimeWrapper<T, Int4, T>(name)}) {
         return FoldElementalIntrinsic<T, Int4, T>(
             context, std::move(funcRef), *callable);
       } else {
@@ -72,9 +71,7 @@ Expr<Type<TypeCategory::Real, KIND>> FoldIntrinsicFunction(
       return FoldElementalIntrinsic<T, T>(
           context, std::move(funcRef), &Scalar<T>::ABS);
     } else if (auto *z{UnwrapExpr<Expr<SomeComplex>>(args[0])}) {
-      if (auto callable{
-              context.hostIntrinsicsLibrary()
-                  .GetHostProcedureWrapper<Scalar, T, ComplexT>("abs")}) {
+      if (auto callable{GetHostRuntimeWrapper<T, ComplexT>("abs")}) {
         return FoldElementalIntrinsic<T, ComplexT>(
             context, std::move(funcRef), *callable);
       } else {
@@ -113,10 +110,16 @@ Expr<Type<TypeCategory::Real, KIND>> FoldIntrinsicFunction(
     return Expr<T>{Scalar<T>::HUGE()};
   } else if (name == "max") {
     return FoldMINorMAX(context, std::move(funcRef), Ordering::Greater);
+  } else if (name == "maxval") {
+    return FoldMaxvalMinval<T>(context, std::move(funcRef),
+        RelationalOperator::GT, T::Scalar::HUGE().Negate());
   } else if (name == "merge") {
     return FoldMerge<T>(context, std::move(funcRef));
   } else if (name == "min") {
     return FoldMINorMAX(context, std::move(funcRef), Ordering::Less);
+  } else if (name == "minval") {
+    return FoldMaxvalMinval<T>(
+        context, std::move(funcRef), RelationalOperator::LT, T::Scalar::HUGE());
   } else if (name == "real") {
     if (auto *expr{args[0].value().UnwrapExpr()}) {
       return ToReal<KIND>(context, std::move(*expr));
@@ -128,7 +131,7 @@ Expr<Type<TypeCategory::Real, KIND>> FoldIntrinsicFunction(
     return Expr<T>{Scalar<T>::TINY()};
   }
   // TODO: cshift, dim, dot_product, eoshift, fraction, matmul,
-  // maxval, minval, modulo, nearest, norm2, pack, product,
+  // maxloc, minloc, modulo, nearest, norm2, pack, product,
   // reduce, rrspacing, scale, set_exponent, spacing, spread,
   // sum, transfer, transpose, unpack, bessel_jn (transformational) and
   // bessel_yn (transformational)

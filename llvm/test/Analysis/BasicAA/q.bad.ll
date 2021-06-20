@@ -1,4 +1,4 @@
-; RUN: opt < %s -basicaa -aa-eval -print-all-alias-modref-info -disable-output 2>&1 | FileCheck %s
+; RUN: opt < %s -basic-aa -aa-eval -print-all-alias-modref-info -disable-output 2>&1 | FileCheck %s
 target datalayout = "e-m:e-p:32:32-i64:64-v128:64:128-a:0:32-n32-S64"
 target triple = "thumbv7--linux-gnueabi"
 
@@ -176,5 +176,13 @@ define void @constantOffsetHeuristic_i8_i8(i8* %mem, i8 %val) {
   %a = bitcast i8* %a.8 to i32*
   %b = bitcast i8* %b.8 to i32*
   %c = bitcast i8* %c.8 to i32*
+  ret void
+}
+
+; CHECK-LABEL: different_large_bitwidths
+; MayAlias: i64* %p1, i64* %p2
+define void @different_large_bitwidths(i8* %a, i64 %i, i128 %j) {
+  %p1 = getelementptr i8, i8* %a, i64 %i
+  %p2 = getelementptr i8, i8* %a, i128 %j
   ret void
 }

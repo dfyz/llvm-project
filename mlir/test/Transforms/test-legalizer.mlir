@@ -16,8 +16,8 @@ func @verifyLargerBenefit() -> i32 {
   return %result : i32
 }
 
-// CHECK-LABEL: func @remap_input_1_to_0()
-func @remap_input_1_to_0(i16)
+// CHECK-LABEL: func private @remap_input_1_to_0()
+func private @remap_input_1_to_0(i16)
 
 // CHECK-LABEL: func @remap_input_1_to_1(%arg0: f64)
 func @remap_input_1_to_1(%arg0: i64) {
@@ -36,8 +36,9 @@ func @remap_call_1_to_1(%arg0: i64) {
 
 // CHECK-LABEL: func @remap_input_1_to_N({{.*}}f16, {{.*}}f16)
 func @remap_input_1_to_N(%arg0: f32) -> f32 {
- // CHECK-NEXT: "test.return"{{.*}} : (f16, f16) -> ()
- "test.return"(%arg0) : (f32) -> ()
+  // CHECK-NEXT: [[CAST:%.*]] = "test.cast"(%arg0, %arg1) : (f16, f16) -> f32
+  // CHECK-NEXT: "test.return"{{.*}} : (f16, f16) -> ()
+  "test.return"(%arg0) : (f32) -> ()
 }
 
 // CHECK-LABEL: func @remap_input_1_to_N_remaining_use(%arg0: f16, %arg1: f16)
@@ -153,15 +154,11 @@ func @remove_foldable_op(%arg0 : i32) -> (i32) {
 
 // CHECK-LABEL: @create_block
 func @create_block() {
-  // expected-remark@+1 {{op 'test.container' is not legalizable}}
-  "test.container"() ({
-    // Check that we created a block with arguments.
-    // CHECK-NOT: test.create_block
-    // CHECK: ^{{.*}}(%{{.*}}: i32, %{{.*}}: i32):
-    // CHECK: test.finish
-    "test.create_block"() : () -> ()
-    "test.finish"() : () -> ()
-  }) : () -> ()
+  // Check that we created a block with arguments.
+  // CHECK-NOT: test.create_block
+  // CHECK: ^{{.*}}(%{{.*}}: i32, %{{.*}}: i32):
+  "test.create_block"() : () -> ()
+
   // expected-remark@+1 {{op 'std.return' is not legalizable}}
   return
 }
@@ -212,15 +209,12 @@ func @fail_to_convert_region() {
 
 // CHECK-LABEL: @create_illegal_block
 func @create_illegal_block() {
-  // expected-remark@+1 {{op 'test.container' is not legalizable}}
-  "test.container"() ({
-    // Check that we can undo block creation, i.e. that the block was removed.
-    // CHECK: test.create_illegal_block
-    // CHECK-NOT: ^{{.*}}(%{{.*}}: i32, %{{.*}}: i32):
-    // expected-remark@+1 {{op 'test.create_illegal_block' is not legalizable}}
-    "test.create_illegal_block"() : () -> ()
-    "test.finish"() : () -> ()
-  }) : () -> ()
+  // Check that we can undo block creation, i.e. that the block was removed.
+  // CHECK: test.create_illegal_block
+  // CHECK-NOT: ^{{.*}}(%{{.*}}: i32, %{{.*}}: i32):
+  // expected-remark@+1 {{op 'test.create_illegal_block' is not legalizable}}
+  "test.create_illegal_block"() : () -> ()
+
   // expected-remark@+1 {{op 'std.return' is not legalizable}}
   return
 }
@@ -245,7 +239,7 @@ func @undo_block_arg_replace() {
 
 // The op in this function is rewritten to itself (and thus remains illegal) by
 // a pattern that removes its second block after adding an operation into it.
-// Check that we can undo block removal succesfully.
+// Check that we can undo block removal successfully.
 // CHECK-LABEL: @undo_block_erase
 func @undo_block_erase() {
   // CHECK: test.undo_block_erase
@@ -273,6 +267,20 @@ func @undo_block_erase() {
 func @undo_child_created_before_parent() {
   // expected-remark@+1 {{is not legalizable}}
   "test.illegal_op_with_region_anchor"() : () -> ()
+  // expected-remark@+1 {{op 'std.return' is not legalizable}}
+  return
+}
+
+
+// -----
+
+
+// Check that a conversion pattern on `test.blackhole` can mark the producer
+// for deletion.
+// CHECK-LABEL: @blackhole
+func @blackhole() {
+  %input = "test.blackhole_producer"() : () -> (i32)
+  "test.blackhole"(%input) : (i32) -> ()
   // expected-remark@+1 {{op 'std.return' is not legalizable}}
   return
 }

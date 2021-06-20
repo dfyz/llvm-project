@@ -69,11 +69,11 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | | | |   | | `-NullStmt {{.*}} <line:7:5>
 // CHECK-NEXT: |       | | | |   | |-ImplicitParamDecl {{.*}} <line:5:1> col:1 implicit .global_tid. 'const int *const restrict'
 // CHECK-NEXT: |       | | | |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .bound_tid. 'const int *const restrict'
-// CHECK-NEXT: |       | | | |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:5:1) *const restrict'
+// CHECK-NEXT: |       | | | |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:5:1) *const restrict'
 // CHECK-NEXT: |       | | | |   | `-VarDecl {{.*}} <line:6:8, col:16> col:12 used i 'int' cinit
 // CHECK-NEXT: |       | | | |   |   `-IntegerLiteral {{.*}} <col:16> 'int' 0
 // CHECK-NEXT: |       | | | |   `-DeclRefExpr {{.*}} <col:3> 'int' lvalue ParmVar {{.*}} 'x' 'int'
-// CHECK-NEXT: |       | | | |-ImplicitParamDecl {{.*}} <line:4:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:4:1) *const restrict'
+// CHECK-NEXT: |       | | | |-ImplicitParamDecl {{.*}} <line:4:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:4:1) *const restrict'
 // CHECK-NEXT: |       | | | |-RecordDecl {{.*}} <line:5:1> col:1 implicit struct definition
 // CHECK-NEXT: |       | | | | |-CapturedRecordAttr {{.*}} <<invalid sloc>> Implicit
 // CHECK-NEXT: |       | | | | `-FieldDecl {{.*}} <line:6:3> col:3 implicit 'int &'
@@ -93,7 +93,7 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | | | | | `-NullStmt {{.*}} <line:7:5>
 // CHECK-NEXT: |       | | | | |-ImplicitParamDecl {{.*}} <line:5:1> col:1 implicit .global_tid. 'const int *const restrict'
 // CHECK-NEXT: |       | | | | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .bound_tid. 'const int *const restrict'
-// CHECK-NEXT: |       | | | | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:5:1) *const restrict'
+// CHECK-NEXT: |       | | | | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:5:1) *const restrict'
 // CHECK-NEXT: |       | | | | `-VarDecl {{.*}} <line:6:8, col:16> col:12 used i 'int' cinit
 // CHECK-NEXT: |       | | | |   `-IntegerLiteral {{.*}} <col:16> 'int' 0
 // CHECK-NEXT: |       | | | |-OMPCapturedExprDecl {{.*}} <col:23> col:23 implicit used .capture_expr. 'int'
@@ -121,11 +121,11 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .privates. 'void *const restrict'
 // CHECK-NEXT: |       | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .copy_fn. 'void (*const restrict)(void *const restrict, ...)'
 // CHECK-NEXT: |       | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .task_t. 'void *const'
-// CHECK-NEXT: |       | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:4:1) *const restrict'
+// CHECK-NEXT: |       | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:4:1) *const restrict'
 // CHECK-NEXT: |       | |-RecordDecl {{.*}} <col:1> col:1 implicit struct definition
 // CHECK-NEXT: |       | | |-CapturedRecordAttr {{.*}} <<invalid sloc>> Implicit
 // CHECK-NEXT: |       | | `-FieldDecl {{.*}} <line:6:3> col:3 implicit 'int'
-// CHECK-NEXT: |       | |   `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit 9
+// CHECK-NEXT: |       | |   `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit {{.*}}
 // CHECK-NEXT: |       | `-CapturedDecl {{.*}} <<invalid sloc>> <invalid sloc> nothrow
 // CHECK-NEXT: |       |   |-OMPTeamsDistributeDirective {{.*}} <line:5:1, col:29>
 // CHECK-NEXT: |       |   | `-CapturedStmt {{.*}} <line:6:3, line:7:5>
@@ -145,11 +145,11 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       |   |   | | `-NullStmt {{.*}} <line:7:5>
 // CHECK-NEXT: |       |   |   | |-ImplicitParamDecl {{.*}} <line:5:1> col:1 implicit .global_tid. 'const int *const restrict'
 // CHECK-NEXT: |       |   |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .bound_tid. 'const int *const restrict'
-// CHECK-NEXT: |       |   |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:5:1) *const restrict'
+// CHECK-NEXT: |       |   |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:5:1) *const restrict'
 // CHECK-NEXT: |       |   |   | `-VarDecl {{.*}} <line:6:8, col:16> col:12 used i 'int' cinit
 // CHECK-NEXT: |       |   |   |   `-IntegerLiteral {{.*}} <col:16> 'int' 0
 // CHECK-NEXT: |       |   |   `-DeclRefExpr {{.*}} <col:3> 'int' lvalue ParmVar {{.*}} 'x' 'int'
-// CHECK-NEXT: |       |   |-ImplicitParamDecl {{.*}} <line:4:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:4:1) *const restrict'
+// CHECK-NEXT: |       |   |-ImplicitParamDecl {{.*}} <line:4:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:4:1) *const restrict'
 // CHECK-NEXT: |       |   |-RecordDecl {{.*}} <line:5:1> col:1 implicit struct definition
 // CHECK-NEXT: |       |   | |-CapturedRecordAttr {{.*}} <<invalid sloc>> Implicit
 // CHECK-NEXT: |       |   | `-FieldDecl {{.*}} <line:6:3> col:3 implicit 'int &'
@@ -169,7 +169,7 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       |   | | `-NullStmt {{.*}} <line:7:5>
 // CHECK-NEXT: |       |   | |-ImplicitParamDecl {{.*}} <line:5:1> col:1 implicit .global_tid. 'const int *const restrict'
 // CHECK-NEXT: |       |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .bound_tid. 'const int *const restrict'
-// CHECK-NEXT: |       |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:5:1) *const restrict'
+// CHECK-NEXT: |       |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:5:1) *const restrict'
 // CHECK-NEXT: |       |   | `-VarDecl {{.*}} <line:6:8, col:16> col:12 used i 'int' cinit
 // CHECK-NEXT: |       |   |   `-IntegerLiteral {{.*}} <col:16> 'int' 0
 // CHECK-NEXT: |       |   |-OMPCapturedExprDecl {{.*}} <col:23> col:23 implicit used .capture_expr. 'int'
@@ -233,14 +233,14 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | | | |   | |   `-NullStmt {{.*}} <line:15:7>
 // CHECK-NEXT: |       | | | |   | |-ImplicitParamDecl {{.*}} <line:12:1> col:1 implicit .global_tid. 'const int *const restrict'
 // CHECK-NEXT: |       | | | |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .bound_tid. 'const int *const restrict'
-// CHECK-NEXT: |       | | | |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:12:1) *const restrict'
+// CHECK-NEXT: |       | | | |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:12:1) *const restrict'
 // CHECK-NEXT: |       | | | |   | |-VarDecl {{.*}} <line:13:8, col:16> col:12 used i 'int' cinit
 // CHECK-NEXT: |       | | | |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
 // CHECK-NEXT: |       | | | |   | `-VarDecl {{.*}} <line:14:10, col:18> col:14 used i 'int' cinit
 // CHECK-NEXT: |       | | | |   |   `-IntegerLiteral {{.*}} <col:18> 'int' 0
 // CHECK-NEXT: |       | | | |   |-DeclRefExpr {{.*}} <line:13:3> 'int' lvalue ParmVar {{.*}} 'x' 'int'
 // CHECK-NEXT: |       | | | |   `-DeclRefExpr {{.*}} <line:14:25> 'int' lvalue ParmVar {{.*}} 'y' 'int'
-// CHECK-NEXT: |       | | | |-ImplicitParamDecl {{.*}} <line:11:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:11:1) *const restrict'
+// CHECK-NEXT: |       | | | |-ImplicitParamDecl {{.*}} <line:11:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:11:1) *const restrict'
 // CHECK-NEXT: |       | | | |-RecordDecl {{.*}} <line:12:1> col:1 implicit struct definition
 // CHECK-NEXT: |       | | | | |-CapturedRecordAttr {{.*}} <<invalid sloc>> Implicit
 // CHECK-NEXT: |       | | | | |-FieldDecl {{.*}} <line:13:3> col:3 implicit 'int &'
@@ -273,7 +273,7 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | | | | |   `-NullStmt {{.*}} <line:15:7>
 // CHECK-NEXT: |       | | | | |-ImplicitParamDecl {{.*}} <line:12:1> col:1 implicit .global_tid. 'const int *const restrict'
 // CHECK-NEXT: |       | | | | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .bound_tid. 'const int *const restrict'
-// CHECK-NEXT: |       | | | | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:12:1) *const restrict'
+// CHECK-NEXT: |       | | | | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:12:1) *const restrict'
 // CHECK-NEXT: |       | | | | |-VarDecl {{.*}} <line:13:8, col:16> col:12 used i 'int' cinit
 // CHECK-NEXT: |       | | | | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
 // CHECK-NEXT: |       | | | | `-VarDecl {{.*}} <line:14:10, col:18> col:14 used i 'int' cinit
@@ -304,13 +304,13 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .privates. 'void *const restrict'
 // CHECK-NEXT: |       | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .copy_fn. 'void (*const restrict)(void *const restrict, ...)'
 // CHECK-NEXT: |       | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .task_t. 'void *const'
-// CHECK-NEXT: |       | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:11:1) *const restrict'
+// CHECK-NEXT: |       | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:11:1) *const restrict'
 // CHECK-NEXT: |       | |-RecordDecl {{.*}} <col:1> col:1 implicit struct definition
 // CHECK-NEXT: |       | | |-CapturedRecordAttr {{.*}} <<invalid sloc>> Implicit
 // CHECK-NEXT: |       | | |-FieldDecl {{.*}} <line:13:3> col:3 implicit 'int'
-// CHECK-NEXT: |       | | | `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit 9
+// CHECK-NEXT: |       | | | `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit {{.*}}
 // CHECK-NEXT: |       | | `-FieldDecl {{.*}} <line:14:25> col:25 implicit 'int'
-// CHECK-NEXT: |       | |   `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit 9
+// CHECK-NEXT: |       | |   `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit {{.*}}
 // CHECK-NEXT: |       | `-CapturedDecl {{.*}} <<invalid sloc>> <invalid sloc> nothrow
 // CHECK-NEXT: |       |   |-OMPTeamsDistributeDirective {{.*}} <line:12:1, col:29>
 // CHECK-NEXT: |       |   | `-CapturedStmt {{.*}} <line:13:3, line:15:7>
@@ -342,14 +342,14 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       |   |   | |   `-NullStmt {{.*}} <line:15:7>
 // CHECK-NEXT: |       |   |   | |-ImplicitParamDecl {{.*}} <line:12:1> col:1 implicit .global_tid. 'const int *const restrict'
 // CHECK-NEXT: |       |   |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .bound_tid. 'const int *const restrict'
-// CHECK-NEXT: |       |   |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:12:1) *const restrict'
+// CHECK-NEXT: |       |   |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:12:1) *const restrict'
 // CHECK-NEXT: |       |   |   | |-VarDecl {{.*}} <line:13:8, col:16> col:12 used i 'int' cinit
 // CHECK-NEXT: |       |   |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
 // CHECK-NEXT: |       |   |   | `-VarDecl {{.*}} <line:14:10, col:18> col:14 used i 'int' cinit
 // CHECK-NEXT: |       |   |   |   `-IntegerLiteral {{.*}} <col:18> 'int' 0
 // CHECK-NEXT: |       |   |   |-DeclRefExpr {{.*}} <line:13:3> 'int' lvalue ParmVar {{.*}} 'x' 'int'
 // CHECK-NEXT: |       |   |   `-DeclRefExpr {{.*}} <line:14:25> 'int' lvalue ParmVar {{.*}} 'y' 'int'
-// CHECK-NEXT: |       |   |-ImplicitParamDecl {{.*}} <line:11:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:11:1) *const restrict'
+// CHECK-NEXT: |       |   |-ImplicitParamDecl {{.*}} <line:11:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:11:1) *const restrict'
 // CHECK-NEXT: |       |   |-RecordDecl {{.*}} <line:12:1> col:1 implicit struct definition
 // CHECK-NEXT: |       |   | |-CapturedRecordAttr {{.*}} <<invalid sloc>> Implicit
 // CHECK-NEXT: |       |   | |-FieldDecl {{.*}} <line:13:3> col:3 implicit 'int &'
@@ -382,7 +382,7 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       |   | |   `-NullStmt {{.*}} <line:15:7>
 // CHECK-NEXT: |       |   | |-ImplicitParamDecl {{.*}} <line:12:1> col:1 implicit .global_tid. 'const int *const restrict'
 // CHECK-NEXT: |       |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .bound_tid. 'const int *const restrict'
-// CHECK-NEXT: |       |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:12:1) *const restrict'
+// CHECK-NEXT: |       |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:12:1) *const restrict'
 // CHECK-NEXT: |       |   | |-VarDecl {{.*}} <line:13:8, col:16> col:12 used i 'int' cinit
 // CHECK-NEXT: |       |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
 // CHECK-NEXT: |       |   | `-VarDecl {{.*}} <line:14:10, col:18> col:14 used i 'int' cinit
@@ -422,6 +422,7 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | | | |-OMPTeamsDistributeDirective {{.*}} <col:1, col:41>
 // CHECK-NEXT: |       | | | | |-OMPCollapseClause {{.*}} <col:30, col:40>
 // CHECK-NEXT: |       | | | | | `-ConstantExpr {{.*}} <col:39> 'int'
+// CHECK-NEXT: |       | | | | | |-value: Int 1
 // CHECK-NEXT: |       | | | | |   `-IntegerLiteral {{.*}} <col:39> 'int' 1
 // CHECK-NEXT: |       | | | | `-CapturedStmt {{.*}} <line:21:3, line:23:7>
 // CHECK-NEXT: |       | | | |   |-CapturedDecl {{.*}} <<invalid sloc>> <invalid sloc> nothrow
@@ -452,14 +453,14 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | | | |   | |   `-NullStmt {{.*}} <line:23:7>
 // CHECK-NEXT: |       | | | |   | |-ImplicitParamDecl {{.*}} <line:20:1> col:1 implicit .global_tid. 'const int *const restrict'
 // CHECK-NEXT: |       | | | |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .bound_tid. 'const int *const restrict'
-// CHECK-NEXT: |       | | | |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:20:1) *const restrict'
+// CHECK-NEXT: |       | | | |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:20:1) *const restrict'
 // CHECK-NEXT: |       | | | |   | |-VarDecl {{.*}} <line:21:8, col:16> col:12 used i 'int' cinit
 // CHECK-NEXT: |       | | | |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
 // CHECK-NEXT: |       | | | |   | `-VarDecl {{.*}} <line:22:10, col:18> col:14 used i 'int' cinit
 // CHECK-NEXT: |       | | | |   |   `-IntegerLiteral {{.*}} <col:18> 'int' 0
 // CHECK-NEXT: |       | | | |   |-DeclRefExpr {{.*}} <line:21:3> 'int' lvalue ParmVar {{.*}} 'x' 'int'
 // CHECK-NEXT: |       | | | |   `-DeclRefExpr {{.*}} <line:22:25> 'int' lvalue ParmVar {{.*}} 'y' 'int'
-// CHECK-NEXT: |       | | | |-ImplicitParamDecl {{.*}} <line:19:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:19:1) *const restrict'
+// CHECK-NEXT: |       | | | |-ImplicitParamDecl {{.*}} <line:19:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:19:1) *const restrict'
 // CHECK-NEXT: |       | | | |-RecordDecl {{.*}} <line:20:1> col:1 implicit struct definition
 // CHECK-NEXT: |       | | | | |-CapturedRecordAttr {{.*}} <<invalid sloc>> Implicit
 // CHECK-NEXT: |       | | | | |-FieldDecl {{.*}} <line:21:3> col:3 implicit 'int &'
@@ -492,7 +493,7 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | | | | |   `-NullStmt {{.*}} <line:23:7>
 // CHECK-NEXT: |       | | | | |-ImplicitParamDecl {{.*}} <line:20:1> col:1 implicit .global_tid. 'const int *const restrict'
 // CHECK-NEXT: |       | | | | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .bound_tid. 'const int *const restrict'
-// CHECK-NEXT: |       | | | | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:20:1) *const restrict'
+// CHECK-NEXT: |       | | | | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:20:1) *const restrict'
 // CHECK-NEXT: |       | | | | |-VarDecl {{.*}} <line:21:8, col:16> col:12 used i 'int' cinit
 // CHECK-NEXT: |       | | | | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
 // CHECK-NEXT: |       | | | | `-VarDecl {{.*}} <line:22:10, col:18> col:14 used i 'int' cinit
@@ -523,17 +524,18 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .privates. 'void *const restrict'
 // CHECK-NEXT: |       | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .copy_fn. 'void (*const restrict)(void *const restrict, ...)'
 // CHECK-NEXT: |       | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .task_t. 'void *const'
-// CHECK-NEXT: |       | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:19:1) *const restrict'
+// CHECK-NEXT: |       | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:19:1) *const restrict'
 // CHECK-NEXT: |       | |-RecordDecl {{.*}} <col:1> col:1 implicit struct definition
 // CHECK-NEXT: |       | | |-CapturedRecordAttr {{.*}} <<invalid sloc>> Implicit
 // CHECK-NEXT: |       | | |-FieldDecl {{.*}} <line:21:3> col:3 implicit 'int'
-// CHECK-NEXT: |       | | | `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit 9
+// CHECK-NEXT: |       | | | `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit {{.*}}
 // CHECK-NEXT: |       | | `-FieldDecl {{.*}} <line:22:25> col:25 implicit 'int'
-// CHECK-NEXT: |       | |   `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit 9
+// CHECK-NEXT: |       | |   `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit {{.*}}
 // CHECK-NEXT: |       | `-CapturedDecl {{.*}} <<invalid sloc>> <invalid sloc> nothrow
 // CHECK-NEXT: |       |   |-OMPTeamsDistributeDirective {{.*}} <line:20:1, col:41>
 // CHECK-NEXT: |       |   | |-OMPCollapseClause {{.*}} <col:30, col:40>
 // CHECK-NEXT: |       |   | | `-ConstantExpr {{.*}} <col:39> 'int'
+// CHECK-NEXT: |       |   | | |-value: Int 1
 // CHECK-NEXT: |       |   | |   `-IntegerLiteral {{.*}} <col:39> 'int' 1
 // CHECK-NEXT: |       |   | `-CapturedStmt {{.*}} <line:21:3, line:23:7>
 // CHECK-NEXT: |       |   |   |-CapturedDecl {{.*}} <<invalid sloc>> <invalid sloc> nothrow
@@ -564,14 +566,14 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       |   |   | |   `-NullStmt {{.*}} <line:23:7>
 // CHECK-NEXT: |       |   |   | |-ImplicitParamDecl {{.*}} <line:20:1> col:1 implicit .global_tid. 'const int *const restrict'
 // CHECK-NEXT: |       |   |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .bound_tid. 'const int *const restrict'
-// CHECK-NEXT: |       |   |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:20:1) *const restrict'
+// CHECK-NEXT: |       |   |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:20:1) *const restrict'
 // CHECK-NEXT: |       |   |   | |-VarDecl {{.*}} <line:21:8, col:16> col:12 used i 'int' cinit
 // CHECK-NEXT: |       |   |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
 // CHECK-NEXT: |       |   |   | `-VarDecl {{.*}} <line:22:10, col:18> col:14 used i 'int' cinit
 // CHECK-NEXT: |       |   |   |   `-IntegerLiteral {{.*}} <col:18> 'int' 0
 // CHECK-NEXT: |       |   |   |-DeclRefExpr {{.*}} <line:21:3> 'int' lvalue ParmVar {{.*}} 'x' 'int'
 // CHECK-NEXT: |       |   |   `-DeclRefExpr {{.*}} <line:22:25> 'int' lvalue ParmVar {{.*}} 'y' 'int'
-// CHECK-NEXT: |       |   |-ImplicitParamDecl {{.*}} <line:19:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:19:1) *const restrict'
+// CHECK-NEXT: |       |   |-ImplicitParamDecl {{.*}} <line:19:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:19:1) *const restrict'
 // CHECK-NEXT: |       |   |-RecordDecl {{.*}} <line:20:1> col:1 implicit struct definition
 // CHECK-NEXT: |       |   | |-CapturedRecordAttr {{.*}} <<invalid sloc>> Implicit
 // CHECK-NEXT: |       |   | |-FieldDecl {{.*}} <line:21:3> col:3 implicit 'int &'
@@ -604,7 +606,7 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       |   | |   `-NullStmt {{.*}} <line:23:7>
 // CHECK-NEXT: |       |   | |-ImplicitParamDecl {{.*}} <line:20:1> col:1 implicit .global_tid. 'const int *const restrict'
 // CHECK-NEXT: |       |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .bound_tid. 'const int *const restrict'
-// CHECK-NEXT: |       |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:20:1) *const restrict'
+// CHECK-NEXT: |       |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:20:1) *const restrict'
 // CHECK-NEXT: |       |   | |-VarDecl {{.*}} <line:21:8, col:16> col:12 used i 'int' cinit
 // CHECK-NEXT: |       |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
 // CHECK-NEXT: |       |   | `-VarDecl {{.*}} <line:22:10, col:18> col:14 used i 'int' cinit
@@ -644,6 +646,7 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | | | |-OMPTeamsDistributeDirective {{.*}} <col:1, col:41>
 // CHECK-NEXT: |       | | | | |-OMPCollapseClause {{.*}} <col:30, col:40>
 // CHECK-NEXT: |       | | | | | `-ConstantExpr {{.*}} <col:39> 'int'
+// CHECK-NEXT: |       | | | | | |-value: Int 2
 // CHECK-NEXT: |       | | | | |   `-IntegerLiteral {{.*}} <col:39> 'int' 2
 // CHECK-NEXT: |       | | | | `-CapturedStmt {{.*}} <line:29:3, line:31:7>
 // CHECK-NEXT: |       | | | |   |-CapturedDecl {{.*}} <<invalid sloc>> <invalid sloc> nothrow
@@ -674,14 +677,14 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | | | |   | |   `-NullStmt {{.*}} <line:31:7>
 // CHECK-NEXT: |       | | | |   | |-ImplicitParamDecl {{.*}} <line:28:1> col:1 implicit .global_tid. 'const int *const restrict'
 // CHECK-NEXT: |       | | | |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .bound_tid. 'const int *const restrict'
-// CHECK-NEXT: |       | | | |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:28:1) *const restrict'
+// CHECK-NEXT: |       | | | |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:28:1) *const restrict'
 // CHECK-NEXT: |       | | | |   | |-VarDecl {{.*}} <line:29:8, col:16> col:12 used i 'int' cinit
 // CHECK-NEXT: |       | | | |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
 // CHECK-NEXT: |       | | | |   | `-VarDecl {{.*}} <line:30:10, col:18> col:14 used i 'int' cinit
 // CHECK-NEXT: |       | | | |   |   `-IntegerLiteral {{.*}} <col:18> 'int' 0
 // CHECK-NEXT: |       | | | |   |-DeclRefExpr {{.*}} <line:29:3> 'int' lvalue ParmVar {{.*}} 'x' 'int'
 // CHECK-NEXT: |       | | | |   `-DeclRefExpr {{.*}} <line:30:5> 'int' lvalue ParmVar {{.*}} 'y' 'int'
-// CHECK-NEXT: |       | | | |-ImplicitParamDecl {{.*}} <line:27:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:27:1) *const restrict'
+// CHECK-NEXT: |       | | | |-ImplicitParamDecl {{.*}} <line:27:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:27:1) *const restrict'
 // CHECK-NEXT: |       | | | |-RecordDecl {{.*}} <line:28:1> col:1 implicit struct definition
 // CHECK-NEXT: |       | | | | |-CapturedRecordAttr {{.*}} <<invalid sloc>> Implicit
 // CHECK-NEXT: |       | | | | |-FieldDecl {{.*}} <line:29:3> col:3 implicit 'int &'
@@ -714,7 +717,7 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | | | | |   `-NullStmt {{.*}} <line:31:7>
 // CHECK-NEXT: |       | | | | |-ImplicitParamDecl {{.*}} <line:28:1> col:1 implicit .global_tid. 'const int *const restrict'
 // CHECK-NEXT: |       | | | | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .bound_tid. 'const int *const restrict'
-// CHECK-NEXT: |       | | | | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:28:1) *const restrict'
+// CHECK-NEXT: |       | | | | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:28:1) *const restrict'
 // CHECK-NEXT: |       | | | | |-VarDecl {{.*}} <line:29:8, col:16> col:12 used i 'int' cinit
 // CHECK-NEXT: |       | | | | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
 // CHECK-NEXT: |       | | | | `-VarDecl {{.*}} <line:30:10, col:18> col:14 used i 'int' cinit
@@ -764,17 +767,18 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .privates. 'void *const restrict'
 // CHECK-NEXT: |       | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .copy_fn. 'void (*const restrict)(void *const restrict, ...)'
 // CHECK-NEXT: |       | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .task_t. 'void *const'
-// CHECK-NEXT: |       | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:27:1) *const restrict'
+// CHECK-NEXT: |       | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:27:1) *const restrict'
 // CHECK-NEXT: |       | |-RecordDecl {{.*}} <col:1> col:1 implicit struct definition
 // CHECK-NEXT: |       | | |-CapturedRecordAttr {{.*}} <<invalid sloc>> Implicit
 // CHECK-NEXT: |       | | |-FieldDecl {{.*}} <line:29:3> col:3 implicit 'int'
-// CHECK-NEXT: |       | | | `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit 9
+// CHECK-NEXT: |       | | | `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit {{.*}}
 // CHECK-NEXT: |       | | `-FieldDecl {{.*}} <line:30:5> col:5 implicit 'int'
-// CHECK-NEXT: |       | |   `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit 9
+// CHECK-NEXT: |       | |   `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit {{.*}}
 // CHECK-NEXT: |       | `-CapturedDecl {{.*}} <<invalid sloc>> <invalid sloc> nothrow
 // CHECK-NEXT: |       |   |-OMPTeamsDistributeDirective {{.*}} <line:28:1, col:41>
 // CHECK-NEXT: |       |   | |-OMPCollapseClause {{.*}} <col:30, col:40>
 // CHECK-NEXT: |       |   | | `-ConstantExpr {{.*}} <col:39> 'int'
+// CHECK-NEXT: |       |   | | |-value: Int 2
 // CHECK-NEXT: |       |   | |   `-IntegerLiteral {{.*}} <col:39> 'int' 2
 // CHECK-NEXT: |       |   | `-CapturedStmt {{.*}} <line:29:3, line:31:7>
 // CHECK-NEXT: |       |   |   |-CapturedDecl {{.*}} <<invalid sloc>> <invalid sloc> nothrow
@@ -805,14 +809,14 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       |   |   | |   `-NullStmt {{.*}} <line:31:7>
 // CHECK-NEXT: |       |   |   | |-ImplicitParamDecl {{.*}} <line:28:1> col:1 implicit .global_tid. 'const int *const restrict'
 // CHECK-NEXT: |       |   |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .bound_tid. 'const int *const restrict'
-// CHECK-NEXT: |       |   |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:28:1) *const restrict'
+// CHECK-NEXT: |       |   |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:28:1) *const restrict'
 // CHECK-NEXT: |       |   |   | |-VarDecl {{.*}} <line:29:8, col:16> col:12 used i 'int' cinit
 // CHECK-NEXT: |       |   |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
 // CHECK-NEXT: |       |   |   | `-VarDecl {{.*}} <line:30:10, col:18> col:14 used i 'int' cinit
 // CHECK-NEXT: |       |   |   |   `-IntegerLiteral {{.*}} <col:18> 'int' 0
 // CHECK-NEXT: |       |   |   |-DeclRefExpr {{.*}} <line:29:3> 'int' lvalue ParmVar {{.*}} 'x' 'int'
 // CHECK-NEXT: |       |   |   `-DeclRefExpr {{.*}} <line:30:5> 'int' lvalue ParmVar {{.*}} 'y' 'int'
-// CHECK-NEXT: |       |   |-ImplicitParamDecl {{.*}} <line:27:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:27:1) *const restrict'
+// CHECK-NEXT: |       |   |-ImplicitParamDecl {{.*}} <line:27:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:27:1) *const restrict'
 // CHECK-NEXT: |       |   |-RecordDecl {{.*}} <line:28:1> col:1 implicit struct definition
 // CHECK-NEXT: |       |   | |-CapturedRecordAttr {{.*}} <<invalid sloc>> Implicit
 // CHECK-NEXT: |       |   | |-FieldDecl {{.*}} <line:29:3> col:3 implicit 'int &'
@@ -845,7 +849,7 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT: |       |   | |   `-NullStmt {{.*}} <line:31:7>
 // CHECK-NEXT: |       |   | |-ImplicitParamDecl {{.*}} <line:28:1> col:1 implicit .global_tid. 'const int *const restrict'
 // CHECK-NEXT: |       |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .bound_tid. 'const int *const restrict'
-// CHECK-NEXT: |       |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:28:1) *const restrict'
+// CHECK-NEXT: |       |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:28:1) *const restrict'
 // CHECK-NEXT: |       |   | |-VarDecl {{.*}} <line:29:8, col:16> col:12 used i 'int' cinit
 // CHECK-NEXT: |       |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
 // CHECK-NEXT: |       |   | `-VarDecl {{.*}} <line:30:10, col:18> col:14 used i 'int' cinit
@@ -906,6 +910,7 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT:         | | | |-OMPTeamsDistributeDirective {{.*}} <col:1, col:41>
 // CHECK-NEXT:         | | | | |-OMPCollapseClause {{.*}} <col:30, col:40>
 // CHECK-NEXT:         | | | | | `-ConstantExpr {{.*}} <col:39> 'int'
+// CHECK-NEXT:         | | | | | |-value: Int 2
 // CHECK-NEXT:         | | | | |   `-IntegerLiteral {{.*}} <col:39> 'int' 2
 // CHECK-NEXT:         | | | | `-CapturedStmt {{.*}} <line:37:3, line:40:9>
 // CHECK-NEXT:         | | | |   |-CapturedDecl {{.*}} <<invalid sloc>> <invalid sloc> nothrow
@@ -948,7 +953,7 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT:         | | | |   | |     `-NullStmt {{.*}} <line:40:9>
 // CHECK-NEXT:         | | | |   | |-ImplicitParamDecl {{.*}} <line:36:1> col:1 implicit .global_tid. 'const int *const restrict'
 // CHECK-NEXT:         | | | |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .bound_tid. 'const int *const restrict'
-// CHECK-NEXT:         | | | |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:36:1) *const restrict'
+// CHECK-NEXT:         | | | |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:36:1) *const restrict'
 // CHECK-NEXT:         | | | |   | |-VarDecl {{.*}} <line:37:8, col:16> col:12 used i 'int' cinit
 // CHECK-NEXT:         | | | |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
 // CHECK-NEXT:         | | | |   | |-VarDecl {{.*}} <line:38:10, col:18> col:14 used i 'int' cinit
@@ -958,7 +963,7 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT:         | | | |   |-DeclRefExpr {{.*}} <line:37:3> 'int' lvalue ParmVar {{.*}} 'x' 'int'
 // CHECK-NEXT:         | | | |   |-DeclRefExpr {{.*}} <line:38:5> 'int' lvalue ParmVar {{.*}} 'y' 'int'
 // CHECK-NEXT:         | | | |   `-DeclRefExpr {{.*}} <line:39:27> 'int' lvalue ParmVar {{.*}} 'z' 'int'
-// CHECK-NEXT:         | | | |-ImplicitParamDecl {{.*}} <line:35:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:35:1) *const restrict'
+// CHECK-NEXT:         | | | |-ImplicitParamDecl {{.*}} <line:35:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:35:1) *const restrict'
 // CHECK-NEXT:         | | | |-RecordDecl {{.*}} <line:36:1> col:1 implicit struct definition
 // CHECK-NEXT:         | | | | |-CapturedRecordAttr {{.*}} <<invalid sloc>> Implicit
 // CHECK-NEXT:         | | | | |-FieldDecl {{.*}} <line:37:3> col:3 implicit 'int &'
@@ -1004,7 +1009,7 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT:         | | | | |     `-NullStmt {{.*}} <line:40:9>
 // CHECK-NEXT:         | | | | |-ImplicitParamDecl {{.*}} <line:36:1> col:1 implicit .global_tid. 'const int *const restrict'
 // CHECK-NEXT:         | | | | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .bound_tid. 'const int *const restrict'
-// CHECK-NEXT:         | | | | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:36:1) *const restrict'
+// CHECK-NEXT:         | | | | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:36:1) *const restrict'
 // CHECK-NEXT:         | | | | |-VarDecl {{.*}} <line:37:8, col:16> col:12 used i 'int' cinit
 // CHECK-NEXT:         | | | | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
 // CHECK-NEXT:         | | | | |-VarDecl {{.*}} <line:38:10, col:18> col:14 used i 'int' cinit
@@ -1057,19 +1062,20 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT:         | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .privates. 'void *const restrict'
 // CHECK-NEXT:         | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .copy_fn. 'void (*const restrict)(void *const restrict, ...)'
 // CHECK-NEXT:         | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .task_t. 'void *const'
-// CHECK-NEXT:         | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:35:1) *const restrict'
+// CHECK-NEXT:         | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:35:1) *const restrict'
 // CHECK-NEXT:         | |-RecordDecl {{.*}} <col:1> col:1 implicit struct definition
 // CHECK-NEXT:         | | |-CapturedRecordAttr {{.*}} <<invalid sloc>> Implicit
 // CHECK-NEXT:         | | |-FieldDecl {{.*}} <line:37:3> col:3 implicit 'int'
-// CHECK-NEXT:         | | | `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit 9
+// CHECK-NEXT:         | | | `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit {{.*}}
 // CHECK-NEXT:         | | |-FieldDecl {{.*}} <line:38:5> col:5 implicit 'int'
-// CHECK-NEXT:         | | | `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit 9
+// CHECK-NEXT:         | | | `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit {{.*}}
 // CHECK-NEXT:         | | `-FieldDecl {{.*}} <line:39:27> col:27 implicit 'int'
-// CHECK-NEXT:         | |   `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit 9
+// CHECK-NEXT:         | |   `-OMPCaptureKindAttr {{.*}} <<invalid sloc>> Implicit {{.*}}
 // CHECK-NEXT:         | `-CapturedDecl {{.*}} <<invalid sloc>> <invalid sloc> nothrow
 // CHECK-NEXT:         |   |-OMPTeamsDistributeDirective {{.*}} <line:36:1, col:41>
 // CHECK-NEXT:         |   | |-OMPCollapseClause {{.*}} <col:30, col:40>
 // CHECK-NEXT:         |   | | `-ConstantExpr {{.*}} <col:39> 'int'
+// CHECK-NEXT:         |   | | |-value: Int 2
 // CHECK-NEXT:         |   | |   `-IntegerLiteral {{.*}} <col:39> 'int' 2
 // CHECK-NEXT:         |   | `-CapturedStmt {{.*}} <line:37:3, line:40:9>
 // CHECK-NEXT:         |   |   |-CapturedDecl {{.*}} <<invalid sloc>> <invalid sloc> nothrow
@@ -1112,7 +1118,7 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT:         |   |   | |     `-NullStmt {{.*}} <line:40:9>
 // CHECK-NEXT:         |   |   | |-ImplicitParamDecl {{.*}} <line:36:1> col:1 implicit .global_tid. 'const int *const restrict'
 // CHECK-NEXT:         |   |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .bound_tid. 'const int *const restrict'
-// CHECK-NEXT:         |   |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:36:1) *const restrict'
+// CHECK-NEXT:         |   |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:36:1) *const restrict'
 // CHECK-NEXT:         |   |   | |-VarDecl {{.*}} <line:37:8, col:16> col:12 used i 'int' cinit
 // CHECK-NEXT:         |   |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
 // CHECK-NEXT:         |   |   | |-VarDecl {{.*}} <line:38:10, col:18> col:14 used i 'int' cinit
@@ -1122,7 +1128,7 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT:         |   |   |-DeclRefExpr {{.*}} <line:37:3> 'int' lvalue ParmVar {{.*}} 'x' 'int'
 // CHECK-NEXT:         |   |   |-DeclRefExpr {{.*}} <line:38:5> 'int' lvalue ParmVar {{.*}} 'y' 'int'
 // CHECK-NEXT:         |   |   `-DeclRefExpr {{.*}} <line:39:27> 'int' lvalue ParmVar {{.*}} 'z' 'int'
-// CHECK-NEXT:         |   |-ImplicitParamDecl {{.*}} <line:35:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:35:1) *const restrict'
+// CHECK-NEXT:         |   |-ImplicitParamDecl {{.*}} <line:35:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:35:1) *const restrict'
 // CHECK-NEXT:         |   |-RecordDecl {{.*}} <line:36:1> col:1 implicit struct definition
 // CHECK-NEXT:         |   | |-CapturedRecordAttr {{.*}} <<invalid sloc>> Implicit
 // CHECK-NEXT:         |   | |-FieldDecl {{.*}} <line:37:3> col:3 implicit 'int &'
@@ -1168,7 +1174,7 @@ void test_five(int x, int y, int z) {
 // CHECK-NEXT:         |   | |     `-NullStmt {{.*}} <line:40:9>
 // CHECK-NEXT:         |   | |-ImplicitParamDecl {{.*}} <line:36:1> col:1 implicit .global_tid. 'const int *const restrict'
 // CHECK-NEXT:         |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit .bound_tid. 'const int *const restrict'
-// CHECK-NEXT:         |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (anonymous at {{.*}}ast-dump-openmp-teams-distribute.c:36:1) *const restrict'
+// CHECK-NEXT:         |   | |-ImplicitParamDecl {{.*}} <col:1> col:1 implicit __context 'struct (unnamed at {{.*}}ast-dump-openmp-teams-distribute.c:36:1) *const restrict'
 // CHECK-NEXT:         |   | |-VarDecl {{.*}} <line:37:8, col:16> col:12 used i 'int' cinit
 // CHECK-NEXT:         |   | | `-IntegerLiteral {{.*}} <col:16> 'int' 0
 // CHECK-NEXT:         |   | |-VarDecl {{.*}} <line:38:10, col:18> col:14 used i 'int' cinit

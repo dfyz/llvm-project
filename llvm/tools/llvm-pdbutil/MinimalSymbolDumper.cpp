@@ -288,7 +288,18 @@ static std::string formatCookieKind(FrameCookieKind Kind) {
 }
 
 static std::string formatRegisterId(RegisterId Id, CPUType Cpu) {
-  if (Cpu == CPUType::ARM64) {
+  if (Cpu == CPUType::ARMNT) {
+    switch (Id) {
+#define CV_REGISTERS_ARM
+#define CV_REGISTER(name, val) RETURN_CASE(RegisterId, name, #name)
+#include "llvm/DebugInfo/CodeView/CodeViewRegisters.def"
+#undef CV_REGISTER
+#undef CV_REGISTERS_ARM
+
+    default:
+      break;
+    }
+  } else if (Cpu == CPUType::ARM64) {
     switch (Id) {
 #define CV_REGISTERS_ARM64
 #define CV_REGISTER(name, val) RETURN_CASE(RegisterId, name, #name)
@@ -548,7 +559,7 @@ Error MinimalSymbolDumper::visitKnownRecord(CVSymbol &CVR,
   P.format(" `{0}`", Constant.Name);
   AutoIndent Indent(P, 7);
   P.formatLine("type = {0}, value = {1}", typeIndex(Constant.Type),
-               Constant.Value.toString(10));
+               toString(Constant.Value, 10));
   return Error::success();
 }
 

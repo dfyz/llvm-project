@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/TableGen/Attribute.h"
+#include "mlir/TableGen/Format.h"
 #include "mlir/TableGen/GenInfo.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
@@ -22,12 +23,16 @@
 
 using llvm::formatv;
 using llvm::isDigit;
+using llvm::PrintFatalError;
 using llvm::raw_ostream;
 using llvm::Record;
 using llvm::RecordKeeper;
 using llvm::StringRef;
+using mlir::tblgen::Attribute;
 using mlir::tblgen::EnumAttr;
 using mlir::tblgen::EnumAttrCase;
+using mlir::tblgen::FmtContext;
+using mlir::tblgen::tgfmt;
 
 static std::string makeIdentifier(StringRef str) {
   if (!str.empty() && isDigit(static_cast<unsigned char>(str.front()))) {
@@ -71,7 +76,7 @@ static void emitDenseMapInfo(StringRef enumName, std::string underlyingType,
   const char *const mapInfo = R"(
 namespace llvm {
 template<> struct DenseMapInfo<{0}> {{
-  using StorageInfo = llvm::DenseMapInfo<{1}>;
+  using StorageInfo = ::llvm::DenseMapInfo<{1}>;
 
   static inline {0} getEmptyKey() {{
     return static_cast<{0}>(StorageInfo::getEmptyKey());
@@ -193,17 +198,17 @@ static void emitSymToStrFnForBitEnum(const Record &enumDef, raw_ostream &os) {
     os << formatv("  if (val == 0) return \"{0}\";\n\n",
                   allBitsUnsetCase->getSymbol());
   }
-  os << "  llvm::SmallVector<llvm::StringRef, 2> strs;\n";
+  os << "  ::llvm::SmallVector<::llvm::StringRef, 2> strs;\n";
   for (const auto &enumerant : enumerants) {
     // Skip the special enumerant for None.
     if (auto val = enumerant.getValue())
       os << formatv("  if ({0}u & val) {{ strs.push_back(\"{1}\"); "
                     "val &= ~{0}u; }\n",
-                    val, enumerant.getSymbol());
+                    val, enumerant.getStr());
   }
   // If we have unknown bit set, return an empty string to signal errors.
   os << "\n  if (val) return \"\";\n";
-  os << formatv("  return llvm::join(strs, \"{0}\");\n", separator);
+  os << formatv("  return ::llvm::join(strs, \"{0}\");\n", separator);
 
   os << "}\n\n";
 }
@@ -214,9 +219,9 @@ static void emitStrToSymFnForIntEnum(const Record &enumDef, raw_ostream &os) {
   StringRef strToSymFnName = enumAttr.getStringToSymbolFnName();
   auto enumerants = enumAttr.getAllCases();
 
-  os << formatv("llvm::Optional<{0}> {1}(llvm::StringRef str) {{\n", enumName,
-                strToSymFnName);
-  os << formatv("  return llvm::StringSwitch<llvm::Optional<{0}>>(str)\n",
+  os << formatv("::llvm::Optional<{0}> {1}(::llvm::StringRef str) {{\n",
+                enumName, strToSymFnName);
+  os << formatv("  return ::llvm::StringSwitch<::llvm::Optional<{0}>>(str)\n",
                 enumName);
   for (const auto &enumerant : enumerants) {
     auto symbol = enumerant.getSymbol();
@@ -224,7 +229,7 @@ static void emitStrToSymFnForIntEnum(const Record &enumDef, raw_ostream &os) {
     os << formatv("      .Case(\"{1}\", {0}::{2})\n", enumName, str,
                   makeIdentifier(symbol));
   }
-  os << "      .Default(llvm::None);\n";
+  os << "      .Default(::llvm::None);\n";
   os << "}\n";
 }
 
@@ -237,8 +242,8 @@ static void emitStrToSymFnForBitEnum(const Record &enumDef, raw_ostream &os) {
   auto enumerants = enumAttr.getAllCases();
   auto allBitsUnsetCase = getAllBitsUnsetCase(enumerants);
 
-  os << formatv("llvm::Optional<{0}> {1}(llvm::StringRef str) {{\n", enumName,
-                strToSymFnName);
+  os << formatv("::llvm::Optional<{0}> {1}(::llvm::StringRef str) {{\n",
+                enumName, strToSymFnName);
 
   if (allBitsUnsetCase) {
     os << "  // Special case for all bits unset.\n";
@@ -248,7 +253,7 @@ static void emitStrToSymFnForBitEnum(const Record &enumDef, raw_ostream &os) {
   }
 
   // Split the string to get symbols for all the bits.
-  os << "  llvm::SmallVector<llvm::StringRef, 2> symbols;\n";
+  os << "  ::llvm::SmallVector<::llvm::StringRef, 2> symbols;\n";
   os << formatv("  str.split(symbols, \"{0}\");\n\n", separator);
 
   os << formatv("  {0} val = 0;\n", underlyingType);
@@ -256,17 +261,16 @@ static void emitStrToSymFnForBitEnum(const Record &enumDef, raw_ostream &os) {
 
   // Convert each symbol to the bit ordinal and set the corresponding bit.
   os << formatv(
-      "    auto bit = llvm::StringSwitch<llvm::Optional<{0}>>(symbol)\n",
+      "    auto bit = llvm::StringSwitch<::llvm::Optional<{0}>>(symbol)\n",
       underlyingType);
   for (const auto &enumerant : enumerants) {
     // Skip the special enumerant for None.
     if (auto val = enumerant.getValue())
-      os.indent(6) << formatv(".Case(\"{0}\", {1})\n", enumerant.getSymbol(),
-                              val);
+      os.indent(6) << formatv(".Case(\"{0}\", {1})\n", enumerant.getStr(), val);
   }
-  os.indent(6) << ".Default(llvm::None);\n";
+  os.indent(6) << ".Default(::llvm::None);\n";
 
-  os << "    if (bit) { val |= *bit; } else { return llvm::None; }\n";
+  os << "    if (bit) { val |= *bit; } else { return ::llvm::None; }\n";
   os << "  }\n";
 
   os << formatv("  return static_cast<{0}>(val);\n", enumName);
@@ -288,7 +292,7 @@ static void emitUnderlyingToSymFnForIntEnum(const Record &enumDef,
       }))
     return;
 
-  os << formatv("llvm::Optional<{0}> {1}({2} value) {{\n", enumName,
+  os << formatv("::llvm::Optional<{0}> {1}({2} value) {{\n", enumName,
                 underlyingToSymFnName,
                 underlyingType.empty() ? std::string("unsigned")
                                        : underlyingType)
@@ -299,9 +303,81 @@ static void emitUnderlyingToSymFnForIntEnum(const Record &enumDef,
     os << formatv("  case {0}: return {1}::{2};\n", value, enumName,
                   makeIdentifier(symbol));
   }
-  os << "  default: return llvm::None;\n"
+  os << "  default: return ::llvm::None;\n"
      << "  }\n"
      << "}\n\n";
+}
+
+static void emitSpecializedAttrDef(const Record &enumDef, raw_ostream &os) {
+  EnumAttr enumAttr(enumDef);
+  StringRef enumName = enumAttr.getEnumClassName();
+  StringRef symToStrFnName = enumAttr.getSymbolToStringFnName();
+  StringRef strToSymFnName = enumAttr.getStringToSymbolFnName();
+  StringRef attrClassName = enumAttr.getSpecializedAttrClassName();
+  llvm::Record *baseAttrDef = enumAttr.getBaseAttrClass();
+  Attribute baseAttr(baseAttrDef);
+
+  // Emit classof method
+
+  os << formatv("bool {0}::classof(::mlir::Attribute attr) {{\n",
+                attrClassName);
+
+  mlir::tblgen::Pred baseAttrPred = baseAttr.getPredicate();
+  if (baseAttrPred.isNull())
+    PrintFatalError("ERROR: baseAttrClass for EnumAttr has no Predicate\n");
+
+  std::string condition = baseAttrPred.getCondition();
+  FmtContext verifyCtx;
+  verifyCtx.withSelf("attr");
+  os << tgfmt("  return $0;\n", /*ctx=*/nullptr, tgfmt(condition, &verifyCtx));
+
+  os << "}\n";
+
+  // Emit get method
+
+  os << formatv("{0} {0}::get(::mlir::MLIRContext *context, {1} val) {{\n",
+                attrClassName, enumName);
+
+  if (enumAttr.isSubClassOf("StrEnumAttr")) {
+    os << formatv("  ::mlir::StringAttr baseAttr = "
+                  "::mlir::StringAttr::get(context, {0}(val));\n",
+                  symToStrFnName);
+  } else {
+    StringRef underlyingType = enumAttr.getUnderlyingType();
+
+    // Assuming that it is IntegerAttr constraint
+    int64_t bitwidth = 64;
+    if (baseAttrDef->getValue("valueType")) {
+      auto *valueTypeDef = baseAttrDef->getValueAsDef("valueType");
+      if (valueTypeDef->getValue("bitwidth"))
+        bitwidth = valueTypeDef->getValueAsInt("bitwidth");
+    }
+
+    os << formatv("  ::mlir::IntegerType intType = "
+                  "::mlir::IntegerType::get(context, {0});\n",
+                  bitwidth);
+    os << formatv("  ::mlir::IntegerAttr baseAttr = "
+                  "::mlir::IntegerAttr::get(intType, static_cast<{0}>(val));\n",
+                  underlyingType);
+  }
+  os << formatv("  return baseAttr.cast<{0}>();\n", attrClassName);
+
+  os << "}\n";
+
+  // Emit getValue method
+
+  os << formatv("{0} {1}::getValue() const {{\n", enumName, attrClassName);
+
+  if (enumAttr.isSubClassOf("StrEnumAttr")) {
+    os << formatv("  const auto res = {0}(::mlir::StringAttr::getValue());\n",
+                  strToSymFnName);
+    os << "  return res.getValue();\n";
+  } else {
+    os << formatv("  return static_cast<{0}>(::mlir::IntegerAttr::getInt());\n",
+                  enumName);
+  }
+
+  os << "}\n";
 }
 
 static void emitUnderlyingToSymFnForBitEnum(const Record &enumDef,
@@ -313,7 +389,7 @@ static void emitUnderlyingToSymFnForBitEnum(const Record &enumDef,
   auto enumerants = enumAttr.getAllCases();
   auto allBitsUnsetCase = getAllBitsUnsetCase(enumerants);
 
-  os << formatv("llvm::Optional<{0}> {1}({2} value) {{\n", enumName,
+  os << formatv("::llvm::Optional<{0}> {1}({2} value) {{\n", enumName,
                 underlyingToSymFnName, underlyingType);
   if (allBitsUnsetCase) {
     os << "  // Special case for all bits unset.\n";
@@ -336,7 +412,7 @@ static void emitEnumDecl(const Record &enumDef, raw_ostream &os) {
   StringRef enumName = enumAttr.getEnumClassName();
   StringRef cppNamespace = enumAttr.getCppNamespace();
   std::string underlyingType = std::string(enumAttr.getUnderlyingType());
-  StringRef description = enumAttr.getDescription();
+  StringRef description = enumAttr.getSummary();
   StringRef strToSymFnName = enumAttr.getStringToSymbolFnName();
   StringRef symToStrFnName = enumAttr.getSymbolToStringFnName();
   StringRef symToStrFnRetType = enumAttr.getSymbolToStringFnRetType();
@@ -357,11 +433,11 @@ static void emitEnumDecl(const Record &enumDef, raw_ostream &os) {
         return enumerant.getValue() >= 0;
       })) {
     os << formatv(
-        "llvm::Optional<{0}> {1}({2});\n", enumName, underlyingToSymFnName,
+        "::llvm::Optional<{0}> {1}({2});\n", enumName, underlyingToSymFnName,
         underlyingType.empty() ? std::string("unsigned") : underlyingType);
   }
   os << formatv("{2} {1}({0});\n", enumName, symToStrFnName, symToStrFnRetType);
-  os << formatv("llvm::Optional<{0}> {1}(llvm::StringRef);\n", enumName,
+  os << formatv("::llvm::Optional<{0}> {1}(::llvm::StringRef);\n", enumName,
                 strToSymFnName);
 
   if (enumAttr.isBitEnum()) {
@@ -383,14 +459,31 @@ inline {0} stringifyEnum({1} enumValue) {{
   // specified by the user.
   const char *const symbolizeEnumStr = R"(
 template <typename EnumType>
-llvm::Optional<EnumType> symbolizeEnum(llvm::StringRef);
+::llvm::Optional<EnumType> symbolizeEnum(::llvm::StringRef);
 
 template <>
-inline llvm::Optional<{0}> symbolizeEnum<{0}>(llvm::StringRef str) {
+inline ::llvm::Optional<{0}> symbolizeEnum<{0}>(::llvm::StringRef str) {
   return {1}(str);
 }
 )";
   os << formatv(symbolizeEnumStr, enumName, strToSymFnName);
+
+  const char *const attrClassDecl = R"(
+class {1} : public ::mlir::{2} {
+public:
+  using ValueType = {0};
+  using ::mlir::{2}::{2};
+  static bool classof(::mlir::Attribute attr);
+  static {1} get(::mlir::MLIRContext *context, {0} val);
+  {0} getValue() const;
+};
+)";
+  if (enumAttr.genSpecializedAttr()) {
+    StringRef attrClassName = enumAttr.getSpecializedAttrClassName();
+    StringRef baseAttrClassName =
+        enumAttr.isSubClassOf("StrEnumAttr") ? "StringAttr" : "IntegerAttr";
+    os << formatv(attrClassDecl, enumName, attrClassName, baseAttrClassName);
+  }
 
   for (auto ns : llvm::reverse(namespaces))
     os << "} // namespace " << ns << "\n";
@@ -428,6 +521,9 @@ static void emitEnumDef(const Record &enumDef, raw_ostream &os) {
     emitStrToSymFnForIntEnum(enumDef, os);
     emitUnderlyingToSymFnForIntEnum(enumDef, os);
   }
+
+  if (enumAttr.genSpecializedAttr())
+    emitSpecializedAttrDef(enumDef, os);
 
   for (auto ns : llvm::reverse(namespaces))
     os << "} // namespace " << ns << "\n";

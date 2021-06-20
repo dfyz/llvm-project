@@ -459,7 +459,7 @@ void ZoneAlgorithm::addArrayWriteAccess(MemoryAccess *MA) {
 
   // { Domain[] -> ValInst[] }
   isl::union_map WriteValInstance = getWrittenValue(MA, AccRel);
-  if (!WriteValInstance)
+  if (WriteValInstance.is_null())
     WriteValInstance = makeUnknownForDomain(Stmt);
 
   // { Domain[] -> [Element[] -> Domain[]] }
@@ -541,6 +541,13 @@ isl::union_map ZoneAlgorithm::computePerPHI(const ScopArrayInfo *SAI) {
   if (It != PerPHIMaps.end())
     return It->second;
 
+  // Cannot reliably compute immediate predecessor for undefined executions, so
+  // bail out if we do not know. This in particular applies to undefined control
+  // flow.
+  isl::set DefinedContext = S->getDefinedBehaviorContext();
+  if (DefinedContext.is_null())
+    return {};
+
   assert(SAI->isPHIKind());
 
   // { DomainPHIWrite[] -> Scatter[] }
@@ -565,8 +572,7 @@ isl::union_map ZoneAlgorithm::computePerPHI(const ScopArrayInfo *SAI) {
   isl::map PHIWriteTimes = BeforeRead.intersect_range(WriteTimes);
 
   // Remove instances outside the context.
-  PHIWriteTimes = PHIWriteTimes.intersect_params(S->getAssumedContext());
-  PHIWriteTimes = subtractParams(PHIWriteTimes, S->getInvalidContext());
+  PHIWriteTimes = PHIWriteTimes.intersect_params(DefinedContext);
 
   isl::map LastPerPHIWrites = PHIWriteTimes.lexmax();
 
@@ -624,7 +630,7 @@ isl::map ZoneAlgorithm::getScatterFor(isl::set Domain) const {
   auto UDomain = isl::union_set(Domain);
   auto UResult = getScatterFor(std::move(UDomain));
   auto Result = singleton(std::move(UResult), std::move(ResultSpace));
-  assert(!Result || Result.domain().is_equal(Domain) == isl_bool_true);
+  assert(Result.is_null() || Result.domain().is_equal(Domain) == isl_bool_true);
   return Result;
 }
 
@@ -674,7 +680,7 @@ isl::map ZoneAlgorithm::getDefToTarget(ScopStmt *DefStmt,
   //   { DefStmt[i] -> TargetStmt[i,j] }
   //
   // In practice, this should cover the majority of cases.
-  if (!Result && S->isOriginalSchedule() &&
+  if (Result.is_null() && S->isOriginalSchedule() &&
       isInsideLoop(DefStmt->getSurroundingLoop(),
                    TargetStmt->getSurroundingLoop())) {
     isl::set DefDomain = getDomainFor(DefStmt);
@@ -687,7 +693,7 @@ isl::map ZoneAlgorithm::getDefToTarget(ScopStmt *DefStmt,
       Result = Result.equate(isl::dim::in, i, isl::dim::out, i);
   }
 
-  if (!Result) {
+  if (Result.is_null()) {
     // { DomainDef[] -> DomainTarget[] }
     Result = computeUseToDefFlowDependency(TargetStmt, DefStmt).reverse();
     simplify(Result);
@@ -698,7 +704,7 @@ isl::map ZoneAlgorithm::getDefToTarget(ScopStmt *DefStmt,
 
 isl::map ZoneAlgorithm::getScalarReachingDefinition(ScopStmt *Stmt) {
   auto &Result = ScalarReachDefZone[Stmt];
-  if (Result)
+  if (!Result.is_null())
     return Result;
 
   auto Domain = getDomainFor(Stmt);
@@ -723,7 +729,7 @@ isl::map ZoneAlgorithm::makeUnknownForDomain(ScopStmt *Stmt) const {
 
 isl::id ZoneAlgorithm::makeValueId(Value *V) {
   if (!V)
-    return nullptr;
+    return {};
 
   auto &Id = ValueIds[V];
   if (Id.is_null()) {
@@ -1025,6 +1031,13 @@ void ZoneAlgorithm::computeNormalizedPHIs() {
       auto *PHI = cast<PHINode>(MA->getAccessInstruction());
       const ScopArrayInfo *SAI = MA->getOriginalScopArrayInfo();
 
+      // Determine which instance of the PHI statement corresponds to which
+      // incoming value. Skip if we cannot determine PHI predecessors.
+      // { PHIDomain[] -> IncomingDomain[] }
+      isl::union_map PerPHI = computePerPHI(SAI);
+      if (PerPHI.is_null())
+        continue;
+
       // { PHIDomain[] -> PHIValInst[] }
       isl::map PHIValInst = makeValInst(PHI, &Stmt, Stmt.getSurroundingLoop());
 
@@ -1047,11 +1060,6 @@ void ZoneAlgorithm::computeNormalizedPHIs() {
 
         IncomingValInsts = IncomingValInsts.add_map(IncomingValInst);
       }
-
-      // Determine which instance of the PHI statement corresponds to which
-      // incoming value.
-      // { PHIDomain[] -> IncomingDomain[] }
-      isl::union_map PerPHI = computePerPHI(SAI);
 
       // { PHIValInst[] -> IncomingValInst[] }
       isl::union_map PHIMap =
@@ -1076,7 +1084,7 @@ void ZoneAlgorithm::computeNormalizedPHIs() {
   ComputedPHIs = AllPHIs;
   NormalizeMap = AllPHIMaps;
 
-  assert(!NormalizeMap || isNormalized(NormalizeMap));
+  assert(NormalizeMap.is_null() || isNormalized(NormalizeMap));
 }
 
 void ZoneAlgorithm::printAccesses(llvm::raw_ostream &OS, int Indent) const {

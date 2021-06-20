@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/IR/Function.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
 
 using namespace mlir;
@@ -15,6 +15,8 @@ namespace {
 /// This is a test pass for verifying FuncOp's eraseArgument method.
 struct TestFuncEraseArg
     : public PassWrapper<TestFuncEraseArg, OperationPass<ModuleOp>> {
+  StringRef getArgument() const final { return "test-func-erase-arg"; }
+  StringRef getDescription() const final { return "Test erasing func args."; }
   void runOnOperation() override {
     auto module = getOperation();
 
@@ -36,15 +38,48 @@ struct TestFuncEraseArg
   }
 };
 
+/// This is a test pass for verifying FuncOp's eraseResult method.
+struct TestFuncEraseResult
+    : public PassWrapper<TestFuncEraseResult, OperationPass<ModuleOp>> {
+  StringRef getArgument() const final { return "test-func-erase-result"; }
+  StringRef getDescription() const final {
+    return "Test erasing func results.";
+  }
+  void runOnOperation() override {
+    auto module = getOperation();
+
+    for (FuncOp func : module.getOps<FuncOp>()) {
+      SmallVector<unsigned, 4> indicesToErase;
+      for (auto resultIndex : llvm::seq<int>(0, func.getNumResults())) {
+        if (func.getResultAttr(resultIndex, "test.erase_this_"
+                                            "result")) {
+          // Push back twice to test
+          // that duplicate indices
+          // are handled correctly.
+          indicesToErase.push_back(resultIndex);
+          indicesToErase.push_back(resultIndex);
+        }
+      }
+      // Reverse the order to test
+      // that unsorted index lists are
+      // handled correctly.
+      std::reverse(indicesToErase.begin(), indicesToErase.end());
+      func.eraseResults(indicesToErase);
+    }
+  }
+};
+
 /// This is a test pass for verifying FuncOp's setType method.
 struct TestFuncSetType
     : public PassWrapper<TestFuncSetType, OperationPass<ModuleOp>> {
+  StringRef getArgument() const final { return "test-func-set-type"; }
+  StringRef getDescription() const final { return "Test FuncOp::setType."; }
   void runOnOperation() override {
     auto module = getOperation();
     SymbolTable symbolTable(module);
 
     for (FuncOp func : module.getOps<FuncOp>()) {
-      auto sym = func.getAttrOfType<FlatSymbolRefAttr>("test.set_type_from");
+      auto sym = func->getAttrOfType<FlatSymbolRefAttr>("test.set_type_from");
       if (!sym)
         continue;
       func.setType(symbolTable.lookup<FuncOp>(sym.getValue()).getType());
@@ -55,10 +90,10 @@ struct TestFuncSetType
 
 namespace mlir {
 void registerTestFunc() {
-  PassRegistration<TestFuncEraseArg> pass("test-func-erase-arg",
-                                          "Test erasing func args.");
+  PassRegistration<TestFuncEraseArg>();
 
-  PassRegistration<TestFuncSetType> pass2("test-func-set-type",
-                                          "Test FuncOp::setType.");
+  PassRegistration<TestFuncEraseResult>();
+
+  PassRegistration<TestFuncSetType>();
 }
 } // namespace mlir

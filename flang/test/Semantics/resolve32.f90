@@ -1,4 +1,5 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %S/test_errors.sh %s %t %flang_fc1
+! REQUIRES: shell
 module m2
   public s2, s4
   private s3
@@ -57,7 +58,7 @@ module m
   contains
     procedure, nopass :: b => s
     final :: f
-    !ERROR: Type parameter, component, or procedure binding 'i' already defined in this type
+    !ERROR: FINAL subroutine 'i' of derived type 't2' must be a module procedure
     final :: i
   end type
   type t3

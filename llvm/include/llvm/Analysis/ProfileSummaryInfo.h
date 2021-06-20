@@ -11,11 +11,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_ANALYSIS_PROFILE_SUMMARY_INFO_H
-#define LLVM_ANALYSIS_PROFILE_SUMMARY_INFO_H
+#ifndef LLVM_ANALYSIS_PROFILESUMMARYINFO_H
+#define LLVM_ANALYSIS_PROFILESUMMARYINFO_H
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/IR/Function.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/ProfileSummary.h"
 #include "llvm/Pass.h"
@@ -25,7 +24,8 @@ namespace llvm {
 class BasicBlock;
 class BlockFrequencyInfo;
 class CallBase;
-class ProfileSummary;
+class Function;
+
 /// Analysis providing profile information.
 ///
 /// This is an immutable analysis pass that provides ability to query global
@@ -38,7 +38,7 @@ class ProfileSummary;
 // units. This would require making this depend on BFI.
 class ProfileSummaryInfo {
 private:
-  Module &M;
+  const Module *M;
   std::unique_ptr<ProfileSummary> Summary;
   void computeThresholds();
   // Count thresholds to answer isHotCount and isColdCount queries.
@@ -58,7 +58,7 @@ private:
   mutable DenseMap<int, uint64_t> ThresholdCache;
 
 public:
-  ProfileSummaryInfo(Module &M) : M(M) { refresh(); }
+  ProfileSummaryInfo(const Module &M) : M(&M) { refresh(); }
   ProfileSummaryInfo(ProfileSummaryInfo &&Arg) = default;
 
   /// If no summary is present, attempt to refresh.

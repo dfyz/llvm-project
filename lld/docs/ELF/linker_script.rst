@@ -17,6 +17,58 @@ possible. We reserve the right to make different implementation choices where
 it is appropriate for LLD. Intentional deviations will be documented in this
 file.
 
+Symbol assignment
+~~~~~~~~~~~~~~~~~
+
+A symbol assignment looks like:
+
+::
+
+  symbol = expression;
+  symbol += expression;
+
+The first form defines ``symbol``. If ``symbol`` is already defined, it will be
+overridden. The other form requires ``symbol`` to be already defined.
+
+For a simple assignment like ``alias = aliasee;``, the ``st_type`` field is
+copied from the original symbol. Any arithmetic operation (e.g. ``+ 0`` will
+reset ``st_type`` to ``STT_NOTYPE``.
+
+The ``st_size`` field is set to 0.
+
+SECTIONS command
+~~~~~~~~~~~~~~~~
+
+A ``SECTIONS`` command looks like:
+
+::
+
+  SECTIONS {
+    section-command
+    section-command
+    ...
+  } [INSERT [AFTER|BEFORE] anchor_section;]
+
+Each section-command can be a symbol assignment, an output section description,
+or an overlay description.
+
+When the ``INSERT`` keyword is present, the ``SECTIONS`` command describes some
+output sections which should be inserted after or before the specified anchor
+section. The insertion occurs after input sections have been mapped to output
+sections but before orphan sections have been processed.
+
+In the case where no linker script has been provided or every ``SECTIONS``
+command is followed by ``INSERT``, LLD applies built-in rules which are similar
+to GNU ld's internal linker scripts.
+
+- Align the first section in a ``PT_LOAD`` segment according to ``-z noseparate-code``,
+  ``-z separate-code``, or ``-z separate-loadable-segments``
+- Define ``__bss_start``, ``end``, ``_end``, ``etext``, ``_etext``, ``edata``, ``_edata``
+- Sort ``.ctors.*``/``.dtors.*``/``.init_array.*``/``.fini_array.*`` and PowerPC64 specific ``.toc``
+- Place input ``.text.*`` into output ``.text``, and handle certain variants
+  (``.text.hot.``, ``.text.unknown.``, ``.text.unlikely.``, etc) in the precense of
+  ``-z keep-text-section-prefix``.
+
 Output section description
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -71,7 +123,34 @@ The two keywords cannot be specified at the same time.
 
 If neither ``AT(lma)`` nor ``AT>lma_region`` is specified:
 
-- If the previous section is also in the default LMA region, the difference
-  between the LMA and the VMA is computed to be the same as the previous
-  difference.
+- If the previous section is also in the default LMA region, and the two
+  section have the same memory regions, the difference between the LMA and the
+  VMA is computed to be the same as the previous difference.
 - Otherwise, the LMA is set to the VMA.
+
+Overwrite sections
+~~~~~~~~~~~~~~~~~~
+
+An ``OVERWRITE_SECTIONS`` command looks like:
+
+::
+
+  OVERWRITE_SECTIONS {
+    output-section-description
+    output-section-description
+    ...
+  }
+
+Unlike a ``SECTIONS`` command, ``OVERWRITE_SECTIONS``  does not specify a
+section order or suppress the built-in rules.
+
+If a described output section description also appears in a ``SECTIONS``
+command, the ``OVERWRITE_SECTIONS`` command wins; otherwise, the output section
+will be added somewhere following the usual orphan section placement rules.
+
+If a described output section description also appears in an ``INSERT
+[AFTER|BEFORE]`` command, the description will be provided by the
+description in the ``OVERWRITE_SECTIONS`` command while the insert command
+still applies (possibly after orphan section placement). It is recommended to
+leave the brace empty (i.e. ``section : {}``) for the insert command, because
+its description will be ignored anyway.

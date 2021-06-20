@@ -17,41 +17,33 @@ define <8 x i16> @pr25080(<8 x i32> %a) {
 ; LE-NEXT:    mfvsrwz 3, 34
 ; LE-NEXT:    xxsldwi 1, 34, 34, 1
 ; LE-NEXT:    mfvsrwz 4, 35
-; LE-NEXT:    xxsldwi 4, 34, 34, 3
-; LE-NEXT:    mtfprd 2, 3
+; LE-NEXT:    xxsldwi 2, 34, 34, 3
+; LE-NEXT:    mtvsrd 36, 3
 ; LE-NEXT:    mffprwz 3, 0
 ; LE-NEXT:    xxswapd 0, 35
-; LE-NEXT:    mtfprd 3, 4
-; LE-NEXT:    xxsldwi 5, 35, 35, 1
+; LE-NEXT:    mtvsrd 37, 4
 ; LE-NEXT:    mffprwz 4, 1
-; LE-NEXT:    xxsldwi 7, 35, 35, 3
-; LE-NEXT:    mtfprd 1, 3
-; LE-NEXT:    xxswapd 33, 3
-; LE-NEXT:    mffprwz 3, 4
-; LE-NEXT:    mtfprd 4, 4
-; LE-NEXT:    xxswapd 34, 1
+; LE-NEXT:    xxsldwi 1, 35, 35, 1
+; LE-NEXT:    mtvsrd 34, 3
+; LE-NEXT:    mffprwz 3, 2
+; LE-NEXT:    mtvsrd 32, 4
 ; LE-NEXT:    mffprwz 4, 0
-; LE-NEXT:    mtfprd 0, 3
-; LE-NEXT:    xxswapd 35, 4
-; LE-NEXT:    mffprwz 3, 5
-; LE-NEXT:    mtfprd 6, 4
-; LE-NEXT:    xxswapd 36, 0
-; LE-NEXT:    mtfprd 1, 3
-; LE-NEXT:    mffprwz 3, 7
-; LE-NEXT:    xxswapd 37, 6
-; LE-NEXT:    vmrglh 2, 3, 2
-; LE-NEXT:    xxswapd 35, 2
-; LE-NEXT:    mtfprd 2, 3
-; LE-NEXT:    xxswapd 32, 1
+; LE-NEXT:    xxsldwi 0, 35, 35, 3
+; LE-NEXT:    mtvsrd 33, 3
+; LE-NEXT:    mffprwz 3, 1
+; LE-NEXT:    mtvsrd 38, 4
+; LE-NEXT:    mtvsrd 35, 3
+; LE-NEXT:    mffprwz 3, 0
+; LE-NEXT:    vmrghh 2, 0, 2
+; LE-NEXT:    mtvsrd 32, 3
 ; LE-NEXT:    addis 3, 2, .LCPI0_1@toc@ha
+; LE-NEXT:    vmrghh 4, 1, 4
 ; LE-NEXT:    addi 3, 3, .LCPI0_1@toc@l
-; LE-NEXT:    xxswapd 38, 2
-; LE-NEXT:    vmrglh 3, 4, 3
-; LE-NEXT:    vmrglh 4, 0, 5
-; LE-NEXT:    vmrglh 5, 6, 1
-; LE-NEXT:    vmrglw 2, 3, 2
-; LE-NEXT:    vmrglw 3, 5, 4
+; LE-NEXT:    vmrghh 3, 3, 6
+; LE-NEXT:    vmrghh 5, 0, 5
+; LE-NEXT:    vmrglw 2, 4, 2
 ; LE-NEXT:    vspltish 4, 15
+; LE-NEXT:    vmrglw 3, 5, 3
 ; LE-NEXT:    xxmrgld 34, 35, 34
 ; LE-NEXT:    lvx 3, 0, 3
 ; LE-NEXT:    xxlor 34, 34, 35
@@ -72,42 +64,37 @@ define <8 x i16> @pr25080(<8 x i32> %a) {
 ; BE-NEXT:    xxswapd 0, 35
 ; BE-NEXT:    mfvsrwz 3, 35
 ; BE-NEXT:    xxsldwi 1, 35, 35, 1
-; BE-NEXT:    sldi 3, 3, 48
-; BE-NEXT:    mffprwz 4, 0
-; BE-NEXT:    xxsldwi 0, 35, 35, 3
-; BE-NEXT:    mtvsrd 36, 3
-; BE-NEXT:    mffprwz 3, 1
-; BE-NEXT:    sldi 4, 4, 48
-; BE-NEXT:    xxswapd 1, 34
-; BE-NEXT:    mtvsrd 35, 4
 ; BE-NEXT:    mfvsrwz 4, 34
-; BE-NEXT:    sldi 3, 3, 48
-; BE-NEXT:    mtvsrd 37, 3
+; BE-NEXT:    mtvsrwz 36, 3
+; BE-NEXT:    xxsldwi 2, 35, 35, 3
 ; BE-NEXT:    mffprwz 3, 0
-; BE-NEXT:    sldi 4, 4, 48
-; BE-NEXT:    xxsldwi 0, 34, 34, 1
-; BE-NEXT:    vmrghh 3, 5, 3
-; BE-NEXT:    mtvsrd 37, 4
-; BE-NEXT:    sldi 3, 3, 48
+; BE-NEXT:    xxswapd 0, 34
+; BE-NEXT:    mtvsrwz 35, 4
 ; BE-NEXT:    mffprwz 4, 1
-; BE-NEXT:    xxsldwi 1, 34, 34, 3
-; BE-NEXT:    mtvsrd 34, 3
-; BE-NEXT:    mffprwz 3, 0
-; BE-NEXT:    sldi 4, 4, 48
-; BE-NEXT:    mtvsrd 32, 4
-; BE-NEXT:    mffprwz 4, 1
-; BE-NEXT:    sldi 3, 3, 48
-; BE-NEXT:    mtvsrd 33, 3
-; BE-NEXT:    sldi 3, 4, 48
-; BE-NEXT:    vmrghh 2, 2, 4
-; BE-NEXT:    mtvsrd 36, 3
+; BE-NEXT:    xxsldwi 1, 34, 34, 1
+; BE-NEXT:    mtvsrwz 37, 3
 ; BE-NEXT:    addis 3, 2, .LCPI0_1@toc@ha
-; BE-NEXT:    vmrghh 0, 1, 0
 ; BE-NEXT:    addi 3, 3, .LCPI0_1@toc@l
-; BE-NEXT:    vmrghh 4, 4, 5
+; BE-NEXT:    mtvsrwz 32, 4
+; BE-NEXT:    mffprwz 4, 0
+; BE-NEXT:    lxvw4x 33, 0, 3
+; BE-NEXT:    xxsldwi 0, 34, 34, 3
+; BE-NEXT:    mffprwz 3, 1
+; BE-NEXT:    mffprwz 5, 2
+; BE-NEXT:    vperm 2, 0, 5, 1
+; BE-NEXT:    mtvsrwz 37, 3
+; BE-NEXT:    mffprwz 3, 0
+; BE-NEXT:    mtvsrwz 38, 5
+; BE-NEXT:    mtvsrwz 39, 4
+; BE-NEXT:    mtvsrwz 32, 3
+; BE-NEXT:    addis 3, 2, .LCPI0_2@toc@ha
+; BE-NEXT:    vperm 4, 6, 4, 1
+; BE-NEXT:    addi 3, 3, .LCPI0_2@toc@l
+; BE-NEXT:    vperm 5, 5, 7, 1
 ; BE-NEXT:    lxvw4x 0, 0, 3
-; BE-NEXT:    vmrghw 2, 2, 3
-; BE-NEXT:    vmrghw 3, 4, 0
+; BE-NEXT:    vperm 3, 0, 3, 1
+; BE-NEXT:    vmrghw 2, 4, 2
+; BE-NEXT:    vmrghw 3, 3, 5
 ; BE-NEXT:    xxmrghd 34, 35, 34
 ; BE-NEXT:    vspltish 3, 15
 ; BE-NEXT:    xxlor 34, 34, 0

@@ -1,4 +1,5 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %S/test_errors.sh %s %t %flang_fc1
+! REQUIRES: shell
 !Testing data constraints : C874 - C875, C878 - C881 
 module m
     integer, target :: modarray(1)
@@ -70,10 +71,10 @@ module m
       DATA(newNumsArray(i) % one, i = 1, 5) / 5 * 1 /
       !C880
       !OK: Correct use
-      DATA(largeArray(j) % nums % one, j = 1, 10) / 10 * 1 /
+      DATA(largeArray(j) % nums % one, j = 1, 5) / 5 * 1 /
       !C880
       !OK: Correct use
-      DATA(largeNumber % numsArray(j) % one, j = 1, 10) / 10 * 1 /
+      DATA(largeNumber % numsArray(j) % one, j = 1, 5) / 5 * 1 /
       !C881
       !ERROR: Data object must have constant subscripts
       DATA(b(x), i = 1, 5) / 5 * 1 /

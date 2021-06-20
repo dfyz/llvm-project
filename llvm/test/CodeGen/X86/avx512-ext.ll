@@ -1766,39 +1766,39 @@ define <8 x i32> @sext_8i1_8i32(<8 x i32> %a1, <8 x i32> %a2) nounwind {
 define i16 @trunc_i32_to_i1(i32 %a) {
 ; KNL-LABEL: trunc_i32_to_i1:
 ; KNL:       # %bb.0:
-; KNL-NEXT:    movw $-4, %ax
-; KNL-NEXT:    kmovw %eax, %k0
-; KNL-NEXT:    kshiftrw $1, %k0, %k0
-; KNL-NEXT:    kshiftlw $1, %k0, %k0
 ; KNL-NEXT:    andl $1, %edi
-; KNL-NEXT:    kmovw %edi, %k1
-; KNL-NEXT:    korw %k1, %k0, %k0
+; KNL-NEXT:    kmovw %edi, %k0
+; KNL-NEXT:    movw $-4, %ax
+; KNL-NEXT:    kmovw %eax, %k1
+; KNL-NEXT:    kshiftrw $1, %k1, %k1
+; KNL-NEXT:    kshiftlw $1, %k1, %k1
+; KNL-NEXT:    korw %k0, %k1, %k0
 ; KNL-NEXT:    kmovw %k0, %eax
 ; KNL-NEXT:    # kill: def $ax killed $ax killed $eax
 ; KNL-NEXT:    retq
 ;
 ; SKX-LABEL: trunc_i32_to_i1:
 ; SKX:       # %bb.0:
-; SKX-NEXT:    movw $-4, %ax
-; SKX-NEXT:    kmovd %eax, %k0
-; SKX-NEXT:    kshiftrw $1, %k0, %k0
-; SKX-NEXT:    kshiftlw $1, %k0, %k0
 ; SKX-NEXT:    andl $1, %edi
-; SKX-NEXT:    kmovw %edi, %k1
-; SKX-NEXT:    korw %k1, %k0, %k0
+; SKX-NEXT:    kmovw %edi, %k0
+; SKX-NEXT:    movw $-4, %ax
+; SKX-NEXT:    kmovd %eax, %k1
+; SKX-NEXT:    kshiftrw $1, %k1, %k1
+; SKX-NEXT:    kshiftlw $1, %k1, %k1
+; SKX-NEXT:    korw %k0, %k1, %k0
 ; SKX-NEXT:    kmovd %k0, %eax
 ; SKX-NEXT:    # kill: def $ax killed $ax killed $eax
 ; SKX-NEXT:    retq
 ;
 ; AVX512DQNOBW-LABEL: trunc_i32_to_i1:
 ; AVX512DQNOBW:       # %bb.0:
-; AVX512DQNOBW-NEXT:    movw $-4, %ax
-; AVX512DQNOBW-NEXT:    kmovw %eax, %k0
-; AVX512DQNOBW-NEXT:    kshiftrw $1, %k0, %k0
-; AVX512DQNOBW-NEXT:    kshiftlw $1, %k0, %k0
 ; AVX512DQNOBW-NEXT:    andl $1, %edi
-; AVX512DQNOBW-NEXT:    kmovw %edi, %k1
-; AVX512DQNOBW-NEXT:    korw %k1, %k0, %k0
+; AVX512DQNOBW-NEXT:    kmovw %edi, %k0
+; AVX512DQNOBW-NEXT:    movw $-4, %ax
+; AVX512DQNOBW-NEXT:    kmovw %eax, %k1
+; AVX512DQNOBW-NEXT:    kshiftrw $1, %k1, %k1
+; AVX512DQNOBW-NEXT:    kshiftlw $1, %k1, %k1
+; AVX512DQNOBW-NEXT:    korw %k0, %k1, %k0
 ; AVX512DQNOBW-NEXT:    kmovw %k0, %eax
 ; AVX512DQNOBW-NEXT:    # kill: def $ax killed $ax killed $eax
 ; AVX512DQNOBW-NEXT:    retq
@@ -2907,13 +2907,13 @@ define <64 x i8> @zext_64xi1_to_64xi8(<64 x i8> %x, <64 x i8> %y) #0 {
 ; KNL-NEXT:    vpcmpeqb %ymm2, %ymm3, %ymm2
 ; KNL-NEXT:    vpcmpeqb %ymm1, %ymm0, %ymm0
 ; KNL-NEXT:    vinserti64x4 $1, %ymm2, %zmm0, %zmm0
-; KNL-NEXT:    vpandq {{.*}}(%rip), %zmm0, %zmm0
+; KNL-NEXT:    vpandq {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %zmm0, %zmm0
 ; KNL-NEXT:    retq
 ;
 ; SKX-LABEL: zext_64xi1_to_64xi8:
 ; SKX:       # %bb.0:
 ; SKX-NEXT:    vpcmpeqb %zmm1, %zmm0, %k1
-; SKX-NEXT:    vmovdqu8 {{.*}}(%rip), %zmm0 {%k1} {z}
+; SKX-NEXT:    vmovdqu8 {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %zmm0 {%k1} {z}
 ; SKX-NEXT:    retq
 ;
 ; AVX512DQNOBW-LABEL: zext_64xi1_to_64xi8:
@@ -2923,7 +2923,7 @@ define <64 x i8> @zext_64xi1_to_64xi8(<64 x i8> %x, <64 x i8> %y) #0 {
 ; AVX512DQNOBW-NEXT:    vpcmpeqb %ymm2, %ymm3, %ymm2
 ; AVX512DQNOBW-NEXT:    vpcmpeqb %ymm1, %ymm0, %ymm0
 ; AVX512DQNOBW-NEXT:    vinserti64x4 $1, %ymm2, %zmm0, %zmm0
-; AVX512DQNOBW-NEXT:    vpandq {{.*}}(%rip), %zmm0, %zmm0
+; AVX512DQNOBW-NEXT:    vpandq {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %zmm0, %zmm0
 ; AVX512DQNOBW-NEXT:    retq
   %mask = icmp eq <64 x i8> %x, %y
   %1 = zext <64 x i1> %mask to <64 x i8>
@@ -2938,7 +2938,7 @@ define <32 x i16> @zext_32xi1_to_32xi16(<32 x i16> %x, <32 x i16> %y) #0 {
 ; KNL-NEXT:    vpcmpeqw %ymm2, %ymm3, %ymm2
 ; KNL-NEXT:    vpcmpeqw %ymm1, %ymm0, %ymm0
 ; KNL-NEXT:    vinserti64x4 $1, %ymm2, %zmm0, %zmm0
-; KNL-NEXT:    vpandq {{.*}}(%rip), %zmm0, %zmm0
+; KNL-NEXT:    vpandq {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %zmm0, %zmm0
 ; KNL-NEXT:    retq
 ;
 ; SKX-LABEL: zext_32xi1_to_32xi16:
@@ -2955,7 +2955,7 @@ define <32 x i16> @zext_32xi1_to_32xi16(<32 x i16> %x, <32 x i16> %y) #0 {
 ; AVX512DQNOBW-NEXT:    vpcmpeqw %ymm2, %ymm3, %ymm2
 ; AVX512DQNOBW-NEXT:    vpcmpeqw %ymm1, %ymm0, %ymm0
 ; AVX512DQNOBW-NEXT:    vinserti64x4 $1, %ymm2, %zmm0, %zmm0
-; AVX512DQNOBW-NEXT:    vpandq {{.*}}(%rip), %zmm0, %zmm0
+; AVX512DQNOBW-NEXT:    vpandq {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %zmm0, %zmm0
 ; AVX512DQNOBW-NEXT:    retq
   %mask = icmp eq <32 x i16> %x, %y
   %1 = zext <32 x i1> %mask to <32 x i16>
@@ -2986,13 +2986,13 @@ define <32 x i8> @zext_32xi1_to_32xi8(<32 x i16> %x, <32 x i16> %y) #0 {
 ; KNL-NEXT:    vpmovzxwd {{.*#+}} zmm1 = ymm2[0],zero,ymm2[1],zero,ymm2[2],zero,ymm2[3],zero,ymm2[4],zero,ymm2[5],zero,ymm2[6],zero,ymm2[7],zero,ymm2[8],zero,ymm2[9],zero,ymm2[10],zero,ymm2[11],zero,ymm2[12],zero,ymm2[13],zero,ymm2[14],zero,ymm2[15],zero
 ; KNL-NEXT:    vpmovdb %zmm1, %xmm1
 ; KNL-NEXT:    vinserti128 $1, %xmm1, %ymm0, %ymm0
-; KNL-NEXT:    vpand {{.*}}(%rip), %ymm0, %ymm0
+; KNL-NEXT:    vpand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %ymm0, %ymm0
 ; KNL-NEXT:    retq
 ;
 ; SKX-LABEL: zext_32xi1_to_32xi8:
 ; SKX:       # %bb.0:
 ; SKX-NEXT:    vpcmpeqw %zmm1, %zmm0, %k1
-; SKX-NEXT:    vmovdqu8 {{.*}}(%rip), %ymm0 {%k1} {z}
+; SKX-NEXT:    vmovdqu8 {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %ymm0 {%k1} {z}
 ; SKX-NEXT:    retq
 ;
 ; AVX512DQNOBW-LABEL: zext_32xi1_to_32xi8:
@@ -3006,7 +3006,7 @@ define <32 x i8> @zext_32xi1_to_32xi8(<32 x i16> %x, <32 x i16> %y) #0 {
 ; AVX512DQNOBW-NEXT:    vpmovzxwd {{.*#+}} zmm1 = ymm2[0],zero,ymm2[1],zero,ymm2[2],zero,ymm2[3],zero,ymm2[4],zero,ymm2[5],zero,ymm2[6],zero,ymm2[7],zero,ymm2[8],zero,ymm2[9],zero,ymm2[10],zero,ymm2[11],zero,ymm2[12],zero,ymm2[13],zero,ymm2[14],zero,ymm2[15],zero
 ; AVX512DQNOBW-NEXT:    vpmovdb %zmm1, %xmm1
 ; AVX512DQNOBW-NEXT:    vinserti128 $1, %xmm1, %ymm0, %ymm0
-; AVX512DQNOBW-NEXT:    vpand {{.*}}(%rip), %ymm0, %ymm0
+; AVX512DQNOBW-NEXT:    vpand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %ymm0, %ymm0
 ; AVX512DQNOBW-NEXT:    retq
   %mask = icmp eq <32 x i16> %x, %y
   %1 = zext <32 x i1> %mask to <32 x i8>
@@ -3033,7 +3033,7 @@ define <4 x i32> @zext_4xi1_to_4x32(<4 x i8> %x, <4 x i8> %y) #0 {
 ; AVX512DQNOBW:       # %bb.0:
 ; AVX512DQNOBW-NEXT:    vpcmpeqb %xmm1, %xmm0, %xmm0
 ; AVX512DQNOBW-NEXT:    vpmovzxbd {{.*#+}} xmm0 = xmm0[0],zero,zero,zero,xmm0[1],zero,zero,zero,xmm0[2],zero,zero,zero,xmm0[3],zero,zero,zero
-; AVX512DQNOBW-NEXT:    vpandd {{.*}}(%rip){1to4}, %xmm0, %xmm0
+; AVX512DQNOBW-NEXT:    vpandd {{\.?LCPI[0-9]+_[0-9]+}}(%rip){1to4}, %xmm0, %xmm0
 ; AVX512DQNOBW-NEXT:    retq
   %mask = icmp eq <4 x i8> %x, %y
   %1 = zext <4 x i1> %mask to <4 x i32>
@@ -3045,7 +3045,7 @@ define <2 x i64> @zext_2xi1_to_2xi64(<2 x i8> %x, <2 x i8> %y) #0 {
 ; KNL:       # %bb.0:
 ; KNL-NEXT:    vpcmpeqb %xmm1, %xmm0, %xmm0
 ; KNL-NEXT:    vpmovzxbq {{.*#+}} xmm0 = xmm0[0],zero,zero,zero,zero,zero,zero,zero,xmm0[1],zero,zero,zero,zero,zero,zero,zero
-; KNL-NEXT:    vpand {{.*}}(%rip), %xmm0, %xmm0
+; KNL-NEXT:    vpand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
 ; KNL-NEXT:    retq
 ;
 ; SKX-LABEL: zext_2xi1_to_2xi64:
@@ -3059,7 +3059,7 @@ define <2 x i64> @zext_2xi1_to_2xi64(<2 x i8> %x, <2 x i8> %y) #0 {
 ; AVX512DQNOBW:       # %bb.0:
 ; AVX512DQNOBW-NEXT:    vpcmpeqb %xmm1, %xmm0, %xmm0
 ; AVX512DQNOBW-NEXT:    vpmovzxbq {{.*#+}} xmm0 = xmm0[0],zero,zero,zero,zero,zero,zero,zero,xmm0[1],zero,zero,zero,zero,zero,zero,zero
-; AVX512DQNOBW-NEXT:    vpand {{.*}}(%rip), %xmm0, %xmm0
+; AVX512DQNOBW-NEXT:    vpand {{\.?LCPI[0-9]+_[0-9]+}}(%rip), %xmm0, %xmm0
 ; AVX512DQNOBW-NEXT:    retq
   %mask = icmp eq <2 x i8> %x, %y
   %1 = zext <2 x i1> %mask to <2 x i64>

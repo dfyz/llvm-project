@@ -1,4 +1,5 @@
-! RUN: %S/test_errors.sh %s %t %f18
+! RUN: %S/test_errors.sh %s %t %flang_fc1
+! REQUIRES: shell
 
 !Tests for SELECT RANK Construct(R1148)
 program select_rank
@@ -157,7 +158,7 @@ contains
    subroutine CALL_ME10(x)
     implicit none
     integer:: x(..), a=10,b=20,j
-    integer, dimension(10) :: arr = (/1,2,3,4,5/),brr
+    integer, dimension(5) :: arr = (/1,2,3,4,5/),brr
     integer :: const_variable=10
     integer, pointer :: ptr,nullptr=>NULL()
     type derived
@@ -211,17 +212,19 @@ contains
 
     END SELECT
 
-    !ERROR: Selector 'arr(1:3)+ arr(4:5)' is not an assumed-rank array variable
-    SELECT RANK(arr(1:3)+ arr(4:5))
+    !ERROR: Selector 'arr(1:2)+ arr(4:5)' is not an assumed-rank array variable
+    SELECT RANK(arr(1:2)+ arr(4:5))
 
     END SELECT
 
     SELECT RANK(ptr=>x)
     RANK (3)
       PRINT *, "PRINT RANK 3"
+      !ERROR: 'ptr' is not an object that can appear in an expression
       j = INT(0, KIND=MERGE(KIND(0), -1, RANK(ptr) == 0))
     RANK (1)
       PRINT *, "PRINT RANK 1"
+      !ERROR: 'ptr' is not an object that can appear in an expression
       j = INT(0, KIND=MERGE(KIND(0), -1, RANK(ptr) == 1))
     END SELECT
    end subroutine

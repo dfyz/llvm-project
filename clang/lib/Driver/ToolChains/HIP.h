@@ -42,6 +42,13 @@ private:
   void constructLldCommand(Compilation &C, const JobAction &JA,
                            const InputInfoList &Inputs, const InputInfo &Output,
                            const llvm::opt::ArgList &Args) const;
+
+  // Construct command for creating Object from HIP fatbin.
+  void constructGenerateObjFileFromHIPFatBinary(Compilation &C,
+                                                const InputInfo &Output,
+                                                const InputInfoList &Inputs,
+                                                const llvm::opt::ArgList &Args,
+                                                const JobAction &JA) const;
 };
 
 } // end namespace AMDGCN
@@ -64,15 +71,6 @@ public:
   void addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
                              llvm::opt::ArgStringList &CC1Args,
                              Action::OffloadKind DeviceOffloadKind) const override;
-
-  bool useIntegratedAs() const override { return true; }
-  bool isCrossCompiling() const override { return true; }
-  bool isPICDefault() const override { return false; }
-  bool isPIEDefault() const override { return false; }
-  bool isPICDefaultForced() const override { return false; }
-  bool SupportsProfiling() const override { return false; }
-  bool IsMathErrnoDefault() const override { return false; }
-
   void addClangWarningOptions(llvm::opt::ArgStringList &CC1Args) const override;
   CXXStdlibType GetCXXStdlibType(const llvm::opt::ArgList &Args) const override;
   void
@@ -85,6 +83,8 @@ public:
                            llvm::opt::ArgStringList &CC1Args) const override;
   void AddHIPIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                          llvm::opt::ArgStringList &CC1Args) const override;
+  llvm::SmallVector<std::string, 12>
+  getHIPDeviceLibs(const llvm::opt::ArgList &Args) const override;
 
   SanitizerMask getSupportedSanitizers() const override;
 
@@ -95,6 +95,7 @@ public:
   unsigned GetDefaultDwarfVersion() const override { return 4; }
 
   const ToolChain &HostTC;
+  void checkTargetID(const llvm::opt::ArgList &DriverArgs) const override;
 
 protected:
   Tool *buildLinker() const override;

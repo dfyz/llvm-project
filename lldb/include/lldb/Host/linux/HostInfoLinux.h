@@ -27,7 +27,8 @@ private:
   ~HostInfoLinux();
 
 public:
-  static void Initialize();
+  static void Initialize(SharedLibraryDirectoryHelper *helper = nullptr);
+  static void Terminate();
 
   static llvm::VersionTuple GetOSVersion();
   static bool GetOSBuildString(std::string &s);

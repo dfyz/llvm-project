@@ -314,7 +314,7 @@ attributes #1 = { nounwind "target-cpu"="fiji" }
 attributes #2 = { nounwind "target-cpu"="gfx900" }
 attributes #3 = { nounwind }
 
-; HSA: attributes #0 = { nounwind readnone speculatable }
+; HSA: attributes #0 = { nounwind readnone speculatable willreturn }
 ; HSA: attributes #1 = { nounwind "amdgpu-work-item-id-x" "target-cpu"="fiji" "uniform-work-group-size"="false" }
 ; HSA: attributes #2 = { nounwind "amdgpu-work-item-id-y" "target-cpu"="fiji" "uniform-work-group-size"="false" }
 ; HSA: attributes #3 = { nounwind "amdgpu-work-item-id-z" "target-cpu"="fiji" "uniform-work-group-size"="false" }
@@ -334,4 +334,4 @@ attributes #3 = { nounwind }
 ; HSA: attributes #17 = { nounwind "uniform-work-group-size"="false" }
 ; HSA: attributes #18 = { nounwind }
 ; HSA: attributes #19 = { nounwind "amdgpu-calls" "uniform-work-group-size"="false" }
-; HSA: attributes #20 = { nounwind "amdgpu-dispatch-ptr" "target-cpu"="fiji" }
+; HSA: attributes #20 = { nounwind "amdgpu-dispatch-id" "amdgpu-dispatch-ptr" "amdgpu-implicitarg-ptr" "amdgpu-queue-ptr" "amdgpu-work-group-id-x" "amdgpu-work-group-id-y" "amdgpu-work-group-id-z" "amdgpu-work-item-id-x" "amdgpu-work-item-id-y" "amdgpu-work-item-id-z" "target-cpu"="fiji" }

@@ -117,6 +117,29 @@ static cl::opt<int>
                cl::desc("Minimal number of compute statements to run on GPU."),
                cl::Hidden, cl::init(10 * 512 * 512));
 
+GPURuntime polly::GPURuntimeChoice;
+static cl::opt<GPURuntime, true> XGPURuntimeChoice(
+    "polly-gpu-runtime", cl::desc("The GPU Runtime API to target"),
+    cl::values(clEnumValN(GPURuntime::CUDA, "libcudart",
+                          "use the CUDA Runtime API"),
+               clEnumValN(GPURuntime::OpenCL, "libopencl",
+                          "use the OpenCL Runtime API")),
+    cl::location(polly::GPURuntimeChoice), cl::init(GPURuntime::CUDA),
+    cl::ZeroOrMore, cl::cat(PollyCategory));
+
+GPUArch polly::GPUArchChoice;
+static cl::opt<GPUArch, true>
+    XGPUArchChoice("polly-gpu-arch", cl::desc("The GPU Architecture to target"),
+                   cl::values(clEnumValN(GPUArch::NVPTX64, "nvptx64",
+                                         "target NVIDIA 64-bit architecture"),
+                              clEnumValN(GPUArch::SPIR32, "spir32",
+                                         "target SPIR 32-bit architecture"),
+                              clEnumValN(GPUArch::SPIR64, "spir64",
+                                         "target SPIR 64-bit architecture")),
+                   cl::location(polly::GPUArchChoice),
+                   cl::init(GPUArch::NVPTX64), cl::ZeroOrMore,
+                   cl::cat(PollyCategory));
+
 extern bool polly::PerfMonitoring;
 
 /// Return  a unique name for a Scop, which is the scop region with the
@@ -155,7 +178,7 @@ struct MustKillsInfo {
   /// [params] -> { Stmt_phantom[]  -> scalar_to_kill[] }
   isl::union_map MustKills;
 
-  MustKillsInfo() : KillsSchedule(nullptr) {}
+  MustKillsInfo() : KillsSchedule() {}
 };
 
 /// Check if SAI's uses are entirely contained within Scop S.
@@ -204,7 +227,7 @@ static MustKillsInfo computeMustKillsInfo(const Scop &S) {
   //     - filter: "[control] -> { }"
   // So, we choose to not create this to keep the output a little nicer,
   // at the cost of some code complexity.
-  Info.KillsSchedule = nullptr;
+  Info.KillsSchedule = {};
 
   for (isl::id &ToKillId : KillMemIds) {
     isl::id KillStmtId = isl::id::alloc(
@@ -255,7 +278,7 @@ static MustKillsInfo computeMustKillsInfo(const Scop &S) {
     isl::union_set KillStmtDomain = isl::set::universe(KillStmtSpace);
 
     isl::schedule KillSchedule = isl::schedule::from_domain(KillStmtDomain);
-    if (Info.KillsSchedule)
+    if (!Info.KillsSchedule.is_null())
       Info.KillsSchedule = isl::manage(
           isl_schedule_set(Info.KillsSchedule.release(), KillSchedule.copy()));
     else
@@ -337,7 +360,7 @@ public:
   void initializeAfterRTH();
 
   /// Finalize the generated scop.
-  virtual void finalize();
+  void finalize() override;
 
   /// Track if the full build process was successful.
   ///
@@ -408,9 +431,9 @@ private:
   ///   - In-kernel memory copy statement
   ///
   /// @param UserStmt The ast node to generate code for.
-  virtual void createUser(__isl_take isl_ast_node *UserStmt);
+  void createUser(__isl_take isl_ast_node *UserStmt) override;
 
-  virtual void createFor(__isl_take isl_ast_node *Node);
+  void createFor(__isl_take isl_ast_node *Node) override;
 
   enum DataDirection { HOST_TO_DEVICE, DEVICE_TO_HOST };
 
@@ -1294,12 +1317,13 @@ void GPUNodeBuilder::createKernelCopy(ppcg_kernel_stmt *KernelStmt) {
   isl_ast_expr *Index = isl_ast_expr_copy(KernelStmt->u.c.index);
   Index = isl_ast_expr_address_of(Index);
   Value *GlobalAddr = ExprBuilder.create(Index);
+  Type *IndexTy = cast<PointerType>(GlobalAddr->getType())->getElementType();
 
   if (KernelStmt->u.c.read) {
-    LoadInst *Load = Builder.CreateLoad(GlobalAddr, "shared.read");
+    LoadInst *Load = Builder.CreateLoad(IndexTy, GlobalAddr, "shared.read");
     Builder.CreateStore(Load, LocalAddr);
   } else {
-    LoadInst *Load = Builder.CreateLoad(LocalAddr, "shared.write");
+    LoadInst *Load = Builder.CreateLoad(IndexTy, LocalAddr, "shared.write");
     Builder.CreateStore(Load, GlobalAddr);
   }
 }
@@ -1391,8 +1415,8 @@ const std::set<std::string> CUDALibDeviceFunctions = {
 const std::map<std::string, std::string> IntrinsicToLibdeviceFunc = {
     {"llvm.exp.f64", "exp"},
     {"llvm.exp.f32", "expf"},
-    {"llvm.powi.f64", "powi"},
-    {"llvm.powi.f32", "powif"}};
+    {"llvm.powi.f64.i32", "powi"},
+    {"llvm.powi.f32.i32", "powif"}};
 
 /// Return the corresponding CUDA libdevice function name @p Name.
 /// Note that this function will try to convert instrinsics in the list
@@ -2154,7 +2178,7 @@ void GPUNodeBuilder::prepareKernelArguments(ppcg_kernel *Kernel, Function *FN) {
     if (!gpu_array_is_read_only_scalar(&Prog->array[i])) {
       Type *TypePtr = SAI->getElementType()->getPointerTo();
       Value *TypedArgPtr = Builder.CreatePointerCast(Val, TypePtr);
-      Val = Builder.CreateLoad(TypedArgPtr);
+      Val = Builder.CreateLoad(SAI->getElementType(), TypedArgPtr);
     }
 
     Value *Alloca = BlockGen.getOrCreateAlloca(SAI);
@@ -2191,7 +2215,7 @@ void GPUNodeBuilder::finalizeKernelArguments(ppcg_kernel *Kernel) {
     Value *ArgPtr = &*Arg;
     Type *TypePtr = SAI->getElementType()->getPointerTo();
     Value *TypedArgPtr = Builder.CreatePointerCast(ArgPtr, TypePtr);
-    Value *Val = Builder.CreateLoad(Alloca);
+    Value *Val = Builder.CreateLoad(SAI->getElementType(), Alloca);
     Builder.CreateStore(Val, TypedArgPtr);
     StoredScalar = true;
 
@@ -2548,7 +2572,11 @@ public:
   const DataLayout *DL;
   RegionInfo *RI;
 
-  PPCGCodeGeneration() : ScopPass(ID) {}
+  PPCGCodeGeneration() : ScopPass(ID) {
+    // Apply defaults.
+    Runtime = GPURuntimeChoice;
+    Architecture = GPUArchChoice;
+  }
 
   /// Construct compilation options for PPCG.
   ///
@@ -3478,9 +3506,11 @@ public:
     Builder.SetInsertPoint(SplitBlock->getTerminator());
 
     isl_ast_build *Build = isl_ast_build_alloc(S->getIslCtx().get());
-    isl_ast_expr *Condition = IslAst::buildRunCondition(*S, Build);
+    isl::ast_expr Condition =
+        IslAst::buildRunCondition(*S, isl::manage_copy(Build));
     isl_ast_expr *SufficientCompute = createSufficientComputeCheck(*S, Build);
-    Condition = isl_ast_expr_and(Condition, SufficientCompute);
+    Condition =
+        isl::manage(isl_ast_expr_and(Condition.release(), SufficientCompute));
     isl_ast_build_free(Build);
 
     // preload invariant loads. Note: This should happen before the RTC
@@ -3507,7 +3537,6 @@ public:
 
       DT->changeImmediateDominator(MergeBlock, ExitingBB);
       DT->eraseNode(ExitingBlock);
-      isl_ast_expr_free(Condition);
       isl_ast_node_free(Root);
     } else {
 
@@ -3528,7 +3557,7 @@ public:
       }
 
       NodeBuilder.addParameters(S->getContext().release());
-      Value *RTC = NodeBuilder.createRTC(Condition);
+      Value *RTC = NodeBuilder.createRTC(Condition.release());
       Builder.GetInsertBlock()->getTerminator()->setOperand(0, RTC);
 
       Builder.SetInsertPoint(&*StartBlock->begin());

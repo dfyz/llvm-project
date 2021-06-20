@@ -52,7 +52,7 @@ namespace DeducedVsSynthesized {
     bool operator<(const A&) const;
   };
   struct B {
-    A a; // expected-note {{no viable comparison function for member 'a'}}
+    A a; // expected-note {{no viable three-way comparison function for member 'a'}}
     auto operator<=>(const B&) const = default; // expected-warning {{implicitly deleted}}
   };
 }
@@ -153,5 +153,51 @@ namespace BadDeducedType {
   struct D {
     // expected-error@+1 {{deduced return type for defaulted three-way comparison operator must be 'auto', not 'CmpCat auto'}}
     friend CmpCat auto operator<=>(const D&, const D&) = default;
+  };
+}
+
+namespace PR48856 {
+  struct A {
+    auto operator<=>(const A &) const = default; // expected-warning {{implicitly deleted}}
+    void (*x)();                                 // expected-note {{does not support relational comparisons}}
+  };
+
+  struct B {
+    auto operator<=>(const B &) const = default; // expected-warning {{implicitly deleted}}
+    void (B::*x)();                              // expected-note {{because there is no viable three-way comparison function for member 'x'}}
+  };
+
+  struct C {
+    auto operator<=>(const C &) const = default; // expected-warning {{implicitly deleted}}
+    int C::*x;                                   // expected-note {{because there is no viable three-way comparison function for member 'x'}}
+  };
+}
+
+namespace PR50591 {
+  struct a1 {
+    operator int() const;
+  };
+  struct b1 {
+    auto operator<=>(b1 const &) const = default;
+    a1 f;
+  };
+  std::strong_ordering cmp_b1 = b1() <=> b1();
+
+  struct a2 {
+    operator float() const;
+  };
+  struct b2 {
+    auto operator<=>(b2 const &) const = default;
+    a2 f;
+  };
+  std::partial_ordering cmp_b2 = b2() <=> b2();
+
+  struct a3 {
+    using fp = void (*)();
+    operator fp() const;
+  };
+  struct b3 {
+    auto operator<=>(b3 const &) const = default; // expected-warning {{implicitly deleted}}
+    a3 f; // expected-note {{would compare member 'f' as 'void (*)()', which does not support relational comparisons}}
   };
 }

@@ -21,10 +21,12 @@ namespace Fortran::semantics {
 
 using namespace parser::literals;
 
-/// Convert mis-identified statement functions to array element assignments.
-/// Convert mis-identified format expressions to namelist group names.
-/// Convert mis-identified character variables in I/O units to integer
+/// Convert misidentified statement functions to array element assignments.
+/// Convert misidentified format expressions to namelist group names.
+/// Convert misidentified character variables in I/O units to integer
 /// unit number expressions.
+/// Convert misidentified named constants in data statement values to
+/// initial data targets
 class RewriteMutator {
 public:
   RewriteMutator(SemanticsContext &context)
@@ -43,6 +45,7 @@ public:
   void Post(parser::WriteStmt &);
 
   // Name resolution yet implemented:
+  // TODO: Can some/all of these now be enabled?
   bool Pre(parser::EquivalenceStmt &) { return false; }
   bool Pre(parser::Keyword &) { return false; }
   bool Pre(parser::EntryStmt &) { return false; }
@@ -106,6 +109,8 @@ bool RewriteMutator::Pre(parser::ExecutionPart &x) {
   return true;
 }
 
+// Convert a syntactically ambiguous io-unit internal-file-variable to a
+// file-unit-number.
 void RewriteMutator::Post(parser::IoUnit &x) {
   if (auto *var{std::get_if<parser::Variable>(&x.u)}) {
     const parser::Name &last{parser::GetLastName(*var)};
@@ -114,11 +119,13 @@ void RewriteMutator::Post(parser::IoUnit &x) {
       // If the Variable is not known to be character (any kind), transform
       // the I/O unit in situ to a FileUnitNumber so that automatic expression
       // constraint checking will be applied.
+      auto source{var->GetSource()};
       auto expr{std::visit(
           [](auto &&indirection) {
             return parser::Expr{std::move(indirection)};
           },
           std::move(var->u))};
+      expr.source = source;
       x.u = parser::FileUnitNumber{
           parser::ScalarIntExpr{parser::IntExpr{std::move(expr)}}};
     }
@@ -142,7 +149,25 @@ void FixMisparsedUntaggedNamelistName(READ_OR_WRITE &x) {
   }
 }
 
+// READ(CVAR) [, ...] will be misparsed as UNIT=CVAR; correct
+// it to READ CVAR [,...] with CVAR as a format rather than as
+// an internal I/O unit for unformatted I/O, which Fortran does
+// not support.
 void RewriteMutator::Post(parser::ReadStmt &x) {
+  if (x.iounit && !x.format && x.controls.empty()) {
+    if (auto *var{std::get_if<parser::Variable>(&x.iounit->u)}) {
+      const parser::Name &last{parser::GetLastName(*var)};
+      DeclTypeSpec *type{last.symbol ? last.symbol->GetType() : nullptr};
+      if (type && type->category() == DeclTypeSpec::Character) {
+        x.format = std::visit(
+            [](auto &&indirection) {
+              return parser::Expr{std::move(indirection)};
+            },
+            std::move(var->u));
+        x.iounit.reset();
+      }
+    }
+  }
   FixMisparsedUntaggedNamelistName(x);
 }
 

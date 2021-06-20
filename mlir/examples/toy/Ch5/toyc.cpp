@@ -15,9 +15,10 @@
 #include "toy/Parser.h"
 #include "toy/Passes.h"
 
+#include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/IR/AsmState.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Module.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/InitAllDialects.h"
 #include "mlir/Parser.h"
@@ -106,10 +107,10 @@ int loadMLIR(llvm::SourceMgr &sourceMgr, mlir::MLIRContext &context,
 }
 
 int dumpMLIR() {
-  // Register our Dialect with MLIR.
-  mlir::registerDialect<mlir::toy::ToyDialect>();
-
   mlir::MLIRContext context;
+  // Load our Dialect in this MLIR Context.
+  context.getOrLoadDialect<mlir::toy::ToyDialect>();
+
   mlir::OwningModuleRef module;
   llvm::SourceMgr sourceMgr;
   mlir::SourceMgrDiagnosticHandler sourceMgrHandler(sourceMgr, &context);
@@ -136,17 +137,17 @@ int dumpMLIR() {
   }
 
   if (isLoweringToAffine) {
-    // Partially lower the toy dialect with a few cleanups afterwards.
-    pm.addPass(mlir::toy::createLowerToAffinePass());
-
     mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
+
+    // Partially lower the toy dialect with a few cleanups afterwards.
+    optPM.addPass(mlir::toy::createLowerToAffinePass());
     optPM.addPass(mlir::createCanonicalizerPass());
     optPM.addPass(mlir::createCSEPass());
 
     // Add optimizations if enabled.
     if (enableOpt) {
       optPM.addPass(mlir::createLoopFusionPass());
-      optPM.addPass(mlir::createMemRefDataFlowOptPass());
+      optPM.addPass(mlir::createAffineScalarReplacementPass());
     }
   }
 
@@ -172,8 +173,6 @@ int dumpAST() {
 }
 
 int main(int argc, char **argv) {
-  mlir::registerAllDialects();
-
   // Register any command line options.
   mlir::registerAsmPrinterCLOptions();
   mlir::registerMLIRContextCLOptions();

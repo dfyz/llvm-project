@@ -10,9 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// CCIfAlign - Match of the original alignment of the arg
-class CCIfAlign<string Align, CCAction A> :
-  CCIf<!strconcat("ArgFlags.getOrigAlign() == ", Align), A>;
 /// CCIfBigEndian - Match only if we're in big endian mode.
 class CCIfBigEndian<CCAction A> :
   CCIf<"State.getMachineFunction().getDataLayout().isBigEndian()", A>;
@@ -71,6 +68,10 @@ def CC_AArch64_AAPCS : CallingConv<[
 
   // A SwiftError is passed in X21.
   CCIfSwiftError<CCIfType<[i64], CCAssignToRegWithShadow<[X21], [W21]>>>,
+
+  // Pass SwiftAsync in an otherwise callee saved register so that it will be
+  // preserved for normal function calls.
+  CCIfSwiftAsync<CCIfType<[i64], CCAssignToRegWithShadow<[X22], [W22]>>>,
 
   CCIfConsecutiveRegs<CCCustom<"CC_AArch64_Custom_Block">>,
 
@@ -169,7 +170,8 @@ def RetCC_AArch64_AAPCS : CallingConv<[
 // Vararg functions on windows pass floats in integer registers
 let Entry = 1 in
 def CC_AArch64_Win64_VarArg : CallingConv<[
-  CCIfType<[f16, bf16, f32], CCPromoteToType<f64>>,
+  CCIfType<[f16, bf16], CCBitConvertToType<i16>>,
+  CCIfType<[f32], CCBitConvertToType<i32>>,
   CCIfType<[f64], CCBitConvertToType<i64>>,
   CCDelegateTo<CC_AArch64_AAPCS>
 ]>;
@@ -204,6 +206,10 @@ def CC_AArch64_DarwinPCS : CallingConv<[
 
   // A SwiftError is passed in X21.
   CCIfSwiftError<CCIfType<[i64], CCAssignToRegWithShadow<[X21], [W21]>>>,
+
+  // Pass SwiftAsync in an otherwise callee saved register so that it will be
+  // preserved for normal function calls.
+  CCIfSwiftAsync<CCIfType<[i64], CCAssignToRegWithShadow<[X22], [W22]>>>,
 
   CCIfConsecutiveRegs<CCCustom<"CC_AArch64_Custom_Block">>,
 
@@ -415,6 +421,9 @@ def CSR_AArch64_SVE_AAPCS : CalleeSavedRegs<(add (sequence "Z%u", 8, 23),
                                                  X19, X20, X21, X22, X23, X24,
                                                  X25, X26, X27, X28, LR, FP)>;
 
+def CSR_AArch64_AAPCS_SwiftTail
+    : CalleeSavedRegs<(sub CSR_AArch64_AAPCS, X20, X22)>;
+
 // Constructors and destructors return 'this' in the iOS 64-bit C++ ABI; since
 // 'this' and the pointer return value are both passed in X0 in these cases,
 // this can be partially modelled by treating X0 as a callee-saved register;
@@ -466,6 +475,9 @@ def CSR_Darwin_AArch64_AAPCS_ThisReturn
 
 def CSR_Darwin_AArch64_AAPCS_SwiftError
     : CalleeSavedRegs<(sub CSR_Darwin_AArch64_AAPCS, X21)>;
+
+def CSR_Darwin_AArch64_AAPCS_SwiftTail
+    : CalleeSavedRegs<(sub CSR_Darwin_AArch64_AAPCS, X20, X22)>;
 
 // The function used by Darwin to obtain the address of a thread-local variable
 // guarantees more than a normal AAPCS function. x16 and x17 are used on the

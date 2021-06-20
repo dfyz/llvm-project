@@ -21,6 +21,7 @@
 #include "LlvmState.h"
 #include "MCInstrDescView.h"
 #include "SnippetRepetitor.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/Support/Error.h"
 #include <cstdlib>
@@ -40,6 +41,7 @@ public:
 
   Expected<InstructionBenchmark>
   runConfiguration(const BenchmarkCode &Configuration, unsigned NumRepetitions,
+                   unsigned LoopUnrollFactor,
                    ArrayRef<std::unique_ptr<const SnippetRepetitor>> Repetitors,
                    bool DumpObjectToDisk) const;
 
@@ -65,7 +67,11 @@ public:
   class FunctionExecutor {
   public:
     virtual ~FunctionExecutor();
+    // FIXME deprecate this.
     virtual Expected<int64_t> runAndMeasure(const char *Counters) const = 0;
+
+    virtual Expected<llvm::SmallVector<int64_t, 4>>
+    runAndSample(const char *Counters) const = 0;
   };
 
 protected:

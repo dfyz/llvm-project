@@ -119,6 +119,21 @@ namespace clang {
   };
   }
 
+  /// VE builtins
+  namespace VE {
+  enum { LastTIBuiltin = clang::Builtin::FirstTSBuiltin - 1, LastTSBuiltin };
+  }
+
+  /// RISCV builtins
+  namespace RISCV {
+  enum {
+    LastTIBuiltin = clang::Builtin::FirstTSBuiltin - 1,
+#define BUILTIN(ID, TYPE, ATTRS) BI##ID,
+#include "clang/Basic/BuiltinsRISCV.def"
+    LastTSBuiltin
+  };
+  } // namespace RISCV
+
   /// Flags to identify the types for overloaded Neon builtins.
   ///
   /// These must be kept in sync with the flags in utils/TableGen/NeonEmitter.h.
@@ -247,6 +262,9 @@ namespace clang {
     bool isGatherPrefetch() const { return Flags & IsGatherPrefetch; }
     bool isReverseUSDOT() const { return Flags & ReverseUSDOT; }
     bool isUndef() const { return Flags & IsUndef; }
+    bool isTupleCreate() const { return Flags & IsTupleCreate; }
+    bool isTupleGet() const { return Flags & IsTupleGet; }
+    bool isTupleSet() const { return Flags & IsTupleSet; }
 
     uint64_t getBits() const { return Flags; }
     bool isFlagSet(uint64_t Flag) const { return Flags & Flag; }
@@ -282,16 +300,6 @@ namespace clang {
     };
   }
 
-  /// Le64 builtins
-  namespace Le64 {
-  enum {
-    LastTIBuiltin = clang::Builtin::FirstTSBuiltin - 1,
-  #define BUILTIN(ID, TYPE, ATTRS) BI##ID,
-  #include "clang/Basic/BuiltinsLe64.def"
-    LastTSBuiltin
-  };
-  }
-
   /// SystemZ builtins
   namespace SystemZ {
     enum {
@@ -313,12 +321,11 @@ namespace clang {
   }
 
   static constexpr uint64_t LargestBuiltinID = std::max<uint64_t>(
-      {NEON::FirstTSBuiltin, ARM::LastTSBuiltin, SVE::FirstTSBuiltin,
-       AArch64::LastTSBuiltin, BPF::LastTSBuiltin, PPC::LastTSBuiltin,
-       NVPTX::LastTSBuiltin, AMDGPU::LastTSBuiltin, X86::LastTSBuiltin,
+      {ARM::LastTSBuiltin, AArch64::LastTSBuiltin, BPF::LastTSBuiltin,
+       PPC::LastTSBuiltin, NVPTX::LastTSBuiltin, AMDGPU::LastTSBuiltin,
+       X86::LastTSBuiltin, VE::LastTSBuiltin, RISCV::LastTSBuiltin,
        Hexagon::LastTSBuiltin, Mips::LastTSBuiltin, XCore::LastTSBuiltin,
-       Le64::LastTSBuiltin, SystemZ::LastTSBuiltin,
-       WebAssembly::LastTSBuiltin});
+       SystemZ::LastTSBuiltin, WebAssembly::LastTSBuiltin});
 
 } // end namespace clang.
 

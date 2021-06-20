@@ -7,7 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "CompileCommands.h"
+#include "Config.h"
 #include "TestFS.h"
+#include "support/Context.h"
 
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/StringExtras.h"
@@ -22,6 +24,7 @@ namespace clang {
 namespace clangd {
 namespace {
 
+using ::testing::_;
 using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
@@ -38,13 +41,14 @@ TEST(CommandMangler, Everything) {
   Mangler.ClangPath = testPath("fake/clang");
   Mangler.ResourceDir = testPath("fake/resources");
   Mangler.Sysroot = testPath("fake/sysroot");
-  std::vector<std::string> Cmd = {"clang++", "-Xclang", "-load", "-Xclang",
-                                  "plugin",  "-MF",     "dep",   "foo.cc"};
+  std::vector<std::string> Cmd = {"clang++", "-Xclang", "-load",
+                                  "-Xclang", "plugin",  "-MF",
+                                  "dep",     "--",      "foo.cc"};
   Mangler.adjust(Cmd);
-  EXPECT_THAT(Cmd, ElementsAre(testPath("fake/clang++"), "foo.cc",
-                               "-fsyntax-only",
+  EXPECT_THAT(Cmd, ElementsAre(testPath("fake/clang++"), "-fsyntax-only",
                                "-resource-dir=" + testPath("fake/resources"),
-                               "-isysroot", testPath("fake/sysroot")));
+                               "-isysroot", testPath("fake/sysroot"), "--",
+                               "foo.cc"));
 }
 
 TEST(CommandMangler, ResourceDir) {
@@ -115,7 +119,7 @@ TEST(CommandMangler, ClangPath) {
 
   Cmd = {"foo/unknown-binary", "foo.cc"};
   Mangler.adjust(Cmd);
-  EXPECT_EQ(testPath("fake/unknown-binary"), Cmd.front());
+  EXPECT_EQ("foo/unknown-binary", Cmd.front());
 }
 
 // Only run the PATH/symlink resolving test on unix, we need to fiddle
@@ -185,7 +189,193 @@ TEST(CommandMangler, ClangPathResolve) {
 }
 #endif
 
+TEST(CommandMangler, ConfigEdits) {
+  auto Mangler = CommandMangler::forTests();
+  std::vector<std::string> Cmd = {"clang++", "foo.cc"};
+  {
+    Config Cfg;
+    Cfg.CompileFlags.Edits.push_back([](std::vector<std::string> &Argv) {
+      for (auto &Arg : Argv)
+        for (char &C : Arg)
+          C = llvm::toUpper(C);
+    });
+    Cfg.CompileFlags.Edits.push_back(
+        [](std::vector<std::string> &Argv) { Argv.push_back("--hello"); });
+    WithContextValue WithConfig(Config::Key, std::move(Cfg));
+    Mangler.adjust(Cmd);
+  }
+  // Edits are applied in given order and before other mangling.
+  EXPECT_THAT(Cmd, ElementsAre(_, "FOO.CC", "--hello", "-fsyntax-only"));
+}
+
+static std::string strip(llvm::StringRef Arg, llvm::StringRef Argv) {
+  llvm::SmallVector<llvm::StringRef> Parts;
+  llvm::SplitString(Argv, Parts);
+  std::vector<std::string> Args = {Parts.begin(), Parts.end()};
+  ArgStripper S;
+  S.strip(Arg);
+  S.process(Args);
+  return printArgv(Args);
+}
+
+TEST(ArgStripperTest, Spellings) {
+  // May use alternate prefixes.
+  EXPECT_EQ(strip("-pedantic", "clang -pedantic foo.cc"), "clang foo.cc");
+  EXPECT_EQ(strip("-pedantic", "clang --pedantic foo.cc"), "clang foo.cc");
+  EXPECT_EQ(strip("--pedantic", "clang -pedantic foo.cc"), "clang foo.cc");
+  EXPECT_EQ(strip("--pedantic", "clang --pedantic foo.cc"), "clang foo.cc");
+  // May use alternate names.
+  EXPECT_EQ(strip("-x", "clang -x c++ foo.cc"), "clang foo.cc");
+  EXPECT_EQ(strip("-x", "clang --language=c++ foo.cc"), "clang foo.cc");
+  EXPECT_EQ(strip("--language=", "clang -x c++ foo.cc"), "clang foo.cc");
+  EXPECT_EQ(strip("--language=", "clang --language=c++ foo.cc"),
+            "clang foo.cc");
+}
+
+TEST(ArgStripperTest, UnknownFlag) {
+  EXPECT_EQ(strip("-xyzzy", "clang -xyzzy foo.cc"), "clang foo.cc");
+  EXPECT_EQ(strip("-xyz*", "clang -xyzzy foo.cc"), "clang foo.cc");
+  EXPECT_EQ(strip("-xyzzy", "clang -Xclang -xyzzy foo.cc"), "clang foo.cc");
+}
+
+TEST(ArgStripperTest, Xclang) {
+  // Flags may be -Xclang escaped.
+  EXPECT_EQ(strip("-ast-dump", "clang -Xclang -ast-dump foo.cc"),
+            "clang foo.cc");
+  // Args may be -Xclang escaped.
+  EXPECT_EQ(strip("-add-plugin", "clang -Xclang -add-plugin -Xclang z foo.cc"),
+            "clang foo.cc");
+}
+
+TEST(ArgStripperTest, ClangCL) {
+  // /I is a synonym for -I in clang-cl mode only.
+  // Not stripped by default.
+  EXPECT_EQ(strip("-I", "clang -I /usr/inc /Interesting/file.cc"),
+            "clang /Interesting/file.cc");
+  // Stripped when invoked as clang-cl.
+  EXPECT_EQ(strip("-I", "clang-cl -I /usr/inc /Interesting/file.cc"),
+            "clang-cl");
+  // Stripped when invoked as CL.EXE
+  EXPECT_EQ(strip("-I", "CL.EXE -I /usr/inc /Interesting/file.cc"), "CL.EXE");
+  // Stripped when passed --driver-mode=cl.
+  EXPECT_EQ(strip("-I", "cc -I /usr/inc /Interesting/file.cc --driver-mode=cl"),
+            "cc --driver-mode=cl");
+}
+
+TEST(ArgStripperTest, ArgStyles) {
+  // Flag
+  EXPECT_EQ(strip("-Qn", "clang -Qn foo.cc"), "clang foo.cc");
+  EXPECT_EQ(strip("-Qn", "clang -QnZ foo.cc"), "clang -QnZ foo.cc");
+  // Joined
+  EXPECT_EQ(strip("-std=", "clang -std= foo.cc"), "clang foo.cc");
+  EXPECT_EQ(strip("-std=", "clang -std=c++11 foo.cc"), "clang foo.cc");
+  // Separate
+  EXPECT_EQ(strip("-mllvm", "clang -mllvm X foo.cc"), "clang foo.cc");
+  EXPECT_EQ(strip("-mllvm", "clang -mllvmX foo.cc"), "clang -mllvmX foo.cc");
+  // RemainingArgsJoined
+  EXPECT_EQ(strip("/link", "clang-cl /link b c d foo.cc"), "clang-cl");
+  EXPECT_EQ(strip("/link", "clang-cl /linka b c d foo.cc"), "clang-cl");
+  // CommaJoined
+  EXPECT_EQ(strip("-Wl,", "clang -Wl,x,y foo.cc"), "clang foo.cc");
+  EXPECT_EQ(strip("-Wl,", "clang -Wl, foo.cc"), "clang foo.cc");
+  // MultiArg
+  EXPECT_EQ(strip("-segaddr", "clang -segaddr a b foo.cc"), "clang foo.cc");
+  EXPECT_EQ(strip("-segaddr", "clang -segaddra b foo.cc"),
+            "clang -segaddra b foo.cc");
+  // JoinedOrSeparate
+  EXPECT_EQ(strip("-G", "clang -GX foo.cc"), "clang foo.cc");
+  EXPECT_EQ(strip("-G", "clang -G X foo.cc"), "clang foo.cc");
+  // JoinedAndSeparate
+  EXPECT_EQ(strip("-plugin-arg-", "clang -cc1 -plugin-arg-X Y foo.cc"),
+            "clang -cc1 foo.cc");
+  EXPECT_EQ(strip("-plugin-arg-", "clang -cc1 -plugin-arg- Y foo.cc"),
+            "clang -cc1 foo.cc");
+}
+
+TEST(ArgStripperTest, EndOfList) {
+  // When we hit the end-of-args prematurely, we don't crash.
+  // We consume the incomplete args if we've matched the target option.
+  EXPECT_EQ(strip("-I", "clang -Xclang"), "clang -Xclang");
+  EXPECT_EQ(strip("-I", "clang -Xclang -I"), "clang");
+  EXPECT_EQ(strip("-I", "clang -I -Xclang"), "clang");
+  EXPECT_EQ(strip("-I", "clang -I"), "clang");
+}
+
+TEST(ArgStripperTest, Multiple) {
+  ArgStripper S;
+  S.strip("-o");
+  S.strip("-c");
+  std::vector<std::string> Args = {"clang", "-o", "foo.o", "foo.cc", "-c"};
+  S.process(Args);
+  EXPECT_THAT(Args, ElementsAre("clang", "foo.cc"));
+}
+
+TEST(ArgStripperTest, Warning) {
+  {
+    // -W is a flag name
+    ArgStripper S;
+    S.strip("-W");
+    std::vector<std::string> Args = {"clang", "-Wfoo", "-Wno-bar", "-Werror",
+                                     "foo.cc"};
+    S.process(Args);
+    EXPECT_THAT(Args, ElementsAre("clang", "foo.cc"));
+  }
+  {
+    // -Wfoo is not a flag name, matched literally.
+    ArgStripper S;
+    S.strip("-Wunused");
+    std::vector<std::string> Args = {"clang", "-Wunused", "-Wno-unused",
+                                     "foo.cc"};
+    S.process(Args);
+    EXPECT_THAT(Args, ElementsAre("clang", "-Wno-unused", "foo.cc"));
+  }
+}
+
+TEST(ArgStripperTest, Define) {
+  {
+    // -D is a flag name
+    ArgStripper S;
+    S.strip("-D");
+    std::vector<std::string> Args = {"clang", "-Dfoo", "-Dbar=baz", "foo.cc"};
+    S.process(Args);
+    EXPECT_THAT(Args, ElementsAre("clang", "foo.cc"));
+  }
+  {
+    // -Dbar is not: matched literally
+    ArgStripper S;
+    S.strip("-Dbar");
+    std::vector<std::string> Args = {"clang", "-Dfoo", "-Dbar=baz", "foo.cc"};
+    S.process(Args);
+    EXPECT_THAT(Args, ElementsAre("clang", "-Dfoo", "-Dbar=baz", "foo.cc"));
+    S.strip("-Dfoo");
+    S.process(Args);
+    EXPECT_THAT(Args, ElementsAre("clang", "-Dbar=baz", "foo.cc"));
+    S.strip("-Dbar=*");
+    S.process(Args);
+    EXPECT_THAT(Args, ElementsAre("clang", "foo.cc"));
+  }
+}
+
+TEST(ArgStripperTest, OrderDependent) {
+  ArgStripper S;
+  // If -include is stripped first, we see -pch as its arg and foo.pch remains.
+  // To get this case right, we must process -include-pch first.
+  S.strip("-include");
+  S.strip("-include-pch");
+  std::vector<std::string> Args = {"clang", "-include-pch", "foo.pch",
+                                   "foo.cc"};
+  S.process(Args);
+  EXPECT_THAT(Args, ElementsAre("clang", "foo.cc"));
+}
+
+TEST(PrintArgvTest, All) {
+  std::vector<llvm::StringRef> Args = {
+      "one", "two", "thr ee", "f\"o\"ur", "fi\\ve", "$"
+  };
+  const char *Expected = R"(one two "thr ee" "f\"o\"ur" "fi\\ve" $)";
+  EXPECT_EQ(Expected, printArgv(Args));
+}
+
 } // namespace
 } // namespace clangd
 } // namespace clang
-

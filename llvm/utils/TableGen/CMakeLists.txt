@@ -8,6 +8,7 @@ add_tablegen(llvm-tblgen LLVM
   AsmWriterInst.cpp
   Attributes.cpp
   CallingConvEmitter.cpp
+  CodeBeadsGen.cpp
   CodeEmitterGen.cpp
   CodeGenDAGPatterns.cpp
   CodeGenHwModes.cpp
@@ -23,6 +24,7 @@ add_tablegen(llvm-tblgen LLVM
   DAGISelMatcher.cpp
   DFAEmitter.cpp
   DFAPacketizerEmitter.cpp
+  DirectiveEmitter.cpp
   DisassemblerEmitter.cpp
   ExegesisEmitter.cpp
   FastISelEmitter.cpp

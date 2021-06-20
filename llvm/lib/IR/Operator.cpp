@@ -31,13 +31,47 @@ Type *GEPOperator::getResultElementType() const {
   return cast<GetElementPtrConstantExpr>(this)->getResultElementType();
 }
 
+Align GEPOperator::getMaxPreservedAlignment(const DataLayout &DL) const {
+  /// compute the worse possible offset for every level of the GEP et accumulate
+  /// the minimum alignment into Result.
+
+  Align Result = Align(llvm::Value::MaximumAlignment);
+  for (gep_type_iterator GTI = gep_type_begin(this), GTE = gep_type_end(this);
+       GTI != GTE; ++GTI) {
+    int64_t Offset = 1;
+    ConstantInt *OpC = dyn_cast<ConstantInt>(GTI.getOperand());
+
+    if (StructType *STy = GTI.getStructTypeOrNull()) {
+      const StructLayout *SL = DL.getStructLayout(STy);
+      Offset = SL->getElementOffset(OpC->getZExtValue());
+    } else {
+      assert(GTI.isSequential() && "should be sequencial");
+      /// If the index isn't know we take 1 because it is the index that will
+      /// give the worse alignment of the offset.
+      int64_t ElemCount = 1;
+      if (OpC)
+        ElemCount = OpC->getZExtValue();
+      Offset = DL.getTypeAllocSize(GTI.getIndexedType()) * ElemCount;
+    }
+    Result = Align(MinAlign(Offset, Result.value()));
+  }
+  return Result;
+}
+
 bool GEPOperator::accumulateConstantOffset(
     const DataLayout &DL, APInt &Offset,
     function_ref<bool(Value &, APInt &)> ExternalAnalysis) const {
-   assert(Offset.getBitWidth() ==
-              DL.getIndexSizeInBits(getPointerAddressSpace()) &&
-          "The offset bit width does not match DL specification.");
+  assert(Offset.getBitWidth() ==
+             DL.getIndexSizeInBits(getPointerAddressSpace()) &&
+         "The offset bit width does not match DL specification.");
+  SmallVector<const Value *> Index(value_op_begin() + 1, value_op_end());
+  return GEPOperator::accumulateConstantOffset(getSourceElementType(), Index,
+                                               DL, Offset, ExternalAnalysis);
+}
 
+bool GEPOperator::accumulateConstantOffset(
+    Type *SourceType, ArrayRef<const Value *> Index, const DataLayout &DL,
+    APInt &Offset, function_ref<bool(Value &, APInt &)> ExternalAnalysis) {
   bool UsedExternalAnalysis = false;
   auto AccumulateOffset = [&](APInt Index, uint64_t Size) -> bool {
     Index = Index.sextOrTrunc(Offset.getBitWidth());
@@ -58,9 +92,10 @@ bool GEPOperator::accumulateConstantOffset(
     }
     return true;
   };
-
-  for (gep_type_iterator GTI = gep_type_begin(this), GTE = gep_type_end(this);
-       GTI != GTE; ++GTI) {
+  auto begin = generic_gep_type_iterator<decltype(Index.begin())>::begin(
+      SourceType, Index.begin());
+  auto end = generic_gep_type_iterator<decltype(Index.end())>::end(Index.end());
+  for (auto GTI = begin, GTE = end; GTI != GTE; ++GTI) {
     // Scalable vectors are multiplied by a runtime constant.
     bool ScalableType = false;
     if (isa<ScalableVectorType>(GTI.getIndexedType()))
@@ -107,4 +142,4 @@ bool GEPOperator::accumulateConstantOffset(
   }
   return true;
 }
-}
+} // namespace llvm

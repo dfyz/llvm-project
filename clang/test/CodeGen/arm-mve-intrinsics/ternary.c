@@ -32,13 +32,10 @@ float32x4_t test_vfmaq_f32(float32x4_t a, float32x4_t b, float32x4_t c) {
 
 // CHECK-LABEL: @test_vfmaq_n_f16(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[TMP0:%.*]] = bitcast float [[C_COERCE:%.*]] to i32
-// CHECK-NEXT:    [[TMP_0_EXTRACT_TRUNC:%.*]] = trunc i32 [[TMP0]] to i16
-// CHECK-NEXT:    [[TMP1:%.*]] = bitcast i16 [[TMP_0_EXTRACT_TRUNC]] to half
-// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <8 x half> undef, half [[TMP1]], i32 0
-// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <8 x half> [[DOTSPLATINSERT]], <8 x half> undef, <8 x i32> zeroinitializer
-// CHECK-NEXT:    [[TMP2:%.*]] = call <8 x half> @llvm.fma.v8f16(<8 x half> [[B:%.*]], <8 x half> [[DOTSPLAT]], <8 x half> [[A:%.*]])
-// CHECK-NEXT:    ret <8 x half> [[TMP2]]
+// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <8 x half> poison, half [[C:%.*]], i32 0
+// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <8 x half> [[DOTSPLATINSERT]], <8 x half> poison, <8 x i32> zeroinitializer
+// CHECK-NEXT:    [[TMP0:%.*]] = call <8 x half> @llvm.fma.v8f16(<8 x half> [[B:%.*]], <8 x half> [[DOTSPLAT]], <8 x half> [[A:%.*]])
+// CHECK-NEXT:    ret <8 x half> [[TMP0]]
 //
 float16x8_t test_vfmaq_n_f16(float16x8_t a, float16x8_t b, float16_t c) {
 #ifdef POLYMORPHIC
@@ -50,8 +47,8 @@ float16x8_t test_vfmaq_n_f16(float16x8_t a, float16x8_t b, float16_t c) {
 
 // CHECK-LABEL: @test_vfmaq_n_f32(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <4 x float> undef, float [[C:%.*]], i32 0
-// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <4 x float> [[DOTSPLATINSERT]], <4 x float> undef, <4 x i32> zeroinitializer
+// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <4 x float> poison, float [[C:%.*]], i32 0
+// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <4 x float> [[DOTSPLATINSERT]], <4 x float> poison, <4 x i32> zeroinitializer
 // CHECK-NEXT:    [[TMP0:%.*]] = call <4 x float> @llvm.fma.v4f32(<4 x float> [[B:%.*]], <4 x float> [[DOTSPLAT]], <4 x float> [[A:%.*]])
 // CHECK-NEXT:    ret <4 x float> [[TMP0]]
 //
@@ -65,13 +62,10 @@ float32x4_t test_vfmaq_n_f32(float32x4_t a, float32x4_t b, float32_t c) {
 
 // CHECK-LABEL: @test_vfmasq_n_f16(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[TMP0:%.*]] = bitcast float [[C_COERCE:%.*]] to i32
-// CHECK-NEXT:    [[TMP_0_EXTRACT_TRUNC:%.*]] = trunc i32 [[TMP0]] to i16
-// CHECK-NEXT:    [[TMP1:%.*]] = bitcast i16 [[TMP_0_EXTRACT_TRUNC]] to half
-// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <8 x half> undef, half [[TMP1]], i32 0
-// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <8 x half> [[DOTSPLATINSERT]], <8 x half> undef, <8 x i32> zeroinitializer
-// CHECK-NEXT:    [[TMP2:%.*]] = call <8 x half> @llvm.fma.v8f16(<8 x half> [[A:%.*]], <8 x half> [[B:%.*]], <8 x half> [[DOTSPLAT]])
-// CHECK-NEXT:    ret <8 x half> [[TMP2]]
+// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <8 x half> poison, half [[C:%.*]], i32 0
+// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <8 x half> [[DOTSPLATINSERT]], <8 x half> poison, <8 x i32> zeroinitializer
+// CHECK-NEXT:    [[TMP0:%.*]] = call <8 x half> @llvm.fma.v8f16(<8 x half> [[A:%.*]], <8 x half> [[B:%.*]], <8 x half> [[DOTSPLAT]])
+// CHECK-NEXT:    ret <8 x half> [[TMP0]]
 //
 float16x8_t test_vfmasq_n_f16(float16x8_t a, float16x8_t b, float16_t c) {
 #ifdef POLYMORPHIC
@@ -83,8 +77,8 @@ float16x8_t test_vfmasq_n_f16(float16x8_t a, float16x8_t b, float16_t c) {
 
 // CHECK-LABEL: @test_vfmasq_n_f32(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <4 x float> undef, float [[C:%.*]], i32 0
-// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <4 x float> [[DOTSPLATINSERT]], <4 x float> undef, <4 x i32> zeroinitializer
+// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <4 x float> poison, float [[C:%.*]], i32 0
+// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <4 x float> [[DOTSPLATINSERT]], <4 x float> poison, <4 x i32> zeroinitializer
 // CHECK-NEXT:    [[TMP0:%.*]] = call <4 x float> @llvm.fma.v4f32(<4 x float> [[A:%.*]], <4 x float> [[B:%.*]], <4 x float> [[DOTSPLAT]])
 // CHECK-NEXT:    ret <4 x float> [[TMP0]]
 //
@@ -126,8 +120,8 @@ float32x4_t test_vfmsq_f32(float32x4_t a, float32x4_t b, float32x4_t c) {
 
 // CHECK-LABEL: @test_vmlaq_n_s8(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <16 x i8> undef, i8 [[C:%.*]], i32 0
-// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <16 x i8> [[DOTSPLATINSERT]], <16 x i8> undef, <16 x i32> zeroinitializer
+// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <16 x i8> poison, i8 [[C:%.*]], i32 0
+// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <16 x i8> [[DOTSPLATINSERT]], <16 x i8> poison, <16 x i32> zeroinitializer
 // CHECK-NEXT:    [[TMP0:%.*]] = mul <16 x i8> [[B:%.*]], [[DOTSPLAT]]
 // CHECK-NEXT:    [[TMP1:%.*]] = add <16 x i8> [[TMP0]], [[A:%.*]]
 // CHECK-NEXT:    ret <16 x i8> [[TMP1]]
@@ -142,8 +136,8 @@ int8x16_t test_vmlaq_n_s8(int8x16_t a, int8x16_t b, int8_t c) {
 
 // CHECK-LABEL: @test_vmlaq_n_s16(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <8 x i16> undef, i16 [[C:%.*]], i32 0
-// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <8 x i16> [[DOTSPLATINSERT]], <8 x i16> undef, <8 x i32> zeroinitializer
+// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <8 x i16> poison, i16 [[C:%.*]], i32 0
+// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <8 x i16> [[DOTSPLATINSERT]], <8 x i16> poison, <8 x i32> zeroinitializer
 // CHECK-NEXT:    [[TMP0:%.*]] = mul <8 x i16> [[B:%.*]], [[DOTSPLAT]]
 // CHECK-NEXT:    [[TMP1:%.*]] = add <8 x i16> [[TMP0]], [[A:%.*]]
 // CHECK-NEXT:    ret <8 x i16> [[TMP1]]
@@ -158,8 +152,8 @@ int16x8_t test_vmlaq_n_s16(int16x8_t a, int16x8_t b, int16_t c) {
 
 // CHECK-LABEL: @test_vmlaq_n_s32(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <4 x i32> undef, i32 [[C:%.*]], i32 0
-// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <4 x i32> [[DOTSPLATINSERT]], <4 x i32> undef, <4 x i32> zeroinitializer
+// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <4 x i32> poison, i32 [[C:%.*]], i32 0
+// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <4 x i32> [[DOTSPLATINSERT]], <4 x i32> poison, <4 x i32> zeroinitializer
 // CHECK-NEXT:    [[TMP0:%.*]] = mul <4 x i32> [[B:%.*]], [[DOTSPLAT]]
 // CHECK-NEXT:    [[TMP1:%.*]] = add <4 x i32> [[TMP0]], [[A:%.*]]
 // CHECK-NEXT:    ret <4 x i32> [[TMP1]]
@@ -174,8 +168,8 @@ int32x4_t test_vmlaq_n_s32(int32x4_t a, int32x4_t b, int32_t c) {
 
 // CHECK-LABEL: @test_vmlaq_n_u8(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <16 x i8> undef, i8 [[C:%.*]], i32 0
-// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <16 x i8> [[DOTSPLATINSERT]], <16 x i8> undef, <16 x i32> zeroinitializer
+// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <16 x i8> poison, i8 [[C:%.*]], i32 0
+// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <16 x i8> [[DOTSPLATINSERT]], <16 x i8> poison, <16 x i32> zeroinitializer
 // CHECK-NEXT:    [[TMP0:%.*]] = mul <16 x i8> [[B:%.*]], [[DOTSPLAT]]
 // CHECK-NEXT:    [[TMP1:%.*]] = add <16 x i8> [[TMP0]], [[A:%.*]]
 // CHECK-NEXT:    ret <16 x i8> [[TMP1]]
@@ -190,8 +184,8 @@ uint8x16_t test_vmlaq_n_u8(uint8x16_t a, uint8x16_t b, uint8_t c) {
 
 // CHECK-LABEL: @test_vmlaq_n_u16(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <8 x i16> undef, i16 [[C:%.*]], i32 0
-// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <8 x i16> [[DOTSPLATINSERT]], <8 x i16> undef, <8 x i32> zeroinitializer
+// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <8 x i16> poison, i16 [[C:%.*]], i32 0
+// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <8 x i16> [[DOTSPLATINSERT]], <8 x i16> poison, <8 x i32> zeroinitializer
 // CHECK-NEXT:    [[TMP0:%.*]] = mul <8 x i16> [[B:%.*]], [[DOTSPLAT]]
 // CHECK-NEXT:    [[TMP1:%.*]] = add <8 x i16> [[TMP0]], [[A:%.*]]
 // CHECK-NEXT:    ret <8 x i16> [[TMP1]]
@@ -206,8 +200,8 @@ uint16x8_t test_vmlaq_n_u16(uint16x8_t a, uint16x8_t b, uint16_t c) {
 
 // CHECK-LABEL: @test_vmlaq_n_u32(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <4 x i32> undef, i32 [[C:%.*]], i32 0
-// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <4 x i32> [[DOTSPLATINSERT]], <4 x i32> undef, <4 x i32> zeroinitializer
+// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <4 x i32> poison, i32 [[C:%.*]], i32 0
+// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <4 x i32> [[DOTSPLATINSERT]], <4 x i32> poison, <4 x i32> zeroinitializer
 // CHECK-NEXT:    [[TMP0:%.*]] = mul <4 x i32> [[B:%.*]], [[DOTSPLAT]]
 // CHECK-NEXT:    [[TMP1:%.*]] = add <4 x i32> [[TMP0]], [[A:%.*]]
 // CHECK-NEXT:    ret <4 x i32> [[TMP1]]
@@ -223,8 +217,8 @@ uint32x4_t test_vmlaq_n_u32(uint32x4_t a, uint32x4_t b, uint32_t c) {
 // CHECK-LABEL: @test_vmlasq_n_s8(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = mul <16 x i8> [[A:%.*]], [[B:%.*]]
-// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <16 x i8> undef, i8 [[C:%.*]], i32 0
-// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <16 x i8> [[DOTSPLATINSERT]], <16 x i8> undef, <16 x i32> zeroinitializer
+// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <16 x i8> poison, i8 [[C:%.*]], i32 0
+// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <16 x i8> [[DOTSPLATINSERT]], <16 x i8> poison, <16 x i32> zeroinitializer
 // CHECK-NEXT:    [[TMP1:%.*]] = add <16 x i8> [[TMP0]], [[DOTSPLAT]]
 // CHECK-NEXT:    ret <16 x i8> [[TMP1]]
 //
@@ -239,8 +233,8 @@ int8x16_t test_vmlasq_n_s8(int8x16_t a, int8x16_t b, int8_t c) {
 // CHECK-LABEL: @test_vmlasq_n_s16(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = mul <8 x i16> [[A:%.*]], [[B:%.*]]
-// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <8 x i16> undef, i16 [[C:%.*]], i32 0
-// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <8 x i16> [[DOTSPLATINSERT]], <8 x i16> undef, <8 x i32> zeroinitializer
+// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <8 x i16> poison, i16 [[C:%.*]], i32 0
+// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <8 x i16> [[DOTSPLATINSERT]], <8 x i16> poison, <8 x i32> zeroinitializer
 // CHECK-NEXT:    [[TMP1:%.*]] = add <8 x i16> [[TMP0]], [[DOTSPLAT]]
 // CHECK-NEXT:    ret <8 x i16> [[TMP1]]
 //
@@ -255,8 +249,8 @@ int16x8_t test_vmlasq_n_s16(int16x8_t a, int16x8_t b, int16_t c) {
 // CHECK-LABEL: @test_vmlasq_n_s32(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = mul <4 x i32> [[A:%.*]], [[B:%.*]]
-// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <4 x i32> undef, i32 [[C:%.*]], i32 0
-// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <4 x i32> [[DOTSPLATINSERT]], <4 x i32> undef, <4 x i32> zeroinitializer
+// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <4 x i32> poison, i32 [[C:%.*]], i32 0
+// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <4 x i32> [[DOTSPLATINSERT]], <4 x i32> poison, <4 x i32> zeroinitializer
 // CHECK-NEXT:    [[TMP1:%.*]] = add <4 x i32> [[TMP0]], [[DOTSPLAT]]
 // CHECK-NEXT:    ret <4 x i32> [[TMP1]]
 //
@@ -271,8 +265,8 @@ int32x4_t test_vmlasq_n_s32(int32x4_t a, int32x4_t b, int32_t c) {
 // CHECK-LABEL: @test_vmlasq_n_u8(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = mul <16 x i8> [[A:%.*]], [[B:%.*]]
-// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <16 x i8> undef, i8 [[C:%.*]], i32 0
-// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <16 x i8> [[DOTSPLATINSERT]], <16 x i8> undef, <16 x i32> zeroinitializer
+// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <16 x i8> poison, i8 [[C:%.*]], i32 0
+// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <16 x i8> [[DOTSPLATINSERT]], <16 x i8> poison, <16 x i32> zeroinitializer
 // CHECK-NEXT:    [[TMP1:%.*]] = add <16 x i8> [[TMP0]], [[DOTSPLAT]]
 // CHECK-NEXT:    ret <16 x i8> [[TMP1]]
 //
@@ -287,8 +281,8 @@ uint8x16_t test_vmlasq_n_u8(uint8x16_t a, uint8x16_t b, uint8_t c) {
 // CHECK-LABEL: @test_vmlasq_n_u16(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = mul <8 x i16> [[A:%.*]], [[B:%.*]]
-// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <8 x i16> undef, i16 [[C:%.*]], i32 0
-// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <8 x i16> [[DOTSPLATINSERT]], <8 x i16> undef, <8 x i32> zeroinitializer
+// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <8 x i16> poison, i16 [[C:%.*]], i32 0
+// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <8 x i16> [[DOTSPLATINSERT]], <8 x i16> poison, <8 x i32> zeroinitializer
 // CHECK-NEXT:    [[TMP1:%.*]] = add <8 x i16> [[TMP0]], [[DOTSPLAT]]
 // CHECK-NEXT:    ret <8 x i16> [[TMP1]]
 //
@@ -303,8 +297,8 @@ uint16x8_t test_vmlasq_n_u16(uint16x8_t a, uint16x8_t b, uint16_t c) {
 // CHECK-LABEL: @test_vmlasq_n_u32(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = mul <4 x i32> [[A:%.*]], [[B:%.*]]
-// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <4 x i32> undef, i32 [[C:%.*]], i32 0
-// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <4 x i32> [[DOTSPLATINSERT]], <4 x i32> undef, <4 x i32> zeroinitializer
+// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <4 x i32> poison, i32 [[C:%.*]], i32 0
+// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <4 x i32> [[DOTSPLATINSERT]], <4 x i32> poison, <4 x i32> zeroinitializer
 // CHECK-NEXT:    [[TMP1:%.*]] = add <4 x i32> [[TMP0]], [[DOTSPLAT]]
 // CHECK-NEXT:    ret <4 x i32> [[TMP1]]
 //
@@ -319,7 +313,7 @@ uint32x4_t test_vmlasq_n_u32(uint32x4_t a, uint32x4_t b, uint32_t c) {
 // CHECK-LABEL: @test_vqdmlahq_n_s8(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = zext i8 [[C:%.*]] to i32
-// CHECK-NEXT:    [[TMP1:%.*]] = call <16 x i8> @llvm.arm.mve.vqdmlah.v16i8(<16 x i8> [[B:%.*]], <16 x i8> [[A:%.*]], i32 [[TMP0]])
+// CHECK-NEXT:    [[TMP1:%.*]] = call <16 x i8> @llvm.arm.mve.vqdmlah.v16i8(<16 x i8> [[A:%.*]], <16 x i8> [[B:%.*]], i32 [[TMP0]])
 // CHECK-NEXT:    ret <16 x i8> [[TMP1]]
 //
 int8x16_t test_vqdmlahq_n_s8(int8x16_t a, int8x16_t b, int8_t c) {
@@ -333,7 +327,7 @@ int8x16_t test_vqdmlahq_n_s8(int8x16_t a, int8x16_t b, int8_t c) {
 // CHECK-LABEL: @test_vqdmlahq_n_s16(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = zext i16 [[C:%.*]] to i32
-// CHECK-NEXT:    [[TMP1:%.*]] = call <8 x i16> @llvm.arm.mve.vqdmlah.v8i16(<8 x i16> [[B:%.*]], <8 x i16> [[A:%.*]], i32 [[TMP0]])
+// CHECK-NEXT:    [[TMP1:%.*]] = call <8 x i16> @llvm.arm.mve.vqdmlah.v8i16(<8 x i16> [[A:%.*]], <8 x i16> [[B:%.*]], i32 [[TMP0]])
 // CHECK-NEXT:    ret <8 x i16> [[TMP1]]
 //
 int16x8_t test_vqdmlahq_n_s16(int16x8_t a, int16x8_t b, int16_t c) {
@@ -346,7 +340,7 @@ int16x8_t test_vqdmlahq_n_s16(int16x8_t a, int16x8_t b, int16_t c) {
 
 // CHECK-LABEL: @test_vqdmlahq_n_s32(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[TMP0:%.*]] = call <4 x i32> @llvm.arm.mve.vqdmlah.v4i32(<4 x i32> [[B:%.*]], <4 x i32> [[A:%.*]], i32 [[C:%.*]])
+// CHECK-NEXT:    [[TMP0:%.*]] = call <4 x i32> @llvm.arm.mve.vqdmlah.v4i32(<4 x i32> [[A:%.*]], <4 x i32> [[B:%.*]], i32 [[C:%.*]])
 // CHECK-NEXT:    ret <4 x i32> [[TMP0]]
 //
 int32x4_t test_vqdmlahq_n_s32(int32x4_t a, int32x4_t b, int32_t c) {
@@ -401,7 +395,7 @@ int32x4_t test_vqdmlashq_n_s32(int32x4_t m1, int32x4_t m2, int32_t add) {
 // CHECK-LABEL: @test_vqrdmlahq_n_s8(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = zext i8 [[C:%.*]] to i32
-// CHECK-NEXT:    [[TMP1:%.*]] = call <16 x i8> @llvm.arm.mve.vqrdmlah.v16i8(<16 x i8> [[B:%.*]], <16 x i8> [[A:%.*]], i32 [[TMP0]])
+// CHECK-NEXT:    [[TMP1:%.*]] = call <16 x i8> @llvm.arm.mve.vqrdmlah.v16i8(<16 x i8> [[A:%.*]], <16 x i8> [[B:%.*]], i32 [[TMP0]])
 // CHECK-NEXT:    ret <16 x i8> [[TMP1]]
 //
 int8x16_t test_vqrdmlahq_n_s8(int8x16_t a, int8x16_t b, int8_t c) {
@@ -415,7 +409,7 @@ int8x16_t test_vqrdmlahq_n_s8(int8x16_t a, int8x16_t b, int8_t c) {
 // CHECK-LABEL: @test_vqrdmlahq_n_s16(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = zext i16 [[C:%.*]] to i32
-// CHECK-NEXT:    [[TMP1:%.*]] = call <8 x i16> @llvm.arm.mve.vqrdmlah.v8i16(<8 x i16> [[B:%.*]], <8 x i16> [[A:%.*]], i32 [[TMP0]])
+// CHECK-NEXT:    [[TMP1:%.*]] = call <8 x i16> @llvm.arm.mve.vqrdmlah.v8i16(<8 x i16> [[A:%.*]], <8 x i16> [[B:%.*]], i32 [[TMP0]])
 // CHECK-NEXT:    ret <8 x i16> [[TMP1]]
 //
 int16x8_t test_vqrdmlahq_n_s16(int16x8_t a, int16x8_t b, int16_t c) {
@@ -428,7 +422,7 @@ int16x8_t test_vqrdmlahq_n_s16(int16x8_t a, int16x8_t b, int16_t c) {
 
 // CHECK-LABEL: @test_vqrdmlahq_n_s32(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[TMP0:%.*]] = call <4 x i32> @llvm.arm.mve.vqrdmlah.v4i32(<4 x i32> [[B:%.*]], <4 x i32> [[A:%.*]], i32 [[C:%.*]])
+// CHECK-NEXT:    [[TMP0:%.*]] = call <4 x i32> @llvm.arm.mve.vqrdmlah.v4i32(<4 x i32> [[A:%.*]], <4 x i32> [[B:%.*]], i32 [[C:%.*]])
 // CHECK-NEXT:    ret <4 x i32> [[TMP0]]
 //
 int32x4_t test_vqrdmlahq_n_s32(int32x4_t a, int32x4_t b, int32_t c) {
@@ -512,15 +506,12 @@ float32x4_t test_vfmaq_m_f32(float32x4_t a, float32x4_t b, float32x4_t c, mve_pr
 
 // CHECK-LABEL: @test_vfmaq_m_n_f16(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[TMP0:%.*]] = bitcast float [[C_COERCE:%.*]] to i32
-// CHECK-NEXT:    [[TMP_0_EXTRACT_TRUNC:%.*]] = trunc i32 [[TMP0]] to i16
-// CHECK-NEXT:    [[TMP1:%.*]] = bitcast i16 [[TMP_0_EXTRACT_TRUNC]] to half
-// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <8 x half> undef, half [[TMP1]], i32 0
-// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <8 x half> [[DOTSPLATINSERT]], <8 x half> undef, <8 x i32> zeroinitializer
-// CHECK-NEXT:    [[TMP2:%.*]] = zext i16 [[P:%.*]] to i32
-// CHECK-NEXT:    [[TMP3:%.*]] = call <8 x i1> @llvm.arm.mve.pred.i2v.v8i1(i32 [[TMP2]])
-// CHECK-NEXT:    [[TMP4:%.*]] = call <8 x half> @llvm.arm.mve.fma.predicated.v8f16.v8i1(<8 x half> [[B:%.*]], <8 x half> [[DOTSPLAT]], <8 x half> [[A:%.*]], <8 x i1> [[TMP3]])
-// CHECK-NEXT:    ret <8 x half> [[TMP4]]
+// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <8 x half> poison, half [[C:%.*]], i32 0
+// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <8 x half> [[DOTSPLATINSERT]], <8 x half> poison, <8 x i32> zeroinitializer
+// CHECK-NEXT:    [[TMP0:%.*]] = zext i16 [[P:%.*]] to i32
+// CHECK-NEXT:    [[TMP1:%.*]] = call <8 x i1> @llvm.arm.mve.pred.i2v.v8i1(i32 [[TMP0]])
+// CHECK-NEXT:    [[TMP2:%.*]] = call <8 x half> @llvm.arm.mve.fma.predicated.v8f16.v8i1(<8 x half> [[B:%.*]], <8 x half> [[DOTSPLAT]], <8 x half> [[A:%.*]], <8 x i1> [[TMP1]])
+// CHECK-NEXT:    ret <8 x half> [[TMP2]]
 //
 float16x8_t test_vfmaq_m_n_f16(float16x8_t a, float16x8_t b, float16_t c, mve_pred16_t p) {
 #ifdef POLYMORPHIC
@@ -532,8 +523,8 @@ float16x8_t test_vfmaq_m_n_f16(float16x8_t a, float16x8_t b, float16_t c, mve_pr
 
 // CHECK-LABEL: @test_vfmaq_m_n_f32(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <4 x float> undef, float [[C:%.*]], i32 0
-// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <4 x float> [[DOTSPLATINSERT]], <4 x float> undef, <4 x i32> zeroinitializer
+// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <4 x float> poison, float [[C:%.*]], i32 0
+// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <4 x float> [[DOTSPLATINSERT]], <4 x float> poison, <4 x i32> zeroinitializer
 // CHECK-NEXT:    [[TMP0:%.*]] = zext i16 [[P:%.*]] to i32
 // CHECK-NEXT:    [[TMP1:%.*]] = call <4 x i1> @llvm.arm.mve.pred.i2v.v4i1(i32 [[TMP0]])
 // CHECK-NEXT:    [[TMP2:%.*]] = call <4 x float> @llvm.arm.mve.fma.predicated.v4f32.v4i1(<4 x float> [[B:%.*]], <4 x float> [[DOTSPLAT]], <4 x float> [[A:%.*]], <4 x i1> [[TMP1]])
@@ -549,15 +540,12 @@ float32x4_t test_vfmaq_m_n_f32(float32x4_t a, float32x4_t b, float32_t c, mve_pr
 
 // CHECK-LABEL: @test_vfmasq_m_n_f16(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[TMP0:%.*]] = bitcast float [[C_COERCE:%.*]] to i32
-// CHECK-NEXT:    [[TMP_0_EXTRACT_TRUNC:%.*]] = trunc i32 [[TMP0]] to i16
-// CHECK-NEXT:    [[TMP1:%.*]] = bitcast i16 [[TMP_0_EXTRACT_TRUNC]] to half
-// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <8 x half> undef, half [[TMP1]], i32 0
-// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <8 x half> [[DOTSPLATINSERT]], <8 x half> undef, <8 x i32> zeroinitializer
-// CHECK-NEXT:    [[TMP2:%.*]] = zext i16 [[P:%.*]] to i32
-// CHECK-NEXT:    [[TMP3:%.*]] = call <8 x i1> @llvm.arm.mve.pred.i2v.v8i1(i32 [[TMP2]])
-// CHECK-NEXT:    [[TMP4:%.*]] = call <8 x half> @llvm.arm.mve.fma.predicated.v8f16.v8i1(<8 x half> [[A:%.*]], <8 x half> [[B:%.*]], <8 x half> [[DOTSPLAT]], <8 x i1> [[TMP3]])
-// CHECK-NEXT:    ret <8 x half> [[TMP4]]
+// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <8 x half> poison, half [[C:%.*]], i32 0
+// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <8 x half> [[DOTSPLATINSERT]], <8 x half> poison, <8 x i32> zeroinitializer
+// CHECK-NEXT:    [[TMP0:%.*]] = zext i16 [[P:%.*]] to i32
+// CHECK-NEXT:    [[TMP1:%.*]] = call <8 x i1> @llvm.arm.mve.pred.i2v.v8i1(i32 [[TMP0]])
+// CHECK-NEXT:    [[TMP2:%.*]] = call <8 x half> @llvm.arm.mve.fma.predicated.v8f16.v8i1(<8 x half> [[A:%.*]], <8 x half> [[B:%.*]], <8 x half> [[DOTSPLAT]], <8 x i1> [[TMP1]])
+// CHECK-NEXT:    ret <8 x half> [[TMP2]]
 //
 float16x8_t test_vfmasq_m_n_f16(float16x8_t a, float16x8_t b, float16_t c, mve_pred16_t p) {
 #ifdef POLYMORPHIC
@@ -569,8 +557,8 @@ float16x8_t test_vfmasq_m_n_f16(float16x8_t a, float16x8_t b, float16_t c, mve_p
 
 // CHECK-LABEL: @test_vfmasq_m_n_f32(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <4 x float> undef, float [[C:%.*]], i32 0
-// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <4 x float> [[DOTSPLATINSERT]], <4 x float> undef, <4 x i32> zeroinitializer
+// CHECK-NEXT:    [[DOTSPLATINSERT:%.*]] = insertelement <4 x float> poison, float [[C:%.*]], i32 0
+// CHECK-NEXT:    [[DOTSPLAT:%.*]] = shufflevector <4 x float> [[DOTSPLATINSERT]], <4 x float> poison, <4 x i32> zeroinitializer
 // CHECK-NEXT:    [[TMP0:%.*]] = zext i16 [[P:%.*]] to i32
 // CHECK-NEXT:    [[TMP1:%.*]] = call <4 x i1> @llvm.arm.mve.pred.i2v.v4i1(i32 [[TMP0]])
 // CHECK-NEXT:    [[TMP2:%.*]] = call <4 x float> @llvm.arm.mve.fma.predicated.v4f32.v4i1(<4 x float> [[A:%.*]], <4 x float> [[B:%.*]], <4 x float> [[DOTSPLAT]], <4 x i1> [[TMP1]])
@@ -621,7 +609,7 @@ float32x4_t test_vfmsq_m_f32(float32x4_t a, float32x4_t b, float32x4_t c, mve_pr
 // CHECK-NEXT:    [[TMP0:%.*]] = zext i8 [[C:%.*]] to i32
 // CHECK-NEXT:    [[TMP1:%.*]] = zext i16 [[P:%.*]] to i32
 // CHECK-NEXT:    [[TMP2:%.*]] = call <16 x i1> @llvm.arm.mve.pred.i2v.v16i1(i32 [[TMP1]])
-// CHECK-NEXT:    [[TMP3:%.*]] = call <16 x i8> @llvm.arm.mve.vmla.n.predicated.v16i8.v16i1(<16 x i8> [[B:%.*]], <16 x i8> [[A:%.*]], i32 [[TMP0]], <16 x i1> [[TMP2]])
+// CHECK-NEXT:    [[TMP3:%.*]] = call <16 x i8> @llvm.arm.mve.vmla.n.predicated.v16i8.v16i1(<16 x i8> [[A:%.*]], <16 x i8> [[B:%.*]], i32 [[TMP0]], <16 x i1> [[TMP2]])
 // CHECK-NEXT:    ret <16 x i8> [[TMP3]]
 //
 int8x16_t test_vmlaq_m_n_s8(int8x16_t a, int8x16_t b, int8_t c, mve_pred16_t p) {
@@ -637,7 +625,7 @@ int8x16_t test_vmlaq_m_n_s8(int8x16_t a, int8x16_t b, int8_t c, mve_pred16_t p) 
 // CHECK-NEXT:    [[TMP0:%.*]] = zext i16 [[C:%.*]] to i32
 // CHECK-NEXT:    [[TMP1:%.*]] = zext i16 [[P:%.*]] to i32
 // CHECK-NEXT:    [[TMP2:%.*]] = call <8 x i1> @llvm.arm.mve.pred.i2v.v8i1(i32 [[TMP1]])
-// CHECK-NEXT:    [[TMP3:%.*]] = call <8 x i16> @llvm.arm.mve.vmla.n.predicated.v8i16.v8i1(<8 x i16> [[B:%.*]], <8 x i16> [[A:%.*]], i32 [[TMP0]], <8 x i1> [[TMP2]])
+// CHECK-NEXT:    [[TMP3:%.*]] = call <8 x i16> @llvm.arm.mve.vmla.n.predicated.v8i16.v8i1(<8 x i16> [[A:%.*]], <8 x i16> [[B:%.*]], i32 [[TMP0]], <8 x i1> [[TMP2]])
 // CHECK-NEXT:    ret <8 x i16> [[TMP3]]
 //
 int16x8_t test_vmlaq_m_n_s16(int16x8_t a, int16x8_t b, int16_t c, mve_pred16_t p) {
@@ -652,7 +640,7 @@ int16x8_t test_vmlaq_m_n_s16(int16x8_t a, int16x8_t b, int16_t c, mve_pred16_t p
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = zext i16 [[P:%.*]] to i32
 // CHECK-NEXT:    [[TMP1:%.*]] = call <4 x i1> @llvm.arm.mve.pred.i2v.v4i1(i32 [[TMP0]])
-// CHECK-NEXT:    [[TMP2:%.*]] = call <4 x i32> @llvm.arm.mve.vmla.n.predicated.v4i32.v4i1(<4 x i32> [[B:%.*]], <4 x i32> [[A:%.*]], i32 [[C:%.*]], <4 x i1> [[TMP1]])
+// CHECK-NEXT:    [[TMP2:%.*]] = call <4 x i32> @llvm.arm.mve.vmla.n.predicated.v4i32.v4i1(<4 x i32> [[A:%.*]], <4 x i32> [[B:%.*]], i32 [[C:%.*]], <4 x i1> [[TMP1]])
 // CHECK-NEXT:    ret <4 x i32> [[TMP2]]
 //
 int32x4_t test_vmlaq_m_n_s32(int32x4_t a, int32x4_t b, int32_t c, mve_pred16_t p) {
@@ -668,7 +656,7 @@ int32x4_t test_vmlaq_m_n_s32(int32x4_t a, int32x4_t b, int32_t c, mve_pred16_t p
 // CHECK-NEXT:    [[TMP0:%.*]] = zext i8 [[C:%.*]] to i32
 // CHECK-NEXT:    [[TMP1:%.*]] = zext i16 [[P:%.*]] to i32
 // CHECK-NEXT:    [[TMP2:%.*]] = call <16 x i1> @llvm.arm.mve.pred.i2v.v16i1(i32 [[TMP1]])
-// CHECK-NEXT:    [[TMP3:%.*]] = call <16 x i8> @llvm.arm.mve.vmla.n.predicated.v16i8.v16i1(<16 x i8> [[B:%.*]], <16 x i8> [[A:%.*]], i32 [[TMP0]], <16 x i1> [[TMP2]])
+// CHECK-NEXT:    [[TMP3:%.*]] = call <16 x i8> @llvm.arm.mve.vmla.n.predicated.v16i8.v16i1(<16 x i8> [[A:%.*]], <16 x i8> [[B:%.*]], i32 [[TMP0]], <16 x i1> [[TMP2]])
 // CHECK-NEXT:    ret <16 x i8> [[TMP3]]
 //
 uint8x16_t test_vmlaq_m_n_u8(uint8x16_t a, uint8x16_t b, uint8_t c, mve_pred16_t p) {
@@ -684,7 +672,7 @@ uint8x16_t test_vmlaq_m_n_u8(uint8x16_t a, uint8x16_t b, uint8_t c, mve_pred16_t
 // CHECK-NEXT:    [[TMP0:%.*]] = zext i16 [[C:%.*]] to i32
 // CHECK-NEXT:    [[TMP1:%.*]] = zext i16 [[P:%.*]] to i32
 // CHECK-NEXT:    [[TMP2:%.*]] = call <8 x i1> @llvm.arm.mve.pred.i2v.v8i1(i32 [[TMP1]])
-// CHECK-NEXT:    [[TMP3:%.*]] = call <8 x i16> @llvm.arm.mve.vmla.n.predicated.v8i16.v8i1(<8 x i16> [[B:%.*]], <8 x i16> [[A:%.*]], i32 [[TMP0]], <8 x i1> [[TMP2]])
+// CHECK-NEXT:    [[TMP3:%.*]] = call <8 x i16> @llvm.arm.mve.vmla.n.predicated.v8i16.v8i1(<8 x i16> [[A:%.*]], <8 x i16> [[B:%.*]], i32 [[TMP0]], <8 x i1> [[TMP2]])
 // CHECK-NEXT:    ret <8 x i16> [[TMP3]]
 //
 uint16x8_t test_vmlaq_m_n_u16(uint16x8_t a, uint16x8_t b, uint16_t c, mve_pred16_t p) {
@@ -699,7 +687,7 @@ uint16x8_t test_vmlaq_m_n_u16(uint16x8_t a, uint16x8_t b, uint16_t c, mve_pred16
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = zext i16 [[P:%.*]] to i32
 // CHECK-NEXT:    [[TMP1:%.*]] = call <4 x i1> @llvm.arm.mve.pred.i2v.v4i1(i32 [[TMP0]])
-// CHECK-NEXT:    [[TMP2:%.*]] = call <4 x i32> @llvm.arm.mve.vmla.n.predicated.v4i32.v4i1(<4 x i32> [[B:%.*]], <4 x i32> [[A:%.*]], i32 [[C:%.*]], <4 x i1> [[TMP1]])
+// CHECK-NEXT:    [[TMP2:%.*]] = call <4 x i32> @llvm.arm.mve.vmla.n.predicated.v4i32.v4i1(<4 x i32> [[A:%.*]], <4 x i32> [[B:%.*]], i32 [[C:%.*]], <4 x i1> [[TMP1]])
 // CHECK-NEXT:    ret <4 x i32> [[TMP2]]
 //
 uint32x4_t test_vmlaq_m_n_u32(uint32x4_t a, uint32x4_t b, uint32_t c, mve_pred16_t p) {
@@ -809,7 +797,7 @@ uint32x4_t test_vmlasq_m_n_u32(uint32x4_t a, uint32x4_t b, uint32_t c, mve_pred1
 // CHECK-NEXT:    [[TMP0:%.*]] = zext i8 [[C:%.*]] to i32
 // CHECK-NEXT:    [[TMP1:%.*]] = zext i16 [[P:%.*]] to i32
 // CHECK-NEXT:    [[TMP2:%.*]] = call <16 x i1> @llvm.arm.mve.pred.i2v.v16i1(i32 [[TMP1]])
-// CHECK-NEXT:    [[TMP3:%.*]] = call <16 x i8> @llvm.arm.mve.vqdmlah.predicated.v16i8.v16i1(<16 x i8> [[B:%.*]], <16 x i8> [[A:%.*]], i32 [[TMP0]], <16 x i1> [[TMP2]])
+// CHECK-NEXT:    [[TMP3:%.*]] = call <16 x i8> @llvm.arm.mve.vqdmlah.predicated.v16i8.v16i1(<16 x i8> [[A:%.*]], <16 x i8> [[B:%.*]], i32 [[TMP0]], <16 x i1> [[TMP2]])
 // CHECK-NEXT:    ret <16 x i8> [[TMP3]]
 //
 int8x16_t test_vqdmlahq_m_n_s8(int8x16_t a, int8x16_t b, int8_t c, mve_pred16_t p) {
@@ -825,7 +813,7 @@ int8x16_t test_vqdmlahq_m_n_s8(int8x16_t a, int8x16_t b, int8_t c, mve_pred16_t 
 // CHECK-NEXT:    [[TMP0:%.*]] = zext i16 [[C:%.*]] to i32
 // CHECK-NEXT:    [[TMP1:%.*]] = zext i16 [[P:%.*]] to i32
 // CHECK-NEXT:    [[TMP2:%.*]] = call <8 x i1> @llvm.arm.mve.pred.i2v.v8i1(i32 [[TMP1]])
-// CHECK-NEXT:    [[TMP3:%.*]] = call <8 x i16> @llvm.arm.mve.vqdmlah.predicated.v8i16.v8i1(<8 x i16> [[B:%.*]], <8 x i16> [[A:%.*]], i32 [[TMP0]], <8 x i1> [[TMP2]])
+// CHECK-NEXT:    [[TMP3:%.*]] = call <8 x i16> @llvm.arm.mve.vqdmlah.predicated.v8i16.v8i1(<8 x i16> [[A:%.*]], <8 x i16> [[B:%.*]], i32 [[TMP0]], <8 x i1> [[TMP2]])
 // CHECK-NEXT:    ret <8 x i16> [[TMP3]]
 //
 int16x8_t test_vqdmlahq_m_n_s16(int16x8_t a, int16x8_t b, int16_t c, mve_pred16_t p) {
@@ -840,7 +828,7 @@ int16x8_t test_vqdmlahq_m_n_s16(int16x8_t a, int16x8_t b, int16_t c, mve_pred16_
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = zext i16 [[P:%.*]] to i32
 // CHECK-NEXT:    [[TMP1:%.*]] = call <4 x i1> @llvm.arm.mve.pred.i2v.v4i1(i32 [[TMP0]])
-// CHECK-NEXT:    [[TMP2:%.*]] = call <4 x i32> @llvm.arm.mve.vqdmlah.predicated.v4i32.v4i1(<4 x i32> [[B:%.*]], <4 x i32> [[A:%.*]], i32 [[C:%.*]], <4 x i1> [[TMP1]])
+// CHECK-NEXT:    [[TMP2:%.*]] = call <4 x i32> @llvm.arm.mve.vqdmlah.predicated.v4i32.v4i1(<4 x i32> [[A:%.*]], <4 x i32> [[B:%.*]], i32 [[C:%.*]], <4 x i1> [[TMP1]])
 // CHECK-NEXT:    ret <4 x i32> [[TMP2]]
 //
 int32x4_t test_vqdmlahq_m_n_s32(int32x4_t a, int32x4_t b, int32_t c, mve_pred16_t p) {
@@ -903,7 +891,7 @@ int32x4_t test_vqdmlashq_m_n_s32(int32x4_t m1, int32x4_t m2, int32_t add, mve_pr
 // CHECK-NEXT:    [[TMP0:%.*]] = zext i8 [[C:%.*]] to i32
 // CHECK-NEXT:    [[TMP1:%.*]] = zext i16 [[P:%.*]] to i32
 // CHECK-NEXT:    [[TMP2:%.*]] = call <16 x i1> @llvm.arm.mve.pred.i2v.v16i1(i32 [[TMP1]])
-// CHECK-NEXT:    [[TMP3:%.*]] = call <16 x i8> @llvm.arm.mve.vqrdmlah.predicated.v16i8.v16i1(<16 x i8> [[B:%.*]], <16 x i8> [[A:%.*]], i32 [[TMP0]], <16 x i1> [[TMP2]])
+// CHECK-NEXT:    [[TMP3:%.*]] = call <16 x i8> @llvm.arm.mve.vqrdmlah.predicated.v16i8.v16i1(<16 x i8> [[A:%.*]], <16 x i8> [[B:%.*]], i32 [[TMP0]], <16 x i1> [[TMP2]])
 // CHECK-NEXT:    ret <16 x i8> [[TMP3]]
 //
 int8x16_t test_vqrdmlahq_m_n_s8(int8x16_t a, int8x16_t b, int8_t c, mve_pred16_t p) {
@@ -919,7 +907,7 @@ int8x16_t test_vqrdmlahq_m_n_s8(int8x16_t a, int8x16_t b, int8_t c, mve_pred16_t
 // CHECK-NEXT:    [[TMP0:%.*]] = zext i16 [[C:%.*]] to i32
 // CHECK-NEXT:    [[TMP1:%.*]] = zext i16 [[P:%.*]] to i32
 // CHECK-NEXT:    [[TMP2:%.*]] = call <8 x i1> @llvm.arm.mve.pred.i2v.v8i1(i32 [[TMP1]])
-// CHECK-NEXT:    [[TMP3:%.*]] = call <8 x i16> @llvm.arm.mve.vqrdmlah.predicated.v8i16.v8i1(<8 x i16> [[B:%.*]], <8 x i16> [[A:%.*]], i32 [[TMP0]], <8 x i1> [[TMP2]])
+// CHECK-NEXT:    [[TMP3:%.*]] = call <8 x i16> @llvm.arm.mve.vqrdmlah.predicated.v8i16.v8i1(<8 x i16> [[A:%.*]], <8 x i16> [[B:%.*]], i32 [[TMP0]], <8 x i1> [[TMP2]])
 // CHECK-NEXT:    ret <8 x i16> [[TMP3]]
 //
 int16x8_t test_vqrdmlahq_m_n_s16(int16x8_t a, int16x8_t b, int16_t c, mve_pred16_t p) {
@@ -934,7 +922,7 @@ int16x8_t test_vqrdmlahq_m_n_s16(int16x8_t a, int16x8_t b, int16_t c, mve_pred16
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = zext i16 [[P:%.*]] to i32
 // CHECK-NEXT:    [[TMP1:%.*]] = call <4 x i1> @llvm.arm.mve.pred.i2v.v4i1(i32 [[TMP0]])
-// CHECK-NEXT:    [[TMP2:%.*]] = call <4 x i32> @llvm.arm.mve.vqrdmlah.predicated.v4i32.v4i1(<4 x i32> [[B:%.*]], <4 x i32> [[A:%.*]], i32 [[C:%.*]], <4 x i1> [[TMP1]])
+// CHECK-NEXT:    [[TMP2:%.*]] = call <4 x i32> @llvm.arm.mve.vqrdmlah.predicated.v4i32.v4i1(<4 x i32> [[A:%.*]], <4 x i32> [[B:%.*]], i32 [[C:%.*]], <4 x i1> [[TMP1]])
 // CHECK-NEXT:    ret <4 x i32> [[TMP2]]
 //
 int32x4_t test_vqrdmlahq_m_n_s32(int32x4_t a, int32x4_t b, int32_t c, mve_pred16_t p) {

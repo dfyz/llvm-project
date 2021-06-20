@@ -16,6 +16,7 @@
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringMap.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Mutex.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Regex.h"
@@ -126,7 +127,7 @@ Diagnostic &Diagnostic::operator<<(OperationName val) {
 Diagnostic &Diagnostic::operator<<(Operation &val) {
   std::string str;
   llvm::raw_string_ostream os(str);
-  os << val;
+  val.print(os, OpPrintingFlags().useLocalScope().elideLargeElementsAttrs());
   return *this << os.str();
 }
 
@@ -366,43 +367,32 @@ struct SourceMgrDiagnosticHandlerImpl {
 
 /// Return a processable FileLineColLoc from the given location.
 static Optional<FileLineColLoc> getFileLineColLoc(Location loc) {
-  switch (loc->getKind()) {
-  case StandardAttributes::NameLocation:
-    return getFileLineColLoc(loc.cast<NameLoc>().getChildLoc());
-  case StandardAttributes::FileLineColLocation:
-    return loc.cast<FileLineColLoc>();
-  case StandardAttributes::CallSiteLocation:
-    // Process the callee of a callsite location.
-    return getFileLineColLoc(loc.cast<CallSiteLoc>().getCallee());
-  case StandardAttributes::FusedLocation:
-    for (auto subLoc : loc.cast<FusedLoc>().getLocations()) {
-      if (auto callLoc = getFileLineColLoc(subLoc)) {
-        return callLoc;
-      }
+  Optional<FileLineColLoc> firstFileLoc;
+  loc->walk([&](Location loc) {
+    if (FileLineColLoc fileLoc = loc.dyn_cast<FileLineColLoc>()) {
+      firstFileLoc = fileLoc;
+      return WalkResult::interrupt();
     }
-    return llvm::None;
-  default:
-    return llvm::None;
-  }
+    return WalkResult::advance();
+  });
+  return firstFileLoc;
 }
 
 /// Return a processable CallSiteLoc from the given location.
 static Optional<CallSiteLoc> getCallSiteLoc(Location loc) {
-  switch (loc->getKind()) {
-  case StandardAttributes::NameLocation:
+  if (auto nameLoc = loc.dyn_cast<NameLoc>())
     return getCallSiteLoc(loc.cast<NameLoc>().getChildLoc());
-  case StandardAttributes::CallSiteLocation:
-    return loc.cast<CallSiteLoc>();
-  case StandardAttributes::FusedLocation:
+  if (auto callLoc = loc.dyn_cast<CallSiteLoc>())
+    return callLoc;
+  if (auto fusedLoc = loc.dyn_cast<FusedLoc>()) {
     for (auto subLoc : loc.cast<FusedLoc>().getLocations()) {
       if (auto callLoc = getCallSiteLoc(subLoc)) {
         return callLoc;
       }
     }
     return llvm::None;
-  default:
-    return llvm::None;
   }
+  return llvm::None;
 }
 
 /// Given a diagnostic kind, returns the LLVM DiagKind.
@@ -420,17 +410,19 @@ static llvm::SourceMgr::DiagKind getDiagKind(DiagnosticSeverity kind) {
   llvm_unreachable("Unknown DiagnosticSeverity");
 }
 
-SourceMgrDiagnosticHandler::SourceMgrDiagnosticHandler(llvm::SourceMgr &mgr,
-                                                       MLIRContext *ctx,
-                                                       raw_ostream &os)
+SourceMgrDiagnosticHandler::SourceMgrDiagnosticHandler(
+    llvm::SourceMgr &mgr, MLIRContext *ctx, raw_ostream &os,
+    ShouldShowLocFn &&shouldShowLocFn)
     : ScopedDiagnosticHandler(ctx), mgr(mgr), os(os),
+      shouldShowLocFn(std::move(shouldShowLocFn)),
       impl(new SourceMgrDiagnosticHandlerImpl()) {
   setHandler([this](Diagnostic &diag) { emitDiagnostic(diag); });
 }
 
-SourceMgrDiagnosticHandler::SourceMgrDiagnosticHandler(llvm::SourceMgr &mgr,
-                                                       MLIRContext *ctx)
-    : SourceMgrDiagnosticHandler(mgr, ctx, llvm::errs()) {}
+SourceMgrDiagnosticHandler::SourceMgrDiagnosticHandler(
+    llvm::SourceMgr &mgr, MLIRContext *ctx, ShouldShowLocFn &&shouldShowLocFn)
+    : SourceMgrDiagnosticHandler(mgr, ctx, llvm::errs(),
+                                 std::move(shouldShowLocFn)) {}
 
 SourceMgrDiagnosticHandler::~SourceMgrDiagnosticHandler() {}
 
@@ -471,22 +463,39 @@ void SourceMgrDiagnosticHandler::emitDiagnostic(Location loc, Twine message,
 
 /// Emit the given diagnostic with the held source manager.
 void SourceMgrDiagnosticHandler::emitDiagnostic(Diagnostic &diag) {
-  // Emit the diagnostic.
-  Location loc = diag.getLocation();
-  emitDiagnostic(loc, diag.str(), diag.getSeverity());
+  SmallVector<std::pair<Location, StringRef>> locationStack;
+  auto addLocToStack = [&](Location loc, StringRef locContext) {
+    if (Optional<Location> showableLoc = findLocToShow(loc))
+      locationStack.emplace_back(loc, locContext);
+  };
 
-  // If the diagnostic location was a call site location, then print the call
-  // stack as well.
+  // Add locations to display for this diagnostic.
+  Location loc = diag.getLocation();
+  addLocToStack(loc, /*locContext=*/{});
+
+  // If the diagnostic location was a call site location, add the call stack as
+  // well.
   if (auto callLoc = getCallSiteLoc(loc)) {
     // Print the call stack while valid, or until the limit is reached.
     loc = callLoc->getCaller();
     for (unsigned curDepth = 0; curDepth < callStackLimit; ++curDepth) {
-      emitDiagnostic(loc, "called from", DiagnosticSeverity::Note);
+      addLocToStack(loc, "called from");
       if ((callLoc = getCallSiteLoc(loc)))
         loc = callLoc->getCaller();
       else
         break;
     }
+  }
+
+  // If the location stack is empty, use the initial location.
+  if (locationStack.empty()) {
+    emitDiagnostic(diag.getLocation(), diag.str(), diag.getSeverity());
+
+    // Otherwise, use the location stack.
+  } else {
+    emitDiagnostic(locationStack.front().first, diag.str(), diag.getSeverity());
+    for (auto &it : llvm::drop_begin(locationStack))
+      emitDiagnostic(it.first, it.second, DiagnosticSeverity::Note);
   }
 
   // Emit each of the notes. Only display the source code if the location is
@@ -504,6 +513,41 @@ SourceMgrDiagnosticHandler::getBufferForFile(StringRef filename) {
   if (unsigned id = impl->getSourceMgrBufferIDForFile(mgr, filename))
     return mgr.getMemoryBuffer(id);
   return nullptr;
+}
+
+Optional<Location> SourceMgrDiagnosticHandler::findLocToShow(Location loc) {
+  if (!shouldShowLocFn)
+    return loc;
+  if (!shouldShowLocFn(loc))
+    return llvm::None;
+
+  // Recurse into the child locations of some of location types.
+  return TypeSwitch<LocationAttr, Optional<Location>>(loc)
+      .Case([&](CallSiteLoc callLoc) -> Optional<Location> {
+        // We recurse into the callee of a call site, as the caller will be
+        // emitted in a different note on the main diagnostic.
+        return findLocToShow(callLoc.getCallee());
+      })
+      .Case([&](FileLineColLoc) -> Optional<Location> { return loc; })
+      .Case([&](FusedLoc fusedLoc) -> Optional<Location> {
+        // Fused location is unique in that we try to find a sub-location to
+        // show, rather than the top-level location itself.
+        for (Location childLoc : fusedLoc.getLocations())
+          if (Optional<Location> showableLoc = findLocToShow(childLoc))
+            return showableLoc;
+        return llvm::None;
+      })
+      .Case([&](NameLoc nameLoc) -> Optional<Location> {
+        return findLocToShow(nameLoc.getChildLoc());
+      })
+      .Case([&](OpaqueLoc opaqueLoc) -> Optional<Location> {
+        // OpaqueLoc always falls back to a different source location.
+        return findLocToShow(opaqueLoc.getFallbackLocation());
+      })
+      .Case([](UnknownLoc) -> Optional<Location> {
+        // Prefer not to show unknown locations.
+        return llvm::None;
+      });
 }
 
 /// Get a memory buffer for the given file, or the main file of the source

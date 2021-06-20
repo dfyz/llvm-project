@@ -11,6 +11,7 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "clang/Serialization/PCHContainerOperations.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/FormatVariadic.h"
 
@@ -47,13 +48,7 @@ buildCompilerInvocation(const ParseInputs &Inputs, clang::DiagnosticConsumer &D,
   for (const auto &S : Inputs.CompileCommand.CommandLine)
     ArgStrs.push_back(S.c_str());
 
-  auto VFS = Inputs.FSProvider->getFileSystem();
-  if (VFS->setCurrentWorkingDirectory(Inputs.CompileCommand.Directory)) {
-    log("Couldn't set working directory when creating compiler invocation.");
-    // We proceed anyway, our lit-tests rely on results for non-existing working
-    // dirs.
-  }
-
+  auto VFS = Inputs.TFS->view(Inputs.CompileCommand.Directory);
   llvm::IntrusiveRefCntPtr<DiagnosticsEngine> CommandLineDiagsEngine =
       CompilerInstance::createDiagnostics(new DiagnosticOptions, &D, false);
   std::unique_ptr<CompilerInvocation> CI = createInvocationFromCommandLine(
@@ -65,6 +60,10 @@ buildCompilerInvocation(const ParseInputs &Inputs, clang::DiagnosticConsumer &D,
   CI->getFrontendOpts().DisableFree = false;
   CI->getLangOpts()->CommentOpts.ParseAllComments = true;
   CI->getLangOpts()->RetainCommentsFromSystemHeaders = true;
+  // Disable "clang -verify" diagnostics, they are rarely useful in clangd, and
+  // our compiler invocation set-up doesn't seem to work with it (leading
+  // assertions in VerifyDiagnosticConsumer).
+  CI->getDiagnosticOpts().VerifyDiagnostics = false;
 
   // Disable any dependency outputting, we don't want to generate files or write
   // to stdout/stderr.
@@ -83,12 +82,14 @@ buildCompilerInvocation(const ParseInputs &Inputs, clang::DiagnosticConsumer &D,
   CI->getPreprocessorOpts().PCHThroughHeader.clear();
   CI->getPreprocessorOpts().PCHWithHdrStop = false;
   CI->getPreprocessorOpts().PCHWithHdrStopCreate = false;
+  // Don't crash on `#pragma clang __debug parser_crash`
+  CI->getPreprocessorOpts().DisablePragmaDebugCrash = true;
 
-  // Recovery expression currently only works for C++.
-  if (CI->getLangOpts()->CPlusPlus) {
-    CI->getLangOpts()->RecoveryAST = Inputs.Opts.BuildRecoveryAST;
-    CI->getLangOpts()->RecoveryASTType = Inputs.Opts.PreserveRecoveryASTType;
-  }
+  // Always default to raw container format as clangd doesn't registry any other
+  // and clang dies when faced with unknown formats.
+  CI->getHeaderSearchOpts().ModuleFormat =
+      PCHContainerOperations().getRawReader().getFormat().str();
+
   return CI;
 }
 
@@ -122,9 +123,7 @@ prepareCompilerInstance(std::unique_ptr<clang::CompilerInvocation> CI,
     VFS = VFSWithRemapping;
   Clang->createFileManager(VFS);
 
-  Clang->setTarget(TargetInfo::CreateTargetInfo(
-      Clang->getDiagnostics(), Clang->getInvocation().TargetOpts));
-  if (!Clang->hasTarget())
+  if (!Clang->createTarget())
     return nullptr;
 
   // RemappedFileBuffers will handle the lifetime of the Buffer pointer,

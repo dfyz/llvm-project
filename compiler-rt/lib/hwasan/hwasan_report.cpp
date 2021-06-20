@@ -43,12 +43,16 @@ class ScopedReport {
   }
 
   ~ScopedReport() {
+    void (*report_cb)(const char *);
     {
       BlockingMutexLock lock(&error_message_lock_);
-      if (fatal)
-        SetAbortMessage(error_message_.data());
+      report_cb = error_report_callback_;
       error_message_ptr_ = nullptr;
     }
+    if (report_cb)
+      report_cb(error_message_.data());
+    if (fatal)
+      SetAbortMessage(error_message_.data());
     if (common_flags()->print_module_map >= 2 ||
         (fatal && common_flags()->print_module_map))
       DumpProcessMap();
@@ -66,6 +70,12 @@ class ScopedReport {
     // overwrite old trailing '\0', keep new trailing '\0' untouched.
     internal_memcpy(&(*error_message_ptr_)[old_size - 1], msg, len);
   }
+
+  static void SetErrorReportCallback(void (*callback)(const char *)) {
+    BlockingMutexLock lock(&error_message_lock_);
+    error_report_callback_ = callback;
+  }
+
  private:
   ScopedErrorReportLock error_report_lock_;
   InternalMmapVector<char> error_message_;
@@ -73,10 +83,12 @@ class ScopedReport {
 
   static InternalMmapVector<char> *error_message_ptr_;
   static BlockingMutex error_message_lock_;
+  static void (*error_report_callback_)(const char *);
 };
 
 InternalMmapVector<char> *ScopedReport::error_message_ptr_;
 BlockingMutex ScopedReport::error_message_lock_;
+void (*ScopedReport::error_report_callback_)(const char *);
 
 // If there is an active ScopedReport, append to its error message.
 void AppendToErrorMessageBuffer(const char *buffer) {
@@ -212,7 +224,7 @@ static void PrintStackAllocations(StackAllocationsRingBuffer *sa,
 
   // We didn't find any locals. Most likely we don't have symbols, so dump
   // the information that we have for offline analysis.
-  InternalScopedString frame_desc(GetPageSizeCached() * 2);
+  InternalScopedString frame_desc;
   Printf("Previously allocated frames:\n");
   for (uptr i = 0; i < frames; i++) {
     const uptr *record_addr = &(*sa)[i];
@@ -224,12 +236,12 @@ static void PrintStackAllocations(StackAllocationsRingBuffer *sa,
     frame_desc.append("  record_addr:0x%zx record:0x%zx",
                       reinterpret_cast<uptr>(record_addr), record);
     if (SymbolizedStack *frame = Symbolizer::GetOrInit()->SymbolizePC(pc)) {
-      RenderFrame(&frame_desc, " %F %L\n", 0, frame->info,
+      RenderFrame(&frame_desc, " %F %L", 0, frame->info.address, &frame->info,
                   common_flags()->symbolize_vs_style,
                   common_flags()->strip_path_prefix);
       frame->ClearAll();
     }
-    Printf("%s", frame_desc.data());
+    Printf("%s\n", frame_desc.data());
     frame_desc.clear();
   }
 }
@@ -254,7 +266,8 @@ static bool TagsEqual(tag_t tag, tag_t *tag_ptr) {
 static uptr GetGlobalSizeFromDescriptor(uptr ptr) {
   // Find the ELF object that this global resides in.
   Dl_info info;
-  dladdr(reinterpret_cast<void *>(ptr), &info);
+  if (dladdr(reinterpret_cast<void *>(ptr), &info) == 0)
+    return 0;
   auto *ehdr = reinterpret_cast<const ElfW(Ehdr) *>(info.dli_fbase);
   auto *phdr_begin = reinterpret_cast<const ElfW(Phdr) *>(
       reinterpret_cast<const u8 *>(ehdr) + ehdr->e_phoff);
@@ -328,13 +341,22 @@ void PrintAddressDescription(
     uptr mem = ShadowToMem(reinterpret_cast<uptr>(candidate));
     HwasanChunkView chunk = FindHeapChunkByAddress(mem);
     if (chunk.IsAllocated()) {
+      uptr offset;
+      const char *whence;
+      if (untagged_addr < chunk.End() && untagged_addr >= chunk.Beg()) {
+        offset = untagged_addr - chunk.Beg();
+        whence = "inside";
+      } else if (candidate == left) {
+        offset = untagged_addr - chunk.End();
+        whence = "to the right of";
+      } else {
+        offset = chunk.Beg() - untagged_addr;
+        whence = "to the left of";
+      }
       Printf("%s", d.Location());
-      Printf("%p is located %zd bytes to the %s of %zd-byte region [%p,%p)\n",
-             untagged_addr,
-             candidate == left ? untagged_addr - chunk.End()
-                               : chunk.Beg() - untagged_addr,
-             candidate == left ? "right" : "left", chunk.UsedSize(),
-             chunk.Beg(), chunk.End());
+      Printf("%p is located %zd bytes %s %zd-byte region [%p,%p)\n",
+             untagged_addr, offset, whence, chunk.UsedSize(), chunk.Beg(),
+             chunk.End());
       Printf("%s", d.Allocation());
       Printf("allocated here:\n");
       Printf("%s", d.Default());
@@ -446,7 +468,7 @@ static void PrintTagInfoAroundAddr(tag_t *tag_ptr, uptr num_rows,
       RoundDownTo(reinterpret_cast<uptr>(tag_ptr), row_len));
   tag_t *beg_row = center_row_beg - row_len * (num_rows / 2);
   tag_t *end_row = center_row_beg + row_len * ((num_rows + 1) / 2);
-  InternalScopedString s(GetPageSizeCached() * 8);
+  InternalScopedString s;
   for (tag_t *row = beg_row; row < end_row; row += row_len) {
     s.append("%s", row == center_row_beg ? "=>" : "  ");
     s.append("%p:", row);
@@ -525,6 +547,12 @@ void ReportTailOverwritten(StackTrace *stack, uptr tagged_addr, uptr orig_size,
   Report("ERROR: %s: %s; heap object [%p,%p) of size %zd\n", SanitizerToolName,
          bug_type, untagged_addr, untagged_addr + orig_size, orig_size);
   Printf("\n%s", d.Default());
+  Printf(
+      "Stack of invalid access unknown. Issue detected at deallocation "
+      "time.\n");
+  Printf("%s", d.Allocation());
+  Printf("deallocated here:\n");
+  Printf("%s", d.Default());
   stack->Print();
   HwasanChunkView chunk = FindHeapChunkByAddress(untagged_addr);
   if (chunk.Beg()) {
@@ -534,7 +562,7 @@ void ReportTailOverwritten(StackTrace *stack, uptr tagged_addr, uptr orig_size,
     GetStackTraceFromId(chunk.GetAllocStackId()).Print();
   }
 
-  InternalScopedString s(GetPageSizeCached() * 8);
+  InternalScopedString s;
   CHECK_GT(tail_size, 0U);
   CHECK_LT(tail_size, kShadowAlignment);
   u8 *tail = reinterpret_cast<u8*>(untagged_addr + orig_size);
@@ -649,3 +677,7 @@ void ReportRegisters(uptr *frame, uptr pc) {
 }
 
 }  // namespace __hwasan
+
+void __hwasan_set_error_report_callback(void (*callback)(const char *)) {
+  __hwasan::ScopedReport::SetErrorReportCallback(callback);
+}

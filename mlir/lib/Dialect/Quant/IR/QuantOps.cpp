@@ -10,10 +10,10 @@
 #include "TypeDetail.h"
 
 #include "mlir/Dialect/Quant/QuantTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/StandardTypes.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/MathExtras.h"
@@ -23,9 +23,8 @@ using namespace mlir;
 using namespace mlir::quant;
 using namespace mlir::quant::detail;
 
-QuantizationDialect::QuantizationDialect(MLIRContext *context)
-    : Dialect(/*name=*/"quant", context) {
-  addTypes<AnyQuantizedType, UniformQuantizedType,
+void QuantizationDialect::initialize() {
+  addTypes<AnyQuantizedType, CalibratedQuantizedType, UniformQuantizedType,
            UniformQuantizedPerAxisType>();
   addOperations<
 #define GET_OP_LIST
@@ -46,7 +45,7 @@ OpFoldResult StorageCastOp::fold(ArrayRef<Attribute> operands) {
 static bool isValidQuantizationSpec(Attribute quantSpec, Type expressed) {
   if (auto typeAttr = quantSpec.dyn_cast<TypeAttr>()) {
     Type spec = typeAttr.getValue();
-    if (spec.isa<TensorType>() || spec.isa<VectorType>())
+    if (spec.isa<TensorType, VectorType>())
       return false;
 
     // The spec should be either a quantized type which is compatible to the

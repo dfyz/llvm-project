@@ -23,7 +23,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/BlockFrequencyInfo.h"
@@ -37,6 +36,7 @@
 #include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
+#include "llvm/Analysis/Utils/ImportedFunctionsInliningStatistics.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DataLayout.h"
@@ -60,7 +60,6 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/CallPromotionUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
-#include "llvm/Transforms/Utils/ImportedFunctionsInliningStatistics.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include <algorithm>
@@ -91,24 +90,18 @@ static cl::opt<bool>
     DisableInlinedAllocaMerging("disable-inlined-alloca-merging",
                                 cl::init(false), cl::Hidden);
 
-namespace {
+extern cl::opt<InlinerFunctionImportStatsOpts> InlinerFunctionImportStats;
 
-enum class InlinerFunctionImportStatsOpts {
-  No = 0,
-  Basic = 1,
-  Verbose = 2,
-};
+static cl::opt<std::string> CGSCCInlineReplayFile(
+    "cgscc-inline-replay", cl::init(""), cl::value_desc("filename"),
+    cl::desc(
+        "Optimization remarks file containing inline remarks to be replayed "
+        "by inlining from cgscc inline remarks."),
+    cl::Hidden);
 
-} // end anonymous namespace
-
-static cl::opt<InlinerFunctionImportStatsOpts> InlinerFunctionImportStats(
-    "inliner-function-import-stats",
-    cl::init(InlinerFunctionImportStatsOpts::No),
-    cl::values(clEnumValN(InlinerFunctionImportStatsOpts::Basic, "basic",
-                          "basic statistics"),
-               clEnumValN(InlinerFunctionImportStatsOpts::Verbose, "verbose",
-                          "printing of statistics for each inlined function")),
-    cl::Hidden, cl::desc("Enable inliner stats for imported functions"));
+static cl::opt<bool> InlineEnablePriorityOrder(
+    "inline-enable-priority-order", cl::Hidden, cl::init(false),
+    cl::desc("Enable the priority inline order for the inliner"));
 
 LegacyInlinerBase::LegacyInlinerBase(char &ID) : CallGraphSCCPass(ID) {}
 
@@ -191,8 +184,8 @@ static void mergeInlinedArrayAllocas(Function *Caller, InlineFunctionInfo &IFI,
     // function.  Also, AllocasForType can be empty of course!
     bool MergedAwayAlloca = false;
     for (AllocaInst *AvailableAlloca : AllocasForType) {
-      unsigned Align1 = AI->getAlignment(),
-               Align2 = AvailableAlloca->getAlignment();
+      Align Align1 = AI->getAlign();
+      Align Align2 = AvailableAlloca->getAlign();
 
       // The available alloca has to be in the right function, not in some other
       // function in this SCC.
@@ -219,18 +212,8 @@ static void mergeInlinedArrayAllocas(Function *Caller, InlineFunctionInfo &IFI,
 
       AI->replaceAllUsesWith(AvailableAlloca);
 
-      if (Align1 != Align2) {
-        if (!Align1 || !Align2) {
-          const DataLayout &DL = Caller->getParent()->getDataLayout();
-          unsigned TypeAlign = DL.getABITypeAlignment(AI->getAllocatedType());
-
-          Align1 = Align1 ? Align1 : TypeAlign;
-          Align2 = Align2 ? Align2 : TypeAlign;
-        }
-
-        if (Align1 > Align2)
-          AvailableAlloca->setAlignment(AI->getAlign());
-      }
+      if (Align1 > Align2)
+        AvailableAlloca->setAlignment(AI->getAlign());
 
       AI->eraseFromParent();
       MergedAwayAlloca = true;
@@ -658,17 +641,12 @@ bool LegacyInlinerBase::removeDeadFunctions(CallGraph &CG,
   return true;
 }
 
-InlinerPass::~InlinerPass() {
-  if (ImportedFunctionsStats) {
-    assert(InlinerFunctionImportStats != InlinerFunctionImportStatsOpts::No);
-    ImportedFunctionsStats->dump(InlinerFunctionImportStats ==
-                                 InlinerFunctionImportStatsOpts::Verbose);
-  }
-}
-
 InlineAdvisor &
 InlinerPass::getAdvisor(const ModuleAnalysisManagerCGSCCProxy::Result &MAM,
                         FunctionAnalysisManager &FAM, Module &M) {
+  if (OwnedAdvisor)
+    return *OwnedAdvisor;
+
   auto *IAA = MAM.getCachedResult<InlineAdvisorAnalysis>(M);
   if (!IAA) {
     // It should still be possible to run the inliner as a stand-alone SCC pass,
@@ -679,14 +657,123 @@ InlinerPass::getAdvisor(const ModuleAnalysisManagerCGSCCProxy::Result &MAM,
     // duration of the inliner pass, and thus the lifetime of the owned advisor.
     // The one we would get from the MAM can be invalidated as a result of the
     // inliner's activity.
-    OwnedDefaultAdvisor.emplace(FAM, getInlineParams());
-    return *OwnedDefaultAdvisor;
+    OwnedAdvisor =
+        std::make_unique<DefaultInlineAdvisor>(M, FAM, getInlineParams());
+
+    if (!CGSCCInlineReplayFile.empty())
+      OwnedAdvisor = std::make_unique<ReplayInlineAdvisor>(
+          M, FAM, M.getContext(), std::move(OwnedAdvisor),
+          CGSCCInlineReplayFile,
+          /*EmitRemarks=*/true);
+
+    return *OwnedAdvisor;
   }
   assert(IAA->getAdvisor() &&
          "Expected a present InlineAdvisorAnalysis also have an "
          "InlineAdvisor initialized");
   return *IAA->getAdvisor();
 }
+
+template <typename T> class InlineOrder {
+public:
+  using reference = T &;
+  using const_reference = const T &;
+
+  virtual ~InlineOrder() {}
+
+  virtual size_t size() = 0;
+
+  virtual void push(const T &Elt) = 0;
+
+  virtual T pop() = 0;
+
+  virtual const_reference front() = 0;
+
+  virtual void erase_if(function_ref<bool(T)> Pred) = 0;
+
+  bool empty() { return !size(); }
+};
+
+template <typename T, typename Container = SmallVector<T, 16>>
+class DefaultInlineOrder : public InlineOrder<T> {
+  using reference = T &;
+  using const_reference = const T &;
+
+public:
+  size_t size() override { return Calls.size() - FirstIndex; }
+
+  void push(const T &Elt) override { Calls.push_back(Elt); }
+
+  T pop() override {
+    assert(size() > 0);
+    return Calls[FirstIndex++];
+  }
+
+  const_reference front() override {
+    assert(size() > 0);
+    return Calls[FirstIndex];
+  }
+
+  void erase_if(function_ref<bool(T)> Pred) override {
+    Calls.erase(std::remove_if(Calls.begin() + FirstIndex, Calls.end(), Pred),
+                Calls.end());
+  }
+
+private:
+  Container Calls;
+  size_t FirstIndex = 0;
+};
+
+class PriorityInlineOrder : public InlineOrder<std::pair<CallBase *, int>> {
+  using T = std::pair<CallBase *, int>;
+  using reference = T &;
+  using const_reference = const T &;
+
+  static bool cmp(const T &P1, const T &P2) { return P1.second > P2.second; }
+
+  int evaluate(CallBase *CB) {
+    Function *Callee = CB->getCalledFunction();
+    return (int)Callee->getInstructionCount();
+  }
+
+public:
+  size_t size() override { return Heap.size(); }
+
+  void push(const T &Elt) override {
+    CallBase *CB = Elt.first;
+    const int InlineHistoryID = Elt.second;
+    const int Goodness = evaluate(CB);
+
+    Heap.push_back({CB, Goodness});
+    std::push_heap(Heap.begin(), Heap.end(), cmp);
+    InlineHistoryMap[CB] = InlineHistoryID;
+  }
+
+  T pop() override {
+    assert(size() > 0);
+    CallBase *CB = Heap.front().first;
+    T Result = std::make_pair(CB, InlineHistoryMap[CB]);
+    InlineHistoryMap.erase(CB);
+    std::pop_heap(Heap.begin(), Heap.end(), cmp);
+    Heap.pop_back();
+    return Result;
+  }
+
+  const_reference front() override {
+    assert(size() > 0);
+    CallBase *CB = Heap.front().first;
+    return *InlineHistoryMap.find(CB);
+  }
+
+  void erase_if(function_ref<bool(T)> Pred) override {
+    Heap.erase(std::remove_if(Heap.begin(), Heap.end(), Pred), Heap.end());
+    std::make_heap(Heap.begin(), Heap.end(), cmp);
+  }
+
+private:
+  SmallVector<T, 16> Heap;
+  DenseMap<CallBase *, int> InlineHistoryMap;
+};
 
 PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
                                    CGSCCAnalysisManager &AM, LazyCallGraph &CG,
@@ -708,20 +795,14 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
 
   auto AdvisorOnExit = make_scope_exit([&] { Advisor.onPassExit(); });
 
-  if (!ImportedFunctionsStats &&
-      InlinerFunctionImportStats != InlinerFunctionImportStatsOpts::No) {
-    ImportedFunctionsStats =
-        std::make_unique<ImportedFunctionsInliningStatistics>();
-    ImportedFunctionsStats->setModuleInfo(M);
-  }
-
   // We use a single common worklist for calls across the entire SCC. We
   // process these in-order and append new calls introduced during inlining to
-  // the end.
+  // the end. The PriorityInlineOrder is optional here, in which the smaller
+  // callee would have a higher priority to inline.
   //
   // Note that this particular order of processing is actually critical to
   // avoid very bad behaviors. Consider *highly connected* call graphs where
-  // each function contains a small amonut of code and a couple of calls to
+  // each function contains a small amount of code and a couple of calls to
   // other functions. Because the LLVM inliner is fundamentally a bottom-up
   // inliner, it can handle gracefully the fact that these all appear to be
   // reasonable inlining candidates as it will flatten things until they become
@@ -739,7 +820,12 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
   // this model, but it is uniformly spread across all the functions in the SCC
   // and eventually they all become too large to inline, rather than
   // incrementally maknig a single function grow in a super linear fashion.
-  SmallVector<std::pair<CallBase *, int>, 16> Calls;
+  std::unique_ptr<InlineOrder<std::pair<CallBase *, int>>> Calls;
+  if (InlineEnablePriorityOrder)
+    Calls = std::make_unique<PriorityInlineOrder>();
+  else
+    Calls = std::make_unique<DefaultInlineOrder<std::pair<CallBase *, int>>>();
+  assert(Calls != nullptr && "Expected an initialized InlineOrder");
 
   // Populate the initial list of calls in this SCC.
   for (auto &N : InitialC) {
@@ -754,7 +840,7 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
       if (auto *CB = dyn_cast<CallBase>(&I))
         if (Function *Callee = CB->getCalledFunction()) {
           if (!Callee->isDeclaration())
-            Calls.push_back({CB, -1});
+            Calls->push({CB, -1});
           else if (!isa<IntrinsicInst>(I)) {
             using namespace ore;
             setInlineRemark(*CB, "unavailable definition");
@@ -768,12 +854,11 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
           }
         }
   }
-  if (Calls.empty())
+  if (Calls->empty())
     return PreservedAnalyses::all();
 
-  // Capture updatable variables for the current SCC and RefSCC.
+  // Capture updatable variable for the current SCC.
   auto *C = &InitialC;
-  auto *RC = &C->getOuterRefSCC();
 
   // When inlining a callee produces new call sites, we want to keep track of
   // the fact that they were inlined from the callee.  This allows us to avoid
@@ -790,23 +875,22 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
   // defer deleting these to make it easier to handle the call graph updates.
   SmallVector<Function *, 4> DeadFunctions;
 
-  // Loop forward over all of the calls. Note that we cannot cache the size as
-  // inlining can introduce new calls that need to be processed.
-  for (int I = 0; I < (int)Calls.size(); ++I) {
+  // Loop forward over all of the calls.
+  while (!Calls->empty()) {
     // We expect the calls to typically be batched with sequences of calls that
     // have the same caller, so we first set up some shared infrastructure for
     // this caller. We also do any pruning we can at this layer on the caller
     // alone.
-    Function &F = *Calls[I].first->getCaller();
+    Function &F = *Calls->front().first->getCaller();
     LazyCallGraph::Node &N = *CG.lookup(F);
-    if (CG.lookupSCC(N) != C)
-      continue;
-    if (F.hasOptNone()) {
-      setInlineRemark(*Calls[I].first, "optnone attribute");
+    if (CG.lookupSCC(N) != C) {
+      Calls->pop();
       continue;
     }
 
-    LLVM_DEBUG(dbgs() << "Inlining calls in: " << F.getName() << "\n");
+    LLVM_DEBUG(dbgs() << "Inlining calls in: " << F.getName() << "\n"
+                      << "    Function size: " << F.getInstructionCount()
+                      << "\n");
 
     auto GetAssumptionCache = [&](Function &F) -> AssumptionCache & {
       return FAM.getResult<AssumptionAnalysis>(F);
@@ -816,8 +900,8 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
     // We bail out as soon as the caller has to change so we can update the
     // call graph and prepare the context of that new caller.
     bool DidInline = false;
-    for (; I < (int)Calls.size() && Calls[I].first->getCaller() == &F; ++I) {
-      auto &P = Calls[I];
+    while (!Calls->empty() && Calls->front().first->getCaller() == &F) {
+      auto P = Calls->pop();
       CallBase *CB = P.first;
       const int InlineHistoryID = P.second;
       Function &Callee = *CB->getCalledFunction();
@@ -842,7 +926,7 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
         continue;
       }
 
-      auto Advice = Advisor.getAdvice(*CB);
+      auto Advice = Advisor.getAdvice(*CB, OnlyMandatory);
       // Check whether we want to inline this callsite.
       if (!Advice->isInliningRecommended()) {
         Advice->recordUnattemptedInlining();
@@ -856,7 +940,8 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
           &FAM.getResult<BlockFrequencyAnalysis>(*(CB->getCaller())),
           &FAM.getResult<BlockFrequencyAnalysis>(Callee));
 
-      InlineResult IR = InlineFunction(*CB, IFI);
+      InlineResult IR =
+          InlineFunction(*CB, IFI, &FAM.getResult<AAManager>(*CB->getCaller()));
       if (!IR.isSuccess()) {
         Advice->recordUnsuccessfulInlining(IR);
         continue;
@@ -865,6 +950,9 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
       DidInline = true;
       InlinedCallees.insert(&Callee);
       ++NumInlined;
+
+      LLVM_DEBUG(dbgs() << "    Size after inlining: "
+                        << F.getInstructionCount() << "\n");
 
       // Add any new callsites to defined functions to the worklist.
       if (!IFI.InlinedCallSites.empty()) {
@@ -883,12 +971,9 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
           }
           if (NewCallee)
             if (!NewCallee->isDeclaration())
-              Calls.push_back({ICB, NewHistoryID});
+              Calls->push({ICB, NewHistoryID});
         }
       }
-
-      if (InlinerFunctionImportStats != InlinerFunctionImportStatsOpts::No)
-        ImportedFunctionsStats->recordInline(F, Callee);
 
       // Merge the attributes based on the inlining.
       AttributeFuncs::mergeAttributesForInlining(F, Callee);
@@ -903,18 +988,15 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
         // made dead by this operation on other functions).
         Callee.removeDeadConstantUsers();
         if (Callee.use_empty() && !CG.isLibFunction(Callee)) {
-          Calls.erase(
-              std::remove_if(Calls.begin() + I + 1, Calls.end(),
-                             [&](const std::pair<CallBase *, int> &Call) {
-                               return Call.first->getCaller() == &Callee;
-                             }),
-              Calls.end());
+          Calls->erase_if([&](const std::pair<CallBase *, int> &Call) {
+            return Call.first->getCaller() == &Callee;
+          });
           // Clear the body and queue the function itself for deletion when we
           // finish inlining and call graph updates.
           // Note that after this point, it is an error to do anything other
           // than use the callee's address or delete it.
           Callee.dropAllReferences();
-          assert(find(DeadFunctions, &Callee) == DeadFunctions.end() &&
+          assert(!is_contained(DeadFunctions, &Callee) &&
                  "Cannot put cause a function to become dead twice!");
           DeadFunctions.push_back(&Callee);
           CalleeWasDeleted = true;
@@ -926,27 +1008,9 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
         Advice->recordInlining();
     }
 
-    // Back the call index up by one to put us in a good position to go around
-    // the outer loop.
-    --I;
-
     if (!DidInline)
       continue;
     Changed = true;
-
-    // Add all the inlined callees' edges as ref edges to the caller. These are
-    // by definition trivial edges as we always have *some* transitive ref edge
-    // chain. While in some cases these edges are direct calls inside the
-    // callee, they have to be modeled in the inliner as reference edges as
-    // there may be a reference edge anywhere along the chain from the current
-    // caller to the callee that causes the whole thing to appear like
-    // a (transitive) reference edge that will require promotion to a call edge
-    // below.
-    for (Function *InlinedCallee : InlinedCallees) {
-      LazyCallGraph::Node &CalleeN = *CG.lookup(*InlinedCallee);
-      for (LazyCallGraph::Edge &E : *CalleeN)
-        RC->insertTrivialRefEdge(N, E.getNode());
-    }
 
     // At this point, since we have made changes we have at least removed
     // a call instruction. However, in the process we do some incremental
@@ -960,9 +1024,8 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
     // as we're going to mutate this particular function we want to make sure
     // the proxy is in place to forward any invalidation events.
     LazyCallGraph::SCC *OldC = C;
-    C = &updateCGAndAnalysisManagerForFunctionPass(CG, *C, N, AM, UR, FAM);
+    C = &updateCGAndAnalysisManagerForCGSCCPass(CG, *C, N, AM, UR, FAM);
     LLVM_DEBUG(dbgs() << "Updated inlining SCC: " << *C << "\n");
-    RC = &C->getOuterRefSCC();
 
     // If this causes an SCC to split apart into multiple smaller SCCs, there
     // is a subtle risk we need to prepare for. Other transformations may
@@ -1040,23 +1103,25 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
 }
 
 ModuleInlinerWrapperPass::ModuleInlinerWrapperPass(InlineParams Params,
-                                                   bool Debugging,
+                                                   bool MandatoryFirst,
                                                    InliningAdvisorMode Mode,
                                                    unsigned MaxDevirtIterations)
     : Params(Params), Mode(Mode), MaxDevirtIterations(MaxDevirtIterations),
-      PM(Debugging), MPM(Debugging) {
+      PM(), MPM() {
   // Run the inliner first. The theory is that we are walking bottom-up and so
   // the callees have already been fully optimized, and we want to inline them
   // into the callers so that our optimizations can reflect that.
   // For PreLinkThinLTO pass, we disable hot-caller heuristic for sample PGO
   // because it makes profile annotation in the backend inaccurate.
+  if (MandatoryFirst)
+    PM.addPass(InlinerPass(/*OnlyMandatory*/ true));
   PM.addPass(InlinerPass());
 }
 
 PreservedAnalyses ModuleInlinerWrapperPass::run(Module &M,
                                                 ModuleAnalysisManager &MAM) {
   auto &IAA = MAM.getResult<InlineAdvisorAnalysis>(M);
-  if (!IAA.tryCreate(Params, Mode)) {
+  if (!IAA.tryCreate(Params, Mode, CGSCCInlineReplayFile)) {
     M.getContext().emitError(
         "Could not setup Inlining Advisor for the requested "
         "mode and/or options");
@@ -1075,8 +1140,10 @@ PreservedAnalyses ModuleInlinerWrapperPass::run(Module &M,
   else
     MPM.addPass(createModuleToPostOrderCGSCCPassAdaptor(
         createDevirtSCCRepeatedPass(std::move(PM), MaxDevirtIterations)));
-  auto Ret = MPM.run(M, MAM);
+  MPM.run(M, MAM);
 
   IAA.clear();
-  return Ret;
+
+  // The ModulePassManager has already taken care of invalidating analyses.
+  return PreservedAnalyses::all();
 }

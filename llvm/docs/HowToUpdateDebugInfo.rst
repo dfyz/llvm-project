@@ -18,14 +18,139 @@ info tests for arbitrary transformations.
 For more on the philosophy behind LLVM debugging information, see
 :doc:`SourceLevelDebugging`.
 
-IR-level transformations
-========================
+Rules for updating debug locations
+==================================
 
-Deleting an Instruction
------------------------
+.. _WhenToPreserveLocation:
+
+When to preserve an instruction location
+----------------------------------------
+
+A transformation should preserve the debug location of an instruction if the
+instruction either remains in its basic block, or if its basic block is folded
+into a predecessor that branches unconditionally. The APIs to use are
+``IRBuilder``, or ``Instruction::setDebugLoc``.
+
+The purpose of this rule is to ensure that common block-local optimizations
+preserve the ability to set breakpoints on source locations corresponding to
+the instructions they touch. Debugging, crash logs, and SamplePGO accuracy
+would be severely impacted if that ability were lost.
+
+Examples of transformations that should follow this rule include:
+
+* Instruction scheduling. Block-local instruction reordering should not drop
+  source locations, even though this may lead to jumpy single-stepping
+  behavior.
+
+* Simple jump threading. For example, if block ``B1`` unconditionally jumps to
+  ``B2``, *and* is its unique predecessor, instructions from ``B2`` can be
+  hoisted into ``B1``. Source locations from ``B2`` should be preserved.
+
+* Peephole optimizations that replace or expand an instruction, like ``(add X
+  X) => (shl X 1)``. The location of the ``shl`` instruction should be the same
+  as the location of the ``add`` instruction.
+
+* Tail duplication. For example, if blocks ``B1`` and ``B2`` both
+  unconditionally branch to ``B3`` and ``B3`` can be folded into its
+  predecessors, source locations from ``B3`` should be preserved.
+
+Examples of transformations for which this rule *does not* apply include:
+
+* LICM. E.g., if an instruction is moved from the loop body to the preheader,
+  the rule for :ref:`dropping locations<WhenToDropLocation>` applies.
+
+In addition to the rule above, a transformation should also preserve the debug
+location of an instruction that is moved between basic blocks, if the
+destination block already contains an instruction with an identical debug
+location.
+
+Examples of transformations that should follow this rule include:
+
+* Moving instructions between basic blocks. For example, if instruction ``I1``
+  in ``BB1`` is moved before ``I2`` in ``BB2``, the source location of ``I1``
+  can be preserved if it has the same source location as ``I2``.
+
+.. _WhenToMergeLocation:
+
+When to merge instruction locations
+-----------------------------------
+
+A transformation should merge instruction locations if it replaces multiple
+instructions with a single merged instruction, *and* that merged instruction
+does not correspond to any of the original instructions' locations. The API to
+use is ``Instruction::applyMergedLocation``.
+
+The purpose of this rule is to ensure that a) the single merged instruction
+has a location with an accurate scope attached, and b) to prevent misleading
+single-stepping (or breakpoint) behavior. Often, merged instructions are memory
+accesses which can trap: having an accurate scope attached greatly assists in
+crash triage by identifying the (possibly inlined) function where the bad
+memory access occurred. This rule is also meant to assist SamplePGO by banning
+scenarios in which a sample of a block containing a merged instruction is
+misattributed to a block containing one of the instructions-to-be-merged.
+
+Examples of transformations that should follow this rule include:
+
+* Merging identical loads/stores which occur on both sides of a CFG diamond
+  (see the ``MergedLoadStoreMotion`` pass).
+
+* Merging identical loop-invariant stores (see the LICM utility
+  ``llvm::promoteLoopAccessesToScalars``).
+
+* Peephole optimizations which combine multiple instructions together, like
+  ``(add (mul A B) C) => llvm.fma.f32(A, B, C)``.  Note that the location of
+  the ``fma`` does not exactly correspond to the locations of either the
+  ``mul`` or the ``add`` instructions.
+
+Examples of transformations for which this rule *does not* apply include:
+
+* Block-local peepholes which delete redundant instructions, like
+  ``(sext (zext i8 %x to i16) to i32) => (zext i8 %x to i32)``. The inner
+  ``zext`` is modified but remains in its block, so the rule for
+  :ref:`preserving locations<WhenToPreserveLocation>` should apply.
+
+* Converting an if-then-else CFG diamond into a ``select``. Preserving the
+  debug locations of speculated instructions can make it seem like a condition
+  is true when it's not (or vice versa), which leads to a confusing
+  single-stepping experience. The rule for
+  :ref:`dropping locations<WhenToDropLocation>` should apply here.
+
+* Hoisting identical instructions which appear in several successor blocks into
+  a predecessor block (see ``BranchFolder::HoistCommonCodeInSuccs``). In this
+  case there is no single merged instruction. The rule for
+  :ref:`dropping locations<WhenToDropLocation>` applies.
+
+.. _WhenToDropLocation:
+
+When to drop an instruction location
+------------------------------------
+
+A transformation should drop debug locations if the rules for
+:ref:`preserving<WhenToPreserveLocation>` and
+:ref:`merging<WhenToMergeLocation>` debug locations do not apply. The API to
+use is ``Instruction::dropLocation()``.
+
+The purpose of this rule is to prevent erratic or misleading single-stepping
+behavior in situations in which an instruction has no clear, unambiguous
+relationship to a source location.
+
+To handle an instruction without a location, the DWARF generator
+defaults to allowing the last-set location after a label to cascade forward, or
+to setting a line 0 location with viable scope information if no previous
+location is available.
+
+See the discussion in the section about
+:ref:`merging locations<WhenToMergeLocation>` for examples of when the rule for
+dropping locations applies.
+
+Rules for updating debug values
+===============================
+
+Deleting an IR-level Instruction
+--------------------------------
 
 When an ``Instruction`` is deleted, its debug uses change to ``undef``. This is
-a loss of debug info: the value of a one or more source variables becomes
+a loss of debug info: the value of one or more source variables becomes
 unavailable, starting with the ``llvm.dbg.value(undef, ...)``. When there is no
 way to reconstitute the value of the lost instruction, this is the best
 possible outcome. However, it's often possible to do better:
@@ -104,8 +229,8 @@ An IR test case for a transformation can, in many cases, be automatically
 mutated to test debug info handling within that transformation. This is a
 simple way to test for proper debug info handling.
 
-The ``debugify`` utility
-^^^^^^^^^^^^^^^^^^^^^^^^
+The ``debugify`` utility pass
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``debugify`` testing utility is just a pair of passes: ``debugify`` and
 ``check-debugify``.
@@ -221,6 +346,50 @@ tests. Changes to this pass are not allowed to break existing tests.
 
 .. _MIRDebugify:
 
+Test original debug info preservation in optimizations
+------------------------------------------------------
+
+In addition to automatically generating debug info, the checks provided by
+the ``debugify`` utility pass can also be used to test the preservation of
+pre-existing debug info metadata. It could be run as follows:
+
+.. code-block:: bash
+
+  # Run the pass by checking original Debug Info preservation.
+  $ opt -verify-debuginfo-preserve -pass-to-test sample.ll
+
+  # Check the preservation of original Debug Info after each pass.
+  $ opt -verify-each-debuginfo-preserve -O2 sample.ll
+
+Furthermore, there is a way to export the issues that have been found into
+a JSON file as follows:
+
+.. code-block:: bash
+
+  $ opt -verify-debuginfo-preserve -verify-di-preserve-export=sample.json -pass-to-test sample.ll
+
+and then use the ``llvm/utils/llvm-original-di-preservation.py`` script
+to generate an HTML page with the issues reported in a more human readable form
+as follows:
+
+.. code-block:: bash
+
+  $ llvm-original-di-preservation.py sample.json sample.html
+
+Testing of original debug info preservation can be invoked from front-end level
+as follows:
+
+.. code-block:: bash
+
+  # Test each pass.
+  $ clang -Xclang -fverify-debuginfo-preserve -g -O2 sample.c
+
+  # Test each pass and export the issues report into the JSON file.
+  $ clang -Xclang -fverify-debuginfo-preserve -Xclang -fverify-debuginfo-preserve-export=sample.json -g -O2 sample.c
+
+Please do note that there are some known false positives, for source locations
+and debug intrinsic checking, so that will be addressed as a future work.
+
 Mutation testing for MIR-level transformations
 ----------------------------------------------
 
@@ -228,8 +397,8 @@ A variant of the ``debugify`` utility described in
 :ref:`Mutation testing for IR-level transformations<IRDebugify>` can be used
 for MIR-level transformations as well: much like the IR-level pass,
 ``mir-debugify`` inserts sequentially increasing line locations to each
-``MachineInstr`` in a ``Module`` (although there is no equivalent MIR-level
-``check-debugify`` pass).
+``MachineInstr`` in a ``Module``. And the MIR-level ``mir-check-debugify`` is
+similar to IR-level ``check-debugify`` pass.
 
 For example, here is a snippet before:
 
@@ -289,16 +458,32 @@ and ``-start-after``. For example:
   $ llc -debugify-and-strip-all-safe -run-pass=... <other llc args>
   $ llc -debugify-and-strip-all-safe -O1 <other llc args>
 
+If you want to check it after each pass in a pipeline, use
+``-debugify-check-and-strip-all-safe``. This can also be combined with
+``-start-before`` and ``-start-after``. For example:
+
+.. code-block:: bash
+
+  $ llc -debugify-check-and-strip-all-safe -run-pass=... <other llc args>
+  $ llc -debugify-check-and-strip-all-safe -O1 <other llc args>
+
+To check all debug info from a test, use ``mir-check-debugify``, like:
+
+.. code-block:: bash
+
+  $ llc -run-pass=mir-debugify,other-pass,mir-check-debugify
+
 To strip out all debug info from a test, use ``mir-strip-debug``, like:
 
 .. code-block:: bash
 
   $ llc -run-pass=mir-debugify,other-pass,mir-strip-debug
 
-It can be useful to combine ``mir-debugify`` and ``mir-strip-debug`` to
-identify backend transformations which break in the presence of debug info.
-For example, to run the AArch64 backend tests with all normal passes
-"sandwiched" in between MIRDebugify and MIRStripDebugify mutation passes, run:
+It can be useful to combine ``mir-debugify``, ``mir-check-debugify`` and/or
+``mir-strip-debug`` to identify backend transformations which break in
+the presence of debug info. For example, to run the AArch64 backend tests
+with all normal passes "sandwiched" in between MIRDebugify and
+MIRStripDebugify mutation passes, run:
 
 .. code-block:: bash
 

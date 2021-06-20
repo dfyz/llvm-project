@@ -22,6 +22,23 @@ namespace mlir {
 class Block;
 
 //===----------------------------------------------------------------------===//
+// BlockOperand
+//===----------------------------------------------------------------------===//
+
+/// A block operand represents an operand that holds a reference to a Block,
+/// e.g. for terminator operations.
+class BlockOperand : public IROperand<BlockOperand, Block *> {
+public:
+  using IROperand<BlockOperand, Block *>::IROperand;
+
+  /// Provide the use list that is attached to the given block.
+  static IRObjectWithUseList<BlockOperand> *getUseList(Block *value);
+
+  /// Return which operand this is in the BlockOperand list of the Operation.
+  unsigned getOperandNumber();
+};
+
+//===----------------------------------------------------------------------===//
 // Predecessors
 //===----------------------------------------------------------------------===//
 
@@ -58,6 +75,7 @@ class SuccessorRange final
           SuccessorRange, BlockOperand *, Block *, Block *, Block *> {
 public:
   using RangeBaseT::RangeBaseT;
+  SuccessorRange();
   SuccessorRange(Block *block);
   SuccessorRange(Operation *term);
 
@@ -70,6 +88,47 @@ private:
   static Block *dereference_iterator(BlockOperand *object, ptrdiff_t index) {
     return object[index].get();
   }
+
+  /// Allow access to `offset_base` and `dereference_iterator`.
+  friend RangeBaseT;
+};
+
+//===----------------------------------------------------------------------===//
+// BlockRange
+//===----------------------------------------------------------------------===//
+
+/// This class provides an abstraction over the different types of ranges over
+/// Blocks. In many cases, this prevents the need to explicitly materialize a
+/// SmallVector/std::vector. This class should be used in places that are not
+/// suitable for a more derived type (e.g. ArrayRef) or a template range
+/// parameter.
+class BlockRange final
+    : public llvm::detail::indexed_accessor_range_base<
+          BlockRange, llvm::PointerUnion<BlockOperand *, Block *const *>,
+          Block *, Block *, Block *> {
+public:
+  using RangeBaseT::RangeBaseT;
+  BlockRange(ArrayRef<Block *> blocks = llvm::None);
+  BlockRange(SuccessorRange successors);
+  template <typename Arg,
+            typename = typename std::enable_if_t<
+                std::is_constructible<ArrayRef<Block *>, Arg>::value>>
+  BlockRange(Arg &&arg)
+      : BlockRange(ArrayRef<Block *>(std::forward<Arg>(arg))) {}
+  BlockRange(std::initializer_list<Block *> blocks)
+      : BlockRange(ArrayRef<Block *>(blocks)) {}
+
+private:
+  /// The owner of the range is either:
+  /// * A pointer to the first element of an array of block operands.
+  /// * A pointer to the first element of an array of Block *.
+  using OwnerT = llvm::PointerUnion<BlockOperand *, Block *const *>;
+
+  /// See `llvm::detail::indexed_accessor_range_base` for details.
+  static OwnerT offset_base(OwnerT object, ptrdiff_t index);
+
+  /// See `llvm::detail::indexed_accessor_range_base` for details.
+  static Block *dereference_iterator(OwnerT object, ptrdiff_t index);
 
   /// Allow access to `offset_base` and `dereference_iterator`.
   friend RangeBaseT;

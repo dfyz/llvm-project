@@ -7,12 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "OutputSegment.h"
+#include "ConcatOutputSection.h"
 #include "InputSection.h"
-#include "MergedOutputSection.h"
 #include "SyntheticSections.h"
 
 #include "lld/Common/ErrorHandler.h"
 #include "lld/Common/Memory.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/BinaryFormat/MachO.h"
 
 using namespace llvm;
@@ -21,6 +22,12 @@ using namespace lld;
 using namespace lld::macho;
 
 static uint32_t initProt(StringRef name) {
+  auto it = find_if(
+      config->segmentProtections,
+      [&](const SegmentProtection &segprot) { return segprot.name == name; });
+  if (it != config->segmentProtections.end())
+    return it->initProt;
+
   if (name == segment_names::text)
     return VM_PROT_READ | VM_PROT_EXECUTE;
   if (name == segment_names::pageZero)
@@ -31,94 +38,119 @@ static uint32_t initProt(StringRef name) {
 }
 
 static uint32_t maxProt(StringRef name) {
-  if (name == segment_names::pageZero)
-    return 0;
-  return VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE;
+  assert(config->arch() != AK_i386 &&
+         "TODO: i386 has different maxProt requirements");
+  return initProt(name);
 }
 
 size_t OutputSegment::numNonHiddenSections() const {
   size_t count = 0;
-  for (const OutputSegment::SectionMapEntry &i : sections) {
-    OutputSection *os = i.second;
-    count += (!os->isHidden() ? 1 : 0);
-  }
+  for (const OutputSection *osec : sections)
+    count += (!osec->isHidden() ? 1 : 0);
   return count;
 }
 
-void OutputSegment::addOutputSection(OutputSection *os) {
-  os->parent = this;
-  std::pair<SectionMap::iterator, bool> result =
-      sections.insert(SectionMapEntry(os->name, os));
-  if (!result.second) {
-    llvm_unreachable("Attempted to set section, but a section with the same "
-                     "name already exists");
-  }
+void OutputSegment::addOutputSection(OutputSection *osec) {
+  inputOrder = std::min(inputOrder, osec->inputOrder);
+
+  osec->parent = this;
+  sections.push_back(osec);
+
+  for (const SectionAlign &sectAlign : config->sectionAlignments)
+    if (sectAlign.segName == name && sectAlign.sectName == osec->name)
+      osec->align = sectAlign.align;
 }
 
-OutputSection *OutputSegment::getOrCreateOutputSection(StringRef name) {
-  OutputSegment::SectionMap::iterator i = sections.find(name);
-  if (i != sections.end()) {
-    return i->second;
-  }
-
-  auto *os = make<MergedOutputSection>(name);
-  addOutputSection(os);
-  return os;
+template <typename T, typename F> static auto compareByOrder(F ord) {
+  return [=](T a, T b) { return ord(a) < ord(b); };
 }
 
-void OutputSegment::sortOutputSections(OutputSegmentComparator *comparator) {
-  llvm::stable_sort(sections, *comparator->sectionComparator(this));
-}
-
-void OutputSegment::removeUnneededSections() {
-  sections.remove_if([](const std::pair<StringRef, OutputSection *> &p) {
-    return !p.second->isNeeded();
-  });
-}
-
-OutputSegmentComparator::OutputSegmentComparator() {
-  // This defines the order of segments and the sections within each segment.
-  // Segments that are not mentioned here will end up at defaultPosition;
-  // sections that are not mentioned will end up at the end of the section
-  // list for their given segment.
-  std::vector<std::pair<StringRef, std::vector<StringRef>>> ordering{
-      {segment_names::pageZero, {}},
-      {segment_names::text, {section_names::header}},
-      {defaultPosition, {}},
+static int segmentOrder(OutputSegment *seg) {
+  return StringSwitch<int>(seg->name)
+      .Case(segment_names::pageZero, -4)
+      .Case(segment_names::text, -3)
+      .Case(segment_names::dataConst, -2)
+      .Case(segment_names::data, -1)
+      .Case(segment_names::llvm, std::numeric_limits<int>::max() - 1)
       // Make sure __LINKEDIT is the last segment (i.e. all its hidden
       // sections must be ordered after other sections).
-      {segment_names::linkEdit,
-       {
-           section_names::binding,
-           section_names::export_,
-           section_names::symbolTable,
-           section_names::stringTable,
-       }},
-  };
+      .Case(segment_names::linkEdit, std::numeric_limits<int>::max())
+      .Default(seg->inputOrder);
+}
 
-  for (uint32_t i = 0, n = ordering.size(); i < n; ++i) {
-    auto &p = ordering[i];
-    StringRef segname = p.first;
-    const std::vector<StringRef> &sectOrdering = p.second;
-    orderMap.insert(std::pair<StringRef, OutputSectionComparator>(
-        segname, OutputSectionComparator(i, sectOrdering)));
+static int sectionOrder(OutputSection *osec) {
+  StringRef segname = osec->parent->name;
+  // Sections are uniquely identified by their segment + section name.
+  if (segname == segment_names::text) {
+    return StringSwitch<int>(osec->name)
+        .Case(section_names::header, -4)
+        .Case(section_names::text, -3)
+        .Case(section_names::stubs, -2)
+        .Case(section_names::stubHelper, -1)
+        .Case(section_names::unwindInfo, std::numeric_limits<int>::max() - 1)
+        .Case(section_names::ehFrame, std::numeric_limits<int>::max())
+        .Default(osec->inputOrder);
+  } else if (segname == segment_names::data ||
+             segname == segment_names::dataConst) {
+    // For each thread spawned, dyld will initialize its TLVs by copying the
+    // address range from the start of the first thread-local data section to
+    // the end of the last one. We therefore arrange these sections contiguously
+    // to minimize the amount of memory used. Additionally, since zerofill
+    // sections must be at the end of their segments, and since TLV data
+    // sections can be zerofills, we end up putting all TLV data sections at the
+    // end of the segment.
+    switch (sectionType(osec->flags)) {
+    case S_THREAD_LOCAL_VARIABLE_POINTERS:
+      return std::numeric_limits<int>::max() - 3;
+    case S_THREAD_LOCAL_REGULAR:
+      return std::numeric_limits<int>::max() - 2;
+    case S_THREAD_LOCAL_ZEROFILL:
+      return std::numeric_limits<int>::max() - 1;
+    case S_ZEROFILL:
+      return std::numeric_limits<int>::max();
+    default:
+      return StringSwitch<int>(osec->name)
+          .Case(section_names::got, -3)
+          .Case(section_names::lazySymbolPtr, -2)
+          .Case(section_names::const_, -1)
+          .Default(osec->inputOrder);
+    }
+  } else if (segname == segment_names::linkEdit) {
+    return StringSwitch<int>(osec->name)
+        .Case(section_names::rebase, -10)
+        .Case(section_names::binding, -9)
+        .Case(section_names::weakBinding, -8)
+        .Case(section_names::lazyBinding, -7)
+        .Case(section_names::export_, -6)
+        .Case(section_names::functionStarts, -5)
+        .Case(section_names::dataInCode, -4)
+        .Case(section_names::symbolTable, -3)
+        .Case(section_names::indirectSymbolTable, -2)
+        .Case(section_names::stringTable, -1)
+        .Case(section_names::codeSignature, std::numeric_limits<int>::max())
+        .Default(osec->inputOrder);
   }
-
-  // Cache the position for the default comparator since this is the likely
-  // scenario.
-  defaultPositionComparator = &orderMap.find(defaultPosition)->second;
+  // ZeroFill sections must always be the at the end of their segments,
+  // otherwise subsequent sections may get overwritten with zeroes at runtime.
+  if (sectionType(osec->flags) == S_ZEROFILL)
+    return std::numeric_limits<int>::max();
+  return osec->inputOrder;
 }
 
-static llvm::DenseMap<StringRef, OutputSegment *> nameToOutputSegment;
+void OutputSegment::sortOutputSections() {
+  llvm::sort(sections, compareByOrder<OutputSection *>(sectionOrder));
+}
+
+void macho::sortOutputSegments() {
+  llvm::sort(outputSegments, compareByOrder<OutputSegment *>(segmentOrder));
+}
+
+static DenseMap<StringRef, OutputSegment *> nameToOutputSegment;
 std::vector<OutputSegment *> macho::outputSegments;
-
-OutputSegment *macho::getOutputSegment(StringRef name) {
-  return nameToOutputSegment.lookup(name);
-}
 
 OutputSegment *macho::getOrCreateOutputSegment(StringRef name) {
   OutputSegment *&segRef = nameToOutputSegment[name];
-  if (segRef != nullptr)
+  if (segRef)
     return segRef;
 
   segRef = make<OutputSegment>();

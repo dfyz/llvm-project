@@ -1,9 +1,20 @@
 // RUN: %check_clang_tidy %s performance-unnecessary-copy-initialization %t
 
+template <typename T>
+struct Iterator {
+  void operator++();
+  const T &operator*() const;
+  bool operator!=(const Iterator &) const;
+  typedef const T &const_reference;
+};
+
 struct ExpensiveToCopyType {
   ExpensiveToCopyType();
   virtual ~ExpensiveToCopyType();
   const ExpensiveToCopyType &reference() const;
+  const ExpensiveToCopyType *pointer() const;
+  Iterator<ExpensiveToCopyType> begin() const;
+  Iterator<ExpensiveToCopyType> end() const;
   void nonConstMethod();
   bool constMethod() const;
 };
@@ -23,6 +34,9 @@ struct WeirdCopyCtorType {
 ExpensiveToCopyType global_expensive_to_copy_type;
 
 const ExpensiveToCopyType &ExpensiveTypeReference();
+const ExpensiveToCopyType &freeFunctionWithArg(const ExpensiveToCopyType &);
+const ExpensiveToCopyType &freeFunctionWithDefaultArg(
+    const ExpensiveToCopyType *arg = nullptr);
 const TrivialToCopyType &TrivialTypeReference();
 
 void mutate(ExpensiveToCopyType &);
@@ -35,60 +49,88 @@ void PositiveFunctionCall() {
   const auto AutoAssigned = ExpensiveTypeReference();
   // CHECK-MESSAGES: [[@LINE-1]]:14: warning: the const qualified variable 'AutoAssigned' is copy-constructed from a const reference; consider making it a const reference [performance-unnecessary-copy-initialization]
   // CHECK-FIXES: const auto& AutoAssigned = ExpensiveTypeReference();
+  AutoAssigned.constMethod();
+
   const auto AutoCopyConstructed(ExpensiveTypeReference());
   // CHECK-MESSAGES: [[@LINE-1]]:14: warning: the const qualified variable 'AutoCopyConstructed'
   // CHECK-FIXES: const auto& AutoCopyConstructed(ExpensiveTypeReference());
+  AutoCopyConstructed.constMethod();
+
   const ExpensiveToCopyType VarAssigned = ExpensiveTypeReference();
   // CHECK-MESSAGES: [[@LINE-1]]:29: warning: the const qualified variable 'VarAssigned'
   // CHECK-FIXES:   const ExpensiveToCopyType& VarAssigned = ExpensiveTypeReference();
+  VarAssigned.constMethod();
+
   const ExpensiveToCopyType VarCopyConstructed(ExpensiveTypeReference());
   // CHECK-MESSAGES: [[@LINE-1]]:29: warning: the const qualified variable 'VarCopyConstructed'
   // CHECK-FIXES: const ExpensiveToCopyType& VarCopyConstructed(ExpensiveTypeReference());
+  VarCopyConstructed.constMethod();
 }
 
 void PositiveMethodCallConstReferenceParam(const ExpensiveToCopyType &Obj) {
   const auto AutoAssigned = Obj.reference();
   // CHECK-MESSAGES: [[@LINE-1]]:14: warning: the const qualified variable 'AutoAssigned'
   // CHECK-FIXES: const auto& AutoAssigned = Obj.reference();
+  AutoAssigned.constMethod();
+
   const auto AutoCopyConstructed(Obj.reference());
   // CHECK-MESSAGES: [[@LINE-1]]:14: warning: the const qualified variable 'AutoCopyConstructed'
   // CHECK-FIXES: const auto& AutoCopyConstructed(Obj.reference());
+  AutoCopyConstructed.constMethod();
+
   const ExpensiveToCopyType VarAssigned = Obj.reference();
   // CHECK-MESSAGES: [[@LINE-1]]:29: warning: the const qualified variable 'VarAssigned'
   // CHECK-FIXES: const ExpensiveToCopyType& VarAssigned = Obj.reference();
+  VarAssigned.constMethod();
+
   const ExpensiveToCopyType VarCopyConstructed(Obj.reference());
   // CHECK-MESSAGES: [[@LINE-1]]:29: warning: the const qualified variable 'VarCopyConstructed'
   // CHECK-FIXES: const ExpensiveToCopyType& VarCopyConstructed(Obj.reference());
+  VarCopyConstructed.constMethod();
 }
 
 void PositiveMethodCallConstParam(const ExpensiveToCopyType Obj) {
   const auto AutoAssigned = Obj.reference();
   // CHECK-MESSAGES: [[@LINE-1]]:14: warning: the const qualified variable 'AutoAssigned'
   // CHECK-FIXES: const auto& AutoAssigned = Obj.reference();
+  AutoAssigned.constMethod();
+
   const auto AutoCopyConstructed(Obj.reference());
   // CHECK-MESSAGES: [[@LINE-1]]:14: warning: the const qualified variable 'AutoCopyConstructed'
   // CHECK-FIXES: const auto& AutoCopyConstructed(Obj.reference());
+  AutoCopyConstructed.constMethod();
+
   const ExpensiveToCopyType VarAssigned = Obj.reference();
   // CHECK-MESSAGES: [[@LINE-1]]:29: warning: the const qualified variable 'VarAssigned'
   // CHECK-FIXES: const ExpensiveToCopyType& VarAssigned = Obj.reference();
+  VarAssigned.constMethod();
+
   const ExpensiveToCopyType VarCopyConstructed(Obj.reference());
   // CHECK-MESSAGES: [[@LINE-1]]:29: warning: the const qualified variable 'VarCopyConstructed'
   // CHECK-FIXES: const ExpensiveToCopyType& VarCopyConstructed(Obj.reference());
+  VarCopyConstructed.constMethod();
 }
 
 void PositiveMethodCallConstPointerParam(const ExpensiveToCopyType *const Obj) {
   const auto AutoAssigned = Obj->reference();
   // CHECK-MESSAGES: [[@LINE-1]]:14: warning: the const qualified variable 'AutoAssigned'
   // CHECK-FIXES: const auto& AutoAssigned = Obj->reference();
+  AutoAssigned.constMethod();
+
   const auto AutoCopyConstructed(Obj->reference());
   // CHECK-MESSAGES: [[@LINE-1]]:14: warning: the const qualified variable 'AutoCopyConstructed'
   // CHECK-FIXES: const auto& AutoCopyConstructed(Obj->reference());
+  AutoCopyConstructed.constMethod();
+
   const ExpensiveToCopyType VarAssigned = Obj->reference();
   // CHECK-MESSAGES: [[@LINE-1]]:29: warning: the const qualified variable 'VarAssigned'
   // CHECK-FIXES: const ExpensiveToCopyType& VarAssigned = Obj->reference();
+  VarAssigned.constMethod();
+
   const ExpensiveToCopyType VarCopyConstructed(Obj->reference());
   // CHECK-MESSAGES: [[@LINE-1]]:29: warning: the const qualified variable 'VarCopyConstructed'
   // CHECK-FIXES: const ExpensiveToCopyType& VarCopyConstructed(Obj->reference());
+  VarCopyConstructed.constMethod();
 }
 
 void PositiveLocalConstValue() {
@@ -96,6 +138,7 @@ void PositiveLocalConstValue() {
   const auto UnnecessaryCopy = Obj.reference();
   // CHECK-MESSAGES: [[@LINE-1]]:14: warning: the const qualified variable 'UnnecessaryCopy'
   // CHECK-FIXES: const auto& UnnecessaryCopy = Obj.reference();
+  UnnecessaryCopy.constMethod();
 }
 
 void PositiveLocalConstRef() {
@@ -104,6 +147,7 @@ void PositiveLocalConstRef() {
   const auto UnnecessaryCopy = ConstReference.reference();
   // CHECK-MESSAGES: [[@LINE-1]]:14: warning: the const qualified variable 'UnnecessaryCopy'
   // CHECK-FIXES: const auto& UnnecessaryCopy = ConstReference.reference();
+  UnnecessaryCopy.constMethod();
 }
 
 void PositiveLocalConstPointer() {
@@ -112,6 +156,7 @@ void PositiveLocalConstPointer() {
   const auto UnnecessaryCopy = ConstPointer->reference();
   // CHECK-MESSAGES: [[@LINE-1]]:14: warning: the const qualified variable 'UnnecessaryCopy'
   // CHECK-FIXES: const auto& UnnecessaryCopy = ConstPointer->reference();
+  UnnecessaryCopy.constMethod();
 }
 
 void NegativeFunctionCallTrivialType() {
@@ -129,15 +174,22 @@ void PositiveFunctionCallExpensiveTypeNonConstVariable() {
   auto AutoAssigned = ExpensiveTypeReference();
   // CHECK-MESSAGES: [[@LINE-1]]:8: warning: the variable 'AutoAssigned' is copy-constructed from a const reference but is only used as const reference; consider making it a const reference [performance-unnecessary-copy-initialization]
   // CHECK-FIXES: const auto& AutoAssigned = ExpensiveTypeReference();
+  AutoAssigned.constMethod();
+
   auto AutoCopyConstructed(ExpensiveTypeReference());
   // CHECK-MESSAGES: [[@LINE-1]]:8: warning: the variable 'AutoCopyConstructed'
   // CHECK-FIXES: const auto& AutoCopyConstructed(ExpensiveTypeReference());
+  AutoCopyConstructed.constMethod();
+
   ExpensiveToCopyType VarAssigned = ExpensiveTypeReference();
   // CHECK-MESSAGES: [[@LINE-1]]:23: warning: the variable 'VarAssigned'
   // CHECK-FIXES: const ExpensiveToCopyType& VarAssigned = ExpensiveTypeReference();
+  VarAssigned.constMethod();
+
   ExpensiveToCopyType VarCopyConstructed(ExpensiveTypeReference());
   // CHECK-MESSAGES: [[@LINE-1]]:23: warning: the variable 'VarCopyConstructed'
   // CHECK-FIXES: const ExpensiveToCopyType& VarCopyConstructed(ExpensiveTypeReference());
+  VarCopyConstructed.constMethod();
 }
 
 void positiveNonConstVarInCodeBlock(const ExpensiveToCopyType &Obj) {
@@ -178,6 +230,7 @@ void PositiveMethodCallNonConstRefNotModified(ExpensiveToCopyType &Obj) {
   const auto AutoAssigned = Obj.reference();
   // CHECK-MESSAGES: [[@LINE-1]]:14: warning: the const qualified variable 'AutoAssigned'
   // CHECK-FIXES: const auto& AutoAssigned = Obj.reference();
+  AutoAssigned.constMethod();
 }
 
 void NegativeMethodCallNonConstRefIsModified(ExpensiveToCopyType &Obj) {
@@ -192,6 +245,7 @@ void PositiveMethodCallNonConstNotModified(ExpensiveToCopyType Obj) {
   const auto AutoAssigned = Obj.reference();
   // CHECK-MESSAGES: [[@LINE-1]]:14: warning: the const qualified variable 'AutoAssigned'
   // CHECK-FIXES: const auto& AutoAssigned = Obj.reference();
+  AutoAssigned.constMethod();
 }
 
 void NegativeMethodCallNonConstValueArgumentIsModified(ExpensiveToCopyType Obj) {
@@ -204,6 +258,7 @@ void PositiveMethodCallNonConstPointerNotModified(ExpensiveToCopyType *const Obj
   // CHECK-MESSAGES: [[@LINE-1]]:14: warning: the const qualified variable 'AutoAssigned'
   // CHECK-FIXES: const auto& AutoAssigned = Obj->reference();
   Obj->constMethod();
+  AutoAssigned.constMethod();
 }
 
 void NegativeMethodCallNonConstPointerIsModified(ExpensiveToCopyType *const Obj) {
@@ -219,6 +274,7 @@ void PositiveLocalVarIsNotModified() {
   const auto AutoAssigned = LocalVar.reference();
   // CHECK-MESSAGES: [[@LINE-1]]:14: warning: the const qualified variable 'AutoAssigned'
   // CHECK-FIXES: const auto& AutoAssigned = LocalVar.reference();
+  AutoAssigned.constMethod();
 }
 
 void NegativeLocalVarIsModified() {
@@ -249,6 +305,7 @@ void PositiveMacroArgument(const ExpensiveToCopyType &Obj) {
   // CHECK-MESSAGES: [[@LINE-1]]:48: warning: the variable 'CopyInMacroArg' is copy-constructed
   // Ensure fix is not applied.
   // CHECK-FIXES: auto CopyInMacroArg = Obj.reference()
+  CopyInMacroArg.constMethod();
 }
 
 void PositiveLocalCopyConstMethodInvoked() {
@@ -282,6 +339,7 @@ void PositiveLocalCopyUsedAsConstRef() {
   // CHECK-MESSAGES: [[@LINE-1]]:23: warning: local copy 'copy_4'
   // CHECK-FIXES: const ExpensiveToCopyType& copy_4 = orig;
   useAsConstReference(orig);
+  copy_4.constMethod();
 }
 
 void PositiveLocalCopyTwice() {
@@ -367,6 +425,7 @@ void WarningOnlyMultiDeclStmt() {
   ExpensiveToCopyType copy = orig, copy2;
   // CHECK-MESSAGES: [[@LINE-1]]:23: warning: local copy 'copy' of the variable 'orig' is never modified; consider avoiding the copy [performance-unnecessary-copy-initialization]
   // CHECK-FIXES: ExpensiveToCopyType copy = orig, copy2;
+  copy.constMethod();
 }
 
 class Element {};
@@ -386,4 +445,195 @@ public:
 void implicitVarFalsePositive() {
   for (const Element &E : Container()) {
   }
+}
+
+// This should not trigger the check as the argument could introduce an alias.
+void negativeInitializedFromFreeFunctionWithArg() {
+  ExpensiveToCopyType Orig;
+  const ExpensiveToCopyType Copy = freeFunctionWithArg(Orig);
+}
+
+void negativeInitializedFromFreeFunctionWithDefaultArg() {
+  const ExpensiveToCopyType Copy = freeFunctionWithDefaultArg();
+}
+
+void negativeInitialzedFromFreeFunctionWithNonDefaultArg() {
+  ExpensiveToCopyType Orig;
+  const ExpensiveToCopyType Copy = freeFunctionWithDefaultArg(&Orig);
+}
+
+namespace std {
+inline namespace __1 {
+
+template <class>
+class function;
+template <class R, class... ArgTypes>
+class function<R(ArgTypes...)> {
+public:
+  function();
+  function(const function &Other);
+  R operator()(ArgTypes... Args) const;
+};
+
+} // namespace __1
+} // namespace std
+
+void negativeStdFunction() {
+  std::function<int()> Orig;
+  std::function<int()> Copy = Orig;
+  int i = Orig();
+}
+
+using Functor = std::function<int()>;
+
+void negativeAliasedStdFunction() {
+  Functor Orig;
+  Functor Copy = Orig;
+  int i = Orig();
+}
+
+typedef std::function<int()> TypedefFunc;
+
+void negativeTypedefedStdFunction() {
+  TypedefFunc Orig;
+  TypedefFunc Copy = Orig;
+  int i = Orig();
+}
+
+namespace fake {
+namespace std {
+template <class R, class... Args>
+struct function {
+  // Custom copy constructor makes it expensive to copy;
+  function(const function &);
+  void constMethod() const;
+};
+} // namespace std
+
+void positiveFakeStdFunction(std::function<void(int)> F) {
+  auto Copy = F;
+  // CHECK-MESSAGES: [[@LINE-1]]:8: warning: local copy 'Copy' of the variable 'F' is never modified;
+  // CHECK-FIXES: const auto& Copy = F;
+  Copy.constMethod();
+}
+
+} // namespace fake
+
+void positiveInvokedOnStdFunction(
+    std::function<void(const ExpensiveToCopyType &)> Update,
+    const ExpensiveToCopyType Orig) {
+  auto Copy = Orig.reference();
+  // CHECK-MESSAGES: [[@LINE-1]]:8: warning: the variable 'Copy' is copy-constructed from a const reference
+  // CHECK-FIXES: const auto& Copy = Orig.reference();
+  Update(Copy);
+}
+
+void negativeInvokedOnStdFunction(
+    std::function<void(ExpensiveToCopyType &)> Update,
+    const ExpensiveToCopyType Orig) {
+  auto Copy = Orig.reference();
+  Update(Copy);
+}
+
+void negativeCopiedFromReferenceToModifiedVar() {
+  ExpensiveToCopyType Orig;
+  const auto &Ref = Orig;
+  const auto NecessaryCopy = Ref;
+  Orig.nonConstMethod();
+}
+
+void positiveCopiedFromReferenceToConstVar() {
+  ExpensiveToCopyType Orig;
+  const auto &Ref = Orig;
+  const auto UnnecessaryCopy = Ref;
+  // CHECK-MESSAGES: [[@LINE-1]]:14: warning: local copy 'UnnecessaryCopy' of
+  // CHECK-FIXES: const auto& UnnecessaryCopy = Ref;
+  Orig.constMethod();
+  UnnecessaryCopy.constMethod();
+}
+
+void negativeCopiedFromGetterOfReferenceToModifiedVar() {
+  ExpensiveToCopyType Orig;
+  const auto &Ref = Orig.reference();
+  const auto NecessaryCopy = Ref.reference();
+  Orig.nonConstMethod();
+}
+
+void negativeAliasNonCanonicalPointerType() {
+  ExpensiveToCopyType Orig;
+  // The use of auto here hides that the type is a pointer type. The check needs
+  // to look at the canonical type to detect the aliasing through this pointer.
+  const auto Pointer = Orig.pointer();
+  const auto NecessaryCopy = Pointer->reference();
+  Orig.nonConstMethod();
+}
+
+void negativeAliasTypedefedType() {
+  typedef const ExpensiveToCopyType &ReferenceType;
+  ExpensiveToCopyType Orig;
+  // The typedef hides the fact that this is a reference type. The check needs
+  // to look at the canonical type to detect the aliasing.
+  ReferenceType Ref = Orig.reference();
+  const auto NecessaryCopy = Ref.reference();
+  Orig.nonConstMethod();
+}
+
+void positiveCopiedFromGetterOfReferenceToConstVar() {
+  ExpensiveToCopyType Orig;
+  const auto &Ref = Orig.reference();
+  auto UnnecessaryCopy = Ref.reference();
+  // CHECK-MESSAGES: [[@LINE-1]]:8: warning: the variable 'UnnecessaryCopy' is
+  // CHECK-FIXES: const auto& UnnecessaryCopy = Ref.reference();
+  Orig.constMethod();
+  UnnecessaryCopy.constMethod();
+}
+
+void positiveUnusedReferenceIsRemoved() {
+  // clang-format off
+  const auto AutoAssigned = ExpensiveTypeReference(); int i = 0; // Foo bar.
+  // CHECK-MESSAGES: [[@LINE-1]]:14: warning: the const qualified variable 'AutoAssigned' is copy-constructed from a const reference but is never used; consider removing the statement [performance-unnecessary-copy-initialization]
+  // CHECK-FIXES-NOT: const auto AutoAssigned = ExpensiveTypeReference();
+  // CHECK-FIXES: int i = 0; // Foo bar.
+  auto TrailingCommentRemoved = ExpensiveTypeReference(); // Trailing comment.
+  // CHECK-MESSAGES: [[@LINE-1]]:8: warning: the variable 'TrailingCommentRemoved' is copy-constructed from a const reference but is never used;
+  // CHECK-FIXES-NOT: auto TrailingCommentRemoved = ExpensiveTypeReference(); // Trailing comment.
+  // clang-format on
+}
+
+void negativeloopedOverObjectIsModified() {
+  ExpensiveToCopyType Orig;
+  for (const auto &Element : Orig) {
+    const auto Copy = Element;
+    Orig.nonConstMethod();
+    Copy.constMethod();
+  }
+
+  auto Lambda = []() {
+    ExpensiveToCopyType Orig;
+    for (const auto &Element : Orig) {
+      const auto Copy = Element;
+      Orig.nonConstMethod();
+      Copy.constMethod();
+    }
+  };
+}
+
+void negativeReferenceIsInitializedOutsideOfBlock() {
+  ExpensiveToCopyType Orig;
+  const auto &E2 = Orig;
+  if (1 != 2 * 3) {
+    const auto C2 = E2;
+    Orig.nonConstMethod();
+    C2.constMethod();
+  }
+
+  auto Lambda = []() {
+    ExpensiveToCopyType Orig;
+    const auto &E2 = Orig;
+    if (1 != 2 * 3) {
+      const auto C2 = E2;
+      Orig.nonConstMethod();
+      C2.constMethod();
+    }
+  };
 }

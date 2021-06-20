@@ -1,4 +1,5 @@
-! RUN: %S/test_modfile.sh %s %t %f18
+! RUN: %S/test_modfile.sh %s %t %flang_fc1
+! REQUIRES: shell
 ! modfile with subprograms
 
 module m1
@@ -6,7 +7,7 @@ module m1
   end type
 contains
 
-  pure subroutine s(x, y) bind(c)
+  pure subroutine Ss(x, y) bind(c)
     logical x
     intent(inout) y
     intent(in) x
@@ -39,12 +40,21 @@ contains
   end
 end
 
+! Module with a subroutine with alternate returns
+module m3
+contains
+  subroutine altReturn(arg1, arg2, *, *)
+    real :: arg1
+    real :: arg2
+  end subroutine
+end module m3
+
 !Expect: m1.mod
 !module m1
 !type::t
 !end type
 !contains
-!pure subroutine s(x,y) bind(c)
+!pure subroutine ss(x,y) bind(c, name="ss")
 !logical(4),intent(in)::x
 !real(4),intent(inout)::y
 !end
@@ -71,5 +81,14 @@ end
 !end
 !function f4() result(x)
 !complex(4)::x
+!end
+!end
+
+!Expect: m3.mod
+!module m3
+!contains
+!subroutine altreturn(arg1,arg2,*,*)
+!real(4)::arg1
+!real(4)::arg2
 !end
 !end

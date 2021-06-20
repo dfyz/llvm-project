@@ -12,6 +12,8 @@
 #include "lld/Common/LLVM.h"
 #include "llvm/ADT/DenseMap.h"
 
+#include <limits>
+
 namespace lld {
 namespace macho {
 
@@ -25,7 +27,7 @@ class OutputSegment;
 class OutputSection {
 public:
   enum Kind {
-    MergedKind,
+    ConcatKind,
     SyntheticKind,
   };
 
@@ -47,10 +49,6 @@ public:
   // Unneeded sections are omitted entirely (header and body).
   virtual bool isNeeded() const { return true; }
 
-  // Some sections may allow coalescing other raw input sections.
-  virtual void mergeInput(InputSection *input);
-
-  // Specifically finalizes addresses and section size, not content.
   virtual void finalize() {
     // TODO investigate refactoring synthetic section finalization logic into
     // overrides of this function.
@@ -60,47 +58,21 @@ public:
 
   StringRef name;
   OutputSegment *parent = nullptr;
+  // For output sections that don't have explicit ordering requirements, their
+  // output order should be based on the order of the input sections they
+  // contain.
+  int inputOrder = std::numeric_limits<int>::max();
 
   uint32_t index = 0;
   uint64_t addr = 0;
   uint64_t fileOff = 0;
   uint32_t align = 1;
   uint32_t flags = 0;
+  uint32_t reserved1 = 0;
+  uint32_t reserved2 = 0;
 
 private:
   Kind sectionKind;
-};
-
-class OutputSectionComparator {
-public:
-  OutputSectionComparator(uint32_t segmentOrder,
-                          const std::vector<StringRef> &sectOrdering)
-      : segmentOrder(segmentOrder) {
-    for (uint32_t j = 0, m = sectOrdering.size(); j < m; ++j)
-      sectionOrdering[sectOrdering[j]] = j;
-  }
-
-  uint32_t sectionOrder(StringRef secname) {
-    auto sectIt = sectionOrdering.find(secname);
-    if (sectIt != sectionOrdering.end())
-      return sectIt->second;
-    return sectionOrdering.size();
-  }
-
-  // Sort sections within a common segment, which stores them in
-  // a MapVector of section name -> section
-  bool operator()(const std::pair<StringRef, OutputSection *> &a,
-                  const std::pair<StringRef, OutputSection *> &b) {
-    return sectionOrder(a.first) < sectionOrder(b.first);
-  }
-
-  bool operator<(const OutputSectionComparator &b) {
-    return segmentOrder < b.segmentOrder;
-  }
-
-private:
-  uint32_t segmentOrder;
-  llvm::DenseMap<StringRef, uint32_t> sectionOrdering;
 };
 
 } // namespace macho

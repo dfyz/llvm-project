@@ -8,8 +8,15 @@
 
 #include "flang/Evaluate/fold.h"
 #include "fold-implementation.h"
+#include "flang/Evaluate/characteristics.h"
 
 namespace Fortran::evaluate {
+
+characteristics::TypeAndShape Fold(
+    FoldingContext &context, characteristics::TypeAndShape &&x) {
+  x.Rewrite(context);
+  return std::move(x);
+}
 
 std::optional<Constant<SubscriptInteger>> GetConstantSubscript(
     FoldingContext &context, Subscript &ss, const NamedEntity &base, int dim) {
@@ -57,11 +64,34 @@ std::optional<Constant<SubscriptInteger>> GetConstantSubscript(
 
 Expr<SomeDerived> FoldOperation(
     FoldingContext &context, StructureConstructor &&structure) {
-  StructureConstructor result{structure.derivedTypeSpec()};
+  StructureConstructor ctor{structure.derivedTypeSpec()};
+  bool constantExtents{true};
   for (auto &&[symbol, value] : std::move(structure)) {
-    result.Add(symbol, Fold(context, std::move(value.value())));
+    auto expr{Fold(context, std::move(value.value()))};
+    if (!IsPointer(symbol)) {
+      bool ok{false};
+      if (auto valueShape{GetConstantExtents(context, expr)}) {
+        if (auto componentShape{GetConstantExtents(context, symbol)}) {
+          if (GetRank(*componentShape) > 0 && GetRank(*valueShape) == 0) {
+            expr = ScalarConstantExpander{std::move(*componentShape)}.Expand(
+                std::move(expr));
+            ok = expr.Rank() > 0;
+          } else {
+            ok = *valueShape == *componentShape;
+          }
+        }
+      }
+      if (!ok) {
+        constantExtents = false;
+      }
+    }
+    ctor.Add(symbol, Fold(context, std::move(expr)));
   }
-  return Expr<SomeDerived>{Constant<SomeDerived>{std::move(result)}};
+  if (constantExtents && IsConstantExpr(ctor)) {
+    return Expr<SomeDerived>{Constant<SomeDerived>{std::move(ctor)}};
+  } else {
+    return Expr<SomeDerived>{std::move(ctor)};
+  }
 }
 
 Component FoldOperation(FoldingContext &context, Component &&component) {

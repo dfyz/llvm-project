@@ -480,15 +480,63 @@ define float @fabs_squared_fast(float %x) {
   ret float %mul
 }
 
-define float @fabs_x_fabs(float %x, float %y) {
-; CHECK-LABEL: @fabs_x_fabs(
-; CHECK-NEXT:    [[X_FABS:%.*]] = call float @llvm.fabs.f32(float [[X:%.*]])
-; CHECK-NEXT:    [[Y_FABS:%.*]] = call float @llvm.fabs.f32(float [[Y:%.*]])
-; CHECK-NEXT:    [[MUL:%.*]] = fmul float [[X_FABS]], [[Y_FABS]]
+define float @fabs_fabs(float %x, float %y) {
+; CHECK-LABEL: @fabs_fabs(
+; CHECK-NEXT:    [[TMP1:%.*]] = fmul float [[X:%.*]], [[Y:%.*]]
+; CHECK-NEXT:    [[MUL:%.*]] = call float @llvm.fabs.f32(float [[TMP1]])
 ; CHECK-NEXT:    ret float [[MUL]]
 ;
   %x.fabs = call float @llvm.fabs.f32(float %x)
   %y.fabs = call float @llvm.fabs.f32(float %y)
+  %mul = fmul float %x.fabs, %y.fabs
+  ret float %mul
+}
+
+define float @fabs_fabs_extra_use1(float %x, float %y) {
+; CHECK-LABEL: @fabs_fabs_extra_use1(
+; CHECK-NEXT:    [[X_FABS:%.*]] = call float @llvm.fabs.f32(float [[X:%.*]])
+; CHECK-NEXT:    call void @use_f32(float [[X_FABS]])
+; CHECK-NEXT:    [[TMP1:%.*]] = fmul ninf float [[X]], [[Y:%.*]]
+; CHECK-NEXT:    [[MUL:%.*]] = call ninf float @llvm.fabs.f32(float [[TMP1]])
+; CHECK-NEXT:    ret float [[MUL]]
+;
+  %x.fabs = call float @llvm.fabs.f32(float %x)
+  call void @use_f32(float %x.fabs)
+  %y.fabs = call float @llvm.fabs.f32(float %y)
+  %mul = fmul ninf float %x.fabs, %y.fabs
+  ret float %mul
+}
+
+define float @fabs_fabs_extra_use2(float %x, float %y) {
+; CHECK-LABEL: @fabs_fabs_extra_use2(
+; CHECK-NEXT:    [[Y_FABS:%.*]] = call fast float @llvm.fabs.f32(float [[Y:%.*]])
+; CHECK-NEXT:    call void @use_f32(float [[Y_FABS]])
+; CHECK-NEXT:    [[TMP1:%.*]] = fmul reassoc ninf float [[X:%.*]], [[Y]]
+; CHECK-NEXT:    [[MUL:%.*]] = call reassoc ninf float @llvm.fabs.f32(float [[TMP1]])
+; CHECK-NEXT:    ret float [[MUL]]
+;
+  %x.fabs = call fast float @llvm.fabs.f32(float %x)
+  %y.fabs = call fast float @llvm.fabs.f32(float %y)
+  call void @use_f32(float %y.fabs)
+  %mul = fmul reassoc ninf float %x.fabs, %y.fabs
+  ret float %mul
+}
+
+; negative test - don't create an extra instruction
+
+define float @fabs_fabs_extra_use3(float %x, float %y) {
+; CHECK-LABEL: @fabs_fabs_extra_use3(
+; CHECK-NEXT:    [[X_FABS:%.*]] = call float @llvm.fabs.f32(float [[X:%.*]])
+; CHECK-NEXT:    call void @use_f32(float [[X_FABS]])
+; CHECK-NEXT:    [[Y_FABS:%.*]] = call float @llvm.fabs.f32(float [[Y:%.*]])
+; CHECK-NEXT:    call void @use_f32(float [[Y_FABS]])
+; CHECK-NEXT:    [[MUL:%.*]] = fmul float [[X_FABS]], [[Y_FABS]]
+; CHECK-NEXT:    ret float [[MUL]]
+;
+  %x.fabs = call float @llvm.fabs.f32(float %x)
+  call void @use_f32(float %x.fabs)
+  %y.fabs = call float @llvm.fabs.f32(float %y)
+  call void @use_f32(float %y.fabs)
   %mul = fmul float %x.fabs, %y.fabs
   ret float %mul
 }
@@ -572,9 +620,9 @@ declare float @llvm.log2.f32(float)
 
 define float @log2half(float %x, float %y) {
 ; CHECK-LABEL: @log2half(
-; CHECK-NEXT:    [[LOG2:%.*]] = call fast float @llvm.log2.f32(float [[Y:%.*]])
-; CHECK-NEXT:    [[TMP1:%.*]] = fmul fast float [[LOG2]], [[X:%.*]]
-; CHECK-NEXT:    [[MUL:%.*]] = fsub fast float [[TMP1]], [[X]]
+; CHECK-NEXT:    [[TMP1:%.*]] = call fast float @llvm.log2.f32(float [[Y:%.*]])
+; CHECK-NEXT:    [[TMP2:%.*]] = fmul fast float [[TMP1]], [[X:%.*]]
+; CHECK-NEXT:    [[MUL:%.*]] = fsub fast float [[TMP2]], [[X]]
 ; CHECK-NEXT:    ret float [[MUL]]
 ;
   %halfy = fmul float %y, 0.5
@@ -585,10 +633,10 @@ define float @log2half(float %x, float %y) {
 
 define float @log2half_commute(float %x1, float %y) {
 ; CHECK-LABEL: @log2half_commute(
-; CHECK-NEXT:    [[LOG2:%.*]] = call fast float @llvm.log2.f32(float [[Y:%.*]])
-; CHECK-NEXT:    [[TMP1:%.*]] = fmul fast float [[LOG2]], [[X1:%.*]]
-; CHECK-NEXT:    [[TMP2:%.*]] = fsub fast float [[TMP1]], [[X1]]
-; CHECK-NEXT:    [[MUL:%.*]] = fmul fast float [[TMP2]], 0x3FC24924A0000000
+; CHECK-NEXT:    [[TMP1:%.*]] = call fast float @llvm.log2.f32(float [[Y:%.*]])
+; CHECK-NEXT:    [[TMP2:%.*]] = fmul fast float [[TMP1]], [[X1:%.*]]
+; CHECK-NEXT:    [[TMP3:%.*]] = fsub fast float [[TMP2]], [[X1]]
+; CHECK-NEXT:    [[MUL:%.*]] = fmul fast float [[TMP3]], 0x3FC24924A0000000
 ; CHECK-NEXT:    ret float [[MUL]]
 ;
   %x = fdiv float %x1, 7.0 ; thwart complexity-based canonicalization
@@ -731,6 +779,30 @@ define float @fmul_fadd_distribute(float %x) {
   %t2 = fadd float %x, 2.0
   %t3 = fmul reassoc float %t2, 3.0
   ret float %t3
+}
+
+define <2 x float> @fmul_fadd_distribute_vec(<2 x float> %x) {
+; CHECK-LABEL: @fmul_fadd_distribute_vec(
+; CHECK-NEXT:    [[TMP1:%.*]] = fmul reassoc <2 x float> [[X:%.*]], <float 6.000000e+03, float 6.000000e+03>
+; CHECK-NEXT:    [[T3:%.*]] = fadd reassoc <2 x float> [[TMP1]], <float 1.200000e+07, float 1.200000e+07>
+; CHECK-NEXT:    ret <2 x float> [[T3]]
+;
+  %t1 = fadd <2 x float> <float 2.0e+3, float 2.0e+3>, %x
+  %t3 = fmul reassoc <2 x float> %t1, <float 6.0e+3, float 6.0e+3>
+  ret <2 x float> %t3
+}
+
+define <vscale x 2 x float> @fmul_fadd_distribute_scalablevec(<vscale x 2 x float> %x) {
+; CHECK-LABEL: @fmul_fadd_distribute_scalablevec(
+; CHECK-NEXT:    [[TMP1:%.*]] = fmul reassoc <vscale x 2 x float> [[X:%.*]], shufflevector (<vscale x 2 x float> insertelement (<vscale x 2 x float> undef, float 6.000000e+03, i32 0), <vscale x 2 x float> undef, <vscale x 2 x i32> zeroinitializer)
+; CHECK-NEXT:    [[T3:%.*]] = fadd reassoc <vscale x 2 x float> [[TMP1]], shufflevector (<vscale x 2 x float> insertelement (<vscale x 2 x float> undef, float 1.200000e+07, i32 0), <vscale x 2 x float> undef, <vscale x 2 x i32> zeroinitializer)
+; CHECK-NEXT:    ret <vscale x 2 x float> [[T3]]
+;
+  %t1 = fadd <vscale x 2 x float> shufflevector (<vscale x 2 x float> insertelement (<vscale x 2 x float> undef, float 2.0e+3, i32 0), <vscale x 2 x float> undef, <vscale x 2 x i32> zeroinitializer), %x
+  %t3 = fmul reassoc <vscale x 2 x float> %t1, shufflevector (<vscale x 2 x float> insertelement (<vscale x 2 x float> undef, float 6.0e+3, i32 0), <vscale x 2 x float> undef, <vscale x 2 x i32> zeroinitializer)
+
+
+  ret <vscale x 2 x float> %t3
 }
 
 ; (X - C1) * C2 --> (X * C2) - C1*C2
@@ -1115,4 +1187,14 @@ define double @fmul_sqrt_select(double %x, i1 %c) {
   %sel = select i1 %c, double %sqr, double 1.0
   %mul = fmul fast double %sqr, %sel
   ret double %mul
+}
+
+; fastmath => z * splat(0) = splat(0), even for scalable vectors
+define <vscale x 2 x float> @mul_scalable_splat_zero(<vscale x 2 x float> %z) {
+; CHECK-LABEL: @mul_scalable_splat_zero(
+; CHECK-NEXT:    ret <vscale x 2 x float> zeroinitializer
+;
+  %shuf = shufflevector <vscale x 2 x float> insertelement (<vscale x 2 x float> undef, float 0.0, i32 0), <vscale x 2 x float> undef, <vscale x 2 x i32> zeroinitializer
+  %t3 = fmul fast <vscale x 2 x float> %shuf, %z
+  ret <vscale x 2 x float> %t3
 }

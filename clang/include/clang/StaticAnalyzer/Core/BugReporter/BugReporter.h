@@ -19,6 +19,7 @@
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugReporterVisitors.h"
+#include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ExplodedGraph.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState.h"
@@ -135,7 +136,7 @@ protected:
   SmallVector<FixItHint, 4> Fixits;
 
   BugReport(Kind kind, const BugType &bt, StringRef desc)
-      : K(kind), BT(bt), Description(desc) {}
+      : BugReport(kind, bt, "", desc) {}
 
   BugReport(Kind K, const BugType &BT, StringRef ShortDescription,
             StringRef Description)
@@ -369,16 +370,13 @@ protected:
 public:
   PathSensitiveBugReport(const BugType &bt, StringRef desc,
                          const ExplodedNode *errorNode)
-      : BugReport(Kind::PathSensitive, bt, desc), ErrorNode(errorNode),
-        ErrorNodeRange(getStmt() ? getStmt()->getSourceRange()
-                                 : SourceRange()) {}
+      : PathSensitiveBugReport(bt, desc, desc, errorNode) {}
 
   PathSensitiveBugReport(const BugType &bt, StringRef shortDesc, StringRef desc,
                          const ExplodedNode *errorNode)
-      : BugReport(Kind::PathSensitive, bt, shortDesc, desc),
-        ErrorNode(errorNode),
-        ErrorNodeRange(getStmt() ? getStmt()->getSourceRange()
-                                 : SourceRange()) {}
+      : PathSensitiveBugReport(bt, shortDesc, desc, errorNode,
+                               /*LocationToUnique*/ {},
+                               /*DeclToUnique*/ nullptr) {}
 
   /// Create a PathSensitiveBugReport with a custom uniqueing location.
   ///
@@ -391,11 +389,13 @@ public:
                          const ExplodedNode *errorNode,
                          PathDiagnosticLocation LocationToUnique,
                          const Decl *DeclToUnique)
-      : BugReport(Kind::PathSensitive, bt, desc), ErrorNode(errorNode),
-        ErrorNodeRange(getStmt() ? getStmt()->getSourceRange() : SourceRange()),
-        UniqueingLocation(LocationToUnique), UniqueingDecl(DeclToUnique) {
-    assert(errorNode);
-  }
+      : PathSensitiveBugReport(bt, desc, desc, errorNode, LocationToUnique,
+                               DeclToUnique) {}
+
+  PathSensitiveBugReport(const BugType &bt, StringRef shortDesc, StringRef desc,
+                         const ExplodedNode *errorNode,
+                         PathDiagnosticLocation LocationToUnique,
+                         const Decl *DeclToUnique);
 
   static bool classof(const BugReport *R) {
     return R->getKind() == Kind::PathSensitive;
@@ -489,10 +489,15 @@ public:
   ///
   /// The visitors should be used when the default trace is not sufficient.
   /// For example, they allow constructing a more elaborate trace.
-  /// \sa registerConditionVisitor(), registerTrackNullOrUndefValue(),
-  /// registerFindLastStore(), registerNilReceiverVisitor(), and
-  /// registerVarDeclsLastStore().
+  /// @{
   void addVisitor(std::unique_ptr<BugReporterVisitor> visitor);
+
+  template <class VisitorType, class... Args>
+  void addVisitor(Args &&... ConstructorArgs) {
+    addVisitor(
+        std::make_unique<VisitorType>(std::forward<Args>(ConstructorArgs)...));
+  }
+  /// @}
 
   /// Remove all visitors attached to this bug report.
   void clearVisitors();
@@ -720,14 +725,43 @@ public:
   }
 };
 
+/// The tag that carries some information with it.
+///
+/// It can be valuable to produce tags with some bits of information and later
+/// reuse them for a better diagnostic.
+///
+/// Please make sure that derived class' constuctor is private and that the user
+/// can only create objects using DataTag::Factory.  This also means that
+/// DataTag::Factory should be friend for every derived class.
+class DataTag : public ProgramPointTag {
+public:
+  StringRef getTagDescription() const override { return "Data Tag"; }
+
+  // Manage memory for DataTag objects.
+  class Factory {
+    std::vector<std::unique_ptr<DataTag>> Tags;
+
+  public:
+    template <class DataTagType, class... Args>
+    const DataTagType *make(Args &&... ConstructorArgs) {
+      // We cannot use std::make_unique because we cannot access the private
+      // constructor from inside it.
+      Tags.emplace_back(
+          new DataTagType(std::forward<Args>(ConstructorArgs)...));
+      return static_cast<DataTagType *>(Tags.back().get());
+    }
+  };
+
+protected:
+  DataTag(void *TagKind) : ProgramPointTag(TagKind) {}
+};
 
 /// The tag upon which the TagVisitor reacts. Add these in order to display
 /// additional PathDiagnosticEventPieces along the path.
-class NoteTag : public ProgramPointTag {
+class NoteTag : public DataTag {
 public:
-  using Callback =
-      std::function<std::string(BugReporterContext &,
-                                PathSensitiveBugReport &)>;
+  using Callback = std::function<std::string(BugReporterContext &,
+                                             PathSensitiveBugReport &)>;
 
 private:
   static int Kind;
@@ -736,7 +770,7 @@ private:
   const bool IsPrunable;
 
   NoteTag(Callback &&Cb, bool IsPrunable)
-      : ProgramPointTag(&Kind), Cb(std::move(Cb)), IsPrunable(IsPrunable) {}
+      : DataTag(&Kind), Cb(std::move(Cb)), IsPrunable(IsPrunable) {}
 
 public:
   static bool classof(const ProgramPointTag *T) {
@@ -761,20 +795,7 @@ public:
 
   bool isPrunable() const { return IsPrunable; }
 
-  // Manage memory for NoteTag objects.
-  class Factory {
-    std::vector<std::unique_ptr<NoteTag>> Tags;
-
-  public:
-    const NoteTag *makeNoteTag(Callback &&Cb, bool IsPrunable = false) {
-      // We cannot use std::make_unique because we cannot access the private
-      // constructor from inside it.
-      std::unique_ptr<NoteTag> T(new NoteTag(std::move(Cb), IsPrunable));
-      Tags.push_back(std::move(T));
-      return Tags.back().get();
-    }
-  };
-
+  friend class Factory;
   friend class TagVisitor;
 };
 

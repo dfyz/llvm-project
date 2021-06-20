@@ -1,6 +1,6 @@
 // RUN: %check_clang_tidy -std=c++14-or-later %s modernize-avoid-bind %t -- \
 // RUN:   -config="{CheckOptions: [ \
-// RUN:     {key: modernize-avoid-bind.PermissiveParameterList, value: 1}]}" --
+// RUN:     {key: modernize-avoid-bind.PermissiveParameterList, value: true}]}" --
 
 namespace std {
 inline namespace impl {
@@ -54,5 +54,5 @@ void testLiteralParameters() {
 
   auto BBB = std::bind(add, _1, 2);
   // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: prefer a lambda to std::bind [modernize-avoid-bind]
-  // CHECK-FIXES: auto BBB = [](auto && PH1, auto && ...) { return add(PH1, 2); };
+  // CHECK-FIXES: auto BBB = [](auto && PH1, auto && ...) { return add(std::forward<decltype(PH1)>(PH1), 2); };
 }

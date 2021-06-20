@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 #----------------------------------------------------------------------
 # This module is designed to live inside the "lldb" python package
@@ -36,7 +36,7 @@ typedef uintptr_t vm_address_t;
 typedef natural_t task_t;
 typedef int kern_return_t;
 #define KERN_SUCCESS 0
-typedef void (*range_callback_t)(task_t task, void *baton, unsigned type, uintptr_t ptr_addr, uintptr_t ptr_size);
+typedef void (*range_callback_t)(task_t, void *, unsigned, uintptr_t, uintptr_t);
 '''
     if options.search_vm_regions:
         expr += '''
@@ -120,8 +120,8 @@ typedef struct vm_range_t {
     vm_address_t	address;
     vm_size_t		size;
 } vm_range_t;
-typedef kern_return_t (*memory_reader_t)(task_t task, vm_address_t remote_address, vm_size_t size, void **local_memory);
-typedef void (*vm_range_recorder_t)(task_t task, void *baton, unsigned type, vm_range_t *range, unsigned size);
+typedef kern_return_t (*memory_reader_t)(task_t, vm_address_t, vm_size_t, void **);
+typedef void (*vm_range_recorder_t)(task_t, void *, unsigned, vm_range_t *, unsigned);
 typedef struct malloc_introspection_t {
     kern_return_t (*enumerator)(task_t task, void *, unsigned type_mask, vm_address_t zone_address, memory_reader_t reader, vm_range_recorder_t recorder); /* enumerates all the malloc pointers in use */
 } malloc_introspection_t;
@@ -129,7 +129,8 @@ typedef struct malloc_zone_t {
     void *reserved1[12];
     struct malloc_introspection_t	*introspect;
 } malloc_zone_t;
-memory_reader_t task_peek = [](task_t task, vm_address_t remote_address, vm_size_t size, void **local_memory) -> kern_return_t {
+kern_return_t malloc_get_all_zones(task_t task, memory_reader_t reader, vm_address_t **addresses, unsigned *count);
+memory_reader_t task_peek = [](task_t, vm_address_t remote_address, vm_size_t, void **local_memory) -> kern_return_t {
     *local_memory = (void*) remote_address;
     return KERN_SUCCESS;
 };
@@ -226,7 +227,7 @@ def get_member_types_for_offset(value_type, offset, member_list):
 def append_regex_callback(option, opt, value, parser):
     try:
         ivar_regex = re.compile(value)
-        parser.values.ivar_regex_blacklist.append(ivar_regex)
+        parser.values.ivar_regex_exclusions.append(ivar_regex)
     except:
         print('error: an exception was thrown when compiling the ivar regular expression for "%s"' % value)
 
@@ -287,7 +288,7 @@ def add_common_options(parser):
         type='string',
         action='callback',
         callback=append_regex_callback,
-        dest='ivar_regex_blacklist',
+        dest='ivar_regex_exclusions',
         default=[],
         help='specify one or more regular expressions used to backlist any matches that are in ivars')
     parser.add_option(
@@ -773,8 +774,8 @@ def display_match_results(
                                                 member_path += '.'
                                             member_path += member_name
                                     if member_path:
-                                        if options.ivar_regex_blacklist:
-                                            for ivar_regex in options.ivar_regex_blacklist:
+                                        if options.ivar_regex_exclusions:
+                                            for ivar_regex in options.ivar_regex_exclusions:
                                                 if ivar_regex.match(
                                                         member_path):
                                                     print_entry = False

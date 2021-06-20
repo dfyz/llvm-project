@@ -20,6 +20,7 @@
 #define _GNU_SOURCE
 #endif
 #include <dlfcn.h>
+#include <errno.h>
 #include <execinfo.h>
 #include <inttypes.h>
 #include <omp-tools.h>
@@ -1040,12 +1041,11 @@ ompt_start_tool_result_t *ompt_start_tool(unsigned int omp_version,
   const char *tool_libs = getenv(CLIENT_TOOL_LIBRARIES_VAR);
   if (tool_libs) {
     // copy environement variable
-    char *tool_libs_buffer = (char *)malloc(sizeof(char) * strlen(tool_libs));
+    char *tool_libs_buffer = strdup(tool_libs);
     if (!tool_libs_buffer) {
-      printf("malloc Error\n");
+      printf("strdup Error (%i)\n", errno);
       exit(-1);
     }
-    strcpy(tool_libs_buffer, tool_libs);
 
     int progress = 0;
     while (progress < strlen(tool_libs)) {

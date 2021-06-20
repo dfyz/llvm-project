@@ -19,6 +19,7 @@
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/CFG.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/PostDominators.h"
@@ -45,6 +46,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/IntrinsicsAArch64.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
@@ -58,7 +60,7 @@
 
 using namespace llvm;
 
-#define DEBUG_TYPE "stack-tagging"
+#define DEBUG_TYPE "aarch64-stack-tagging"
 
 static cl::opt<bool> ClMergeInit(
     "stack-tagging-merge-init", cl::Hidden, cl::init(true), cl::ZeroOrMore,
@@ -71,6 +73,10 @@ static cl::opt<bool>
 
 static cl::opt<unsigned> ClScanLimit("stack-tagging-merge-init-scan-limit",
                                      cl::init(40), cl::Hidden);
+
+static cl::opt<unsigned>
+    ClMergeInitSizeLimit("stack-tagging-merge-init-size-limit", cl::init(272),
+                         cl::Hidden);
 
 static const Align kTagGranuleSize = Align(16);
 
@@ -102,9 +108,10 @@ public:
         SetTagZeroFn(SetTagZeroFn), StgpFn(StgpFn) {}
 
   bool addRange(uint64_t Start, uint64_t End, Instruction *Inst) {
-    auto I = std::lower_bound(
-        Ranges.begin(), Ranges.end(), Start,
-        [](const Range &LHS, uint64_t RHS) { return LHS.End <= RHS; });
+    auto I =
+        llvm::lower_bound(Ranges, Start, [](const Range &LHS, uint64_t RHS) {
+          return LHS.End <= RHS;
+        });
     if (I != Ranges.end() && End > I->Start) {
       // Overlap - bail.
       return false;
@@ -264,8 +271,9 @@ public:
       Type *EltTy = VecTy->getElementType();
       if (EltTy->isPointerTy()) {
         uint32_t EltSize = DL->getTypeSizeInBits(EltTy);
-        auto *NewTy = FixedVectorType::get(IntegerType::get(Ctx, EltSize),
-                                           VecTy->getNumElements());
+        auto *NewTy = FixedVectorType::get(
+            IntegerType::get(Ctx, EltSize),
+            cast<FixedVectorType>(VecTy)->getNumElements());
         V = IRB.CreatePointerCast(V, NewTy);
       }
     }
@@ -277,6 +285,7 @@ public:
 class AArch64StackTagging : public FunctionPass {
   struct AllocaInfo {
     AllocaInst *AI;
+    TrackingVH<Instruction> OldAI; // Track through RAUW to replace debug uses.
     SmallVector<IntrinsicInst *, 2> LifetimeStart;
     SmallVector<IntrinsicInst *, 2> LifetimeEnd;
     SmallVector<DbgVariableIntrinsic *, 2> DbgVariableIntrinsics;
@@ -432,7 +441,8 @@ void AArch64StackTagging::tagAlloca(AllocaInst *AI, Instruction *InsertBefore,
   bool LittleEndian =
       Triple(AI->getModule()->getTargetTriple()).isLittleEndian();
   // Current implementation of initializer merging assumes little endianness.
-  if (MergeInit && !F->hasOptNone() && LittleEndian) {
+  if (MergeInit && !F->hasOptNone() && LittleEndian &&
+      Size < ClMergeInitSizeLimit) {
     LLVM_DEBUG(dbgs() << "collecting initializers for " << *AI
                       << ", size = " << Size << "\n");
     InsertBefore = collectInitializers(InsertBefore, Ptr, Size, IB);
@@ -542,7 +552,6 @@ bool AArch64StackTagging::runOnFunction(Function &Fn) {
 
   MapVector<AllocaInst *, AllocaInfo> Allocas; // need stable iteration order
   SmallVector<Instruction *, 8> RetVec;
-  DenseMap<Value *, AllocaInst *> AllocaForValue;
   SmallVector<Instruction *, 4> UnrecognizedLifetimes;
 
   for (auto &BB : *F) {
@@ -550,22 +559,21 @@ bool AArch64StackTagging::runOnFunction(Function &Fn) {
       Instruction *I = &*IT;
       if (auto *AI = dyn_cast<AllocaInst>(I)) {
         Allocas[AI].AI = AI;
+        Allocas[AI].OldAI = AI;
         continue;
       }
 
       if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(I)) {
-        if (auto *AI =
-                dyn_cast_or_null<AllocaInst>(DVI->getVariableLocation())) {
-          Allocas[AI].DbgVariableIntrinsics.push_back(DVI);
-        }
+        for (Value *V : DVI->location_ops())
+          if (auto *AI = dyn_cast_or_null<AllocaInst>(V))
+            Allocas[AI].DbgVariableIntrinsics.push_back(DVI);
         continue;
       }
 
       auto *II = dyn_cast<IntrinsicInst>(I);
       if (II && (II->getIntrinsicID() == Intrinsic::lifetime_start ||
                  II->getIntrinsicID() == Intrinsic::lifetime_end)) {
-        AllocaInst *AI =
-            llvm::findAllocaForValue(II->getArgOperand(1), AllocaForValue);
+        AllocaInst *AI = findAllocaForValue(II->getArgOperand(1));
         if (!AI) {
           UnrecognizedLifetimes.push_back(I);
           continue;
@@ -653,7 +661,7 @@ bool AArch64StackTagging::runOnFunction(Function &Fn) {
       IntrinsicInst *Start = Info.LifetimeStart[0];
       IntrinsicInst *End = Info.LifetimeEnd[0];
       uint64_t Size =
-          dyn_cast<ConstantInt>(Start->getArgOperand(0))->getZExtValue();
+          cast<ConstantInt>(Start->getArgOperand(0))->getZExtValue();
       Size = alignTo(Size, kTagGranuleSize);
       tagAlloca(AI, Start->getNextNode(), Start->getArgOperand(1), Size);
       // We need to ensure that if we tag some object, we certainly untag it
@@ -699,9 +707,7 @@ bool AArch64StackTagging::runOnFunction(Function &Fn) {
 
     // Fixup debug intrinsics to point to the new alloca.
     for (auto DVI : Info.DbgVariableIntrinsics)
-      DVI->setArgOperand(
-          0,
-          MetadataAsValue::get(F->getContext(), LocalAsMetadata::get(Info.AI)));
+      DVI->replaceVariableLocationOp(Info.OldAI, Info.AI);
   }
 
   // If we have instrumented at least one alloca, all unrecognized lifetime

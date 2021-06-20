@@ -21,8 +21,7 @@
 #include "flang/Optimizer/Dialect/FIRType.h"
 #include "flang/Optimizer/Support/KindMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Function.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
 
@@ -69,6 +68,10 @@ public:
 
   /// Safely create a reference type to the type `eleTy`.
   mlir::Type getRefType(mlir::Type eleTy);
+
+  /// Create a null constant of type RefType and value 0. Need to pass in the
+  /// Location information.
+  mlir::Value createNullConstant(mlir::Location loc);
 
   /// Create an integer constant of type \p type and value \p i.
   mlir::Value createIntegerConstant(mlir::Location loc, mlir::Type integerType,

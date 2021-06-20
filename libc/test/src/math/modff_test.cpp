@@ -1,5 +1,4 @@
-//===-- Unittests for modfff
-//-----------------------------------------------===//
+//===-- Unittests for modff -----------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "include/math.h"
 #include "src/math/modff.h"
 #include "utils/FPUtil/BasicOperations.h"
 #include "utils/FPUtil/BitPatterns.h"
@@ -15,6 +13,7 @@
 #include "utils/FPUtil/FloatProperties.h"
 #include "utils/FPUtil/NearestIntegerOperations.h"
 #include "utils/UnitTest/Test.h"
+#include <math.h>
 
 using __llvm_libc::fputil::valueAsBits;
 using __llvm_libc::fputil::valueFromBits;
@@ -22,7 +21,7 @@ using __llvm_libc::fputil::valueFromBits;
 using BitPatterns = __llvm_libc::fputil::BitPatterns<float>;
 using Properties = __llvm_libc::fputil::FloatProperties<float>;
 
-TEST(ModffTest, SpecialNumbers) {
+TEST(LlvmLibcModffTest, SpecialNumbers) {
   float integral;
 
   EXPECT_EQ(BitPatterns::aQuietNaN,
@@ -61,7 +60,7 @@ TEST(ModffTest, SpecialNumbers) {
   EXPECT_EQ(valueAsBits(integral), BitPatterns::negZero);
 }
 
-TEST(ModffTest, Integers) {
+TEST(LlvmLibcModffTest, Integers) {
   float integral;
 
   EXPECT_EQ(BitPatterns::zero,
@@ -89,7 +88,7 @@ TEST(ModffTest, Integers) {
   EXPECT_EQ(valueAsBits(integral), valueAsBits(-12345.0f));
 }
 
-TEST(ModfTest, Fractions) {
+TEST(LlvmLibcModffTest, Fractions) {
   float integral;
 
   EXPECT_EQ(valueAsBits(0.5f),
@@ -117,7 +116,7 @@ TEST(ModfTest, Fractions) {
   EXPECT_EQ(valueAsBits(integral), valueAsBits(-100.0f));
 }
 
-TEST(ModffTest, InDoubleRange) {
+TEST(LlvmLibcModffTest, InDoubleRange) {
   using BitsType = Properties::BitsType;
   constexpr BitsType count = 10000000;
   constexpr BitsType step = UINT32_MAX / count;

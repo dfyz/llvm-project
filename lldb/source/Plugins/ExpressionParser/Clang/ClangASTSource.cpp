@@ -53,9 +53,9 @@ private:
 ClangASTSource::ClangASTSource(
     const lldb::TargetSP &target,
     const std::shared_ptr<ClangASTImporter> &importer)
-    : m_import_in_progress(false), m_lookups_enabled(false), m_target(target),
-      m_ast_context(nullptr), m_ast_importer_sp(importer),
-      m_active_lexical_decls(), m_active_lookups() {
+    : m_lookups_enabled(false), m_target(target), m_ast_context(nullptr),
+      m_ast_importer_sp(importer), m_active_lexical_decls(),
+      m_active_lookups() {
   assert(m_ast_importer_sp && "No ClangASTImporter passed to ClangASTSource?");
 }
 
@@ -71,20 +71,22 @@ ClangASTSource::~ClangASTSource() {
 
   if (!m_target)
     return;
-  // We are in the process of destruction, don't create clang ast context on
-  // demand by passing false to
-  // Target::GetScratchTypeSystemClang(create_on_demand).
-  TypeSystemClang *scratch_clang_ast_context =
-      TypeSystemClang::GetScratch(*m_target, false);
 
-  if (!scratch_clang_ast_context)
+  // Unregister the current ASTContext as a source for all scratch
+  // ASTContexts in the ClangASTImporter. Without this the scratch AST might
+  // query the deleted ASTContext for additional type information.
+  // We unregister from *all* scratch ASTContexts in case a type got exported
+  // to a scratch AST that isn't the best fitting scratch ASTContext.
+  TypeSystemClang *scratch_ast = ScratchTypeSystemClang::GetForTarget(
+      *m_target, ScratchTypeSystemClang::DefaultAST, false);
+
+  if (!scratch_ast)
     return;
 
-  clang::ASTContext &scratch_ast_context =
-      scratch_clang_ast_context->getASTContext();
-
-  if (m_ast_context != &scratch_ast_context && m_ast_importer_sp)
-    m_ast_importer_sp->ForgetSource(&scratch_ast_context, m_ast_context);
+  ScratchTypeSystemClang *default_scratch_ast =
+      llvm::cast<ScratchTypeSystemClang>(scratch_ast);
+  // Unregister from the default scratch AST (and all sub-ASTs).
+  default_scratch_ast->ForgetSource(m_ast_context, *m_ast_importer_sp);
 }
 
 void ClangASTSource::StartTranslationUnit(ASTConsumer *Consumer) {
@@ -99,11 +101,6 @@ void ClangASTSource::StartTranslationUnit(ASTConsumer *Consumer) {
 bool ClangASTSource::FindExternalVisibleDeclsByName(
     const DeclContext *decl_ctx, DeclarationName clang_decl_name) {
   if (!m_ast_context) {
-    SetNoExternalVisibleDeclsForName(decl_ctx, clang_decl_name);
-    return false;
-  }
-
-  if (GetImportInProgress()) {
     SetNoExternalVisibleDeclsForName(decl_ctx, clang_decl_name);
     return false;
   }
@@ -185,6 +182,101 @@ bool ClangASTSource::FindExternalVisibleDeclsByName(
   return (name_decls.size() != 0);
 }
 
+TagDecl *ClangASTSource::FindCompleteType(const TagDecl *decl) {
+  Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));
+
+  if (const NamespaceDecl *namespace_context =
+          dyn_cast<NamespaceDecl>(decl->getDeclContext())) {
+    ClangASTImporter::NamespaceMapSP namespace_map =
+        m_ast_importer_sp->GetNamespaceMap(namespace_context);
+
+    LLDB_LOGV(log, "      CTD Inspecting namespace map{0} ({1} entries)",
+              namespace_map.get(), namespace_map->size());
+
+    if (!namespace_map)
+      return nullptr;
+
+    for (const ClangASTImporter::NamespaceMapItem &item : *namespace_map) {
+      LLDB_LOG(log, "      CTD Searching namespace {0} in module {1}",
+               item.second.GetName(), item.first->GetFileSpec().GetFilename());
+
+      TypeList types;
+
+      ConstString name(decl->getName());
+
+      item.first->FindTypesInNamespace(name, item.second, UINT32_MAX, types);
+
+      for (uint32_t ti = 0, te = types.GetSize(); ti != te; ++ti) {
+        lldb::TypeSP type = types.GetTypeAtIndex(ti);
+
+        if (!type)
+          continue;
+
+        CompilerType clang_type(type->GetFullCompilerType());
+
+        if (!ClangUtil::IsClangType(clang_type))
+          continue;
+
+        const TagType *tag_type =
+            ClangUtil::GetQualType(clang_type)->getAs<TagType>();
+
+        if (!tag_type)
+          continue;
+
+        TagDecl *candidate_tag_decl =
+            const_cast<TagDecl *>(tag_type->getDecl());
+
+        if (TypeSystemClang::GetCompleteDecl(
+                &candidate_tag_decl->getASTContext(), candidate_tag_decl))
+          return candidate_tag_decl;
+      }
+    }
+  } else {
+    TypeList types;
+
+    ConstString name(decl->getName());
+
+    const ModuleList &module_list = m_target->GetImages();
+
+    bool exact_match = false;
+    llvm::DenseSet<SymbolFile *> searched_symbol_files;
+    module_list.FindTypes(nullptr, name, exact_match, UINT32_MAX,
+                          searched_symbol_files, types);
+
+    for (uint32_t ti = 0, te = types.GetSize(); ti != te; ++ti) {
+      lldb::TypeSP type = types.GetTypeAtIndex(ti);
+
+      if (!type)
+        continue;
+
+      CompilerType clang_type(type->GetFullCompilerType());
+
+      if (!ClangUtil::IsClangType(clang_type))
+        continue;
+
+      const TagType *tag_type =
+          ClangUtil::GetQualType(clang_type)->getAs<TagType>();
+
+      if (!tag_type)
+        continue;
+
+      TagDecl *candidate_tag_decl = const_cast<TagDecl *>(tag_type->getDecl());
+
+      // We have found a type by basename and we need to make sure the decl
+      // contexts are the same before we can try to complete this type with
+      // another
+      if (!TypeSystemClang::DeclsAreEquivalent(const_cast<TagDecl *>(decl),
+                                               candidate_tag_decl))
+        continue;
+
+      if (TypeSystemClang::GetCompleteDecl(&candidate_tag_decl->getASTContext(),
+                                           candidate_tag_decl))
+        return candidate_tag_decl;
+    }
+  }
+  return nullptr;
+}
+
 void ClangASTSource::CompleteType(TagDecl *tag_decl) {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));
 
@@ -207,105 +299,8 @@ void ClangASTSource::CompleteType(TagDecl *tag_decl) {
   if (!m_ast_importer_sp->CompleteTagDecl(tag_decl)) {
     // We couldn't complete the type.  Maybe there's a definition somewhere
     // else that can be completed.
-
-    LLDB_LOG(log, "      CTD Type could not be completed in the module in "
-                  "which it was first found.");
-
-    bool found = false;
-
-    DeclContext *decl_ctx = tag_decl->getDeclContext();
-
-    if (const NamespaceDecl *namespace_context =
-            dyn_cast<NamespaceDecl>(decl_ctx)) {
-      ClangASTImporter::NamespaceMapSP namespace_map =
-          m_ast_importer_sp->GetNamespaceMap(namespace_context);
-
-      LLDB_LOGV(log, "      CTD Inspecting namespace map{0} ({1} entries)",
-                namespace_map.get(), namespace_map->size());
-
-      if (!namespace_map)
-        return;
-
-      for (ClangASTImporter::NamespaceMap::iterator i = namespace_map->begin(),
-                                                    e = namespace_map->end();
-           i != e && !found; ++i) {
-        LLDB_LOG(log, "      CTD Searching namespace {0} in module {1}",
-                 i->second.GetName(), i->first->GetFileSpec().GetFilename());
-
-        TypeList types;
-
-        ConstString name(tag_decl->getName().str().c_str());
-
-        i->first->FindTypesInNamespace(name, i->second, UINT32_MAX, types);
-
-        for (uint32_t ti = 0, te = types.GetSize(); ti != te && !found; ++ti) {
-          lldb::TypeSP type = types.GetTypeAtIndex(ti);
-
-          if (!type)
-            continue;
-
-          CompilerType clang_type(type->GetFullCompilerType());
-
-          if (!ClangUtil::IsClangType(clang_type))
-            continue;
-
-          const TagType *tag_type =
-              ClangUtil::GetQualType(clang_type)->getAs<TagType>();
-
-          if (!tag_type)
-            continue;
-
-          TagDecl *candidate_tag_decl =
-              const_cast<TagDecl *>(tag_type->getDecl());
-
-          if (m_ast_importer_sp->CompleteTagDeclWithOrigin(tag_decl,
-                                                           candidate_tag_decl))
-            found = true;
-        }
-      }
-    } else {
-      TypeList types;
-
-      ConstString name(tag_decl->getName().str().c_str());
-
-      const ModuleList &module_list = m_target->GetImages();
-
-      bool exact_match = false;
-      llvm::DenseSet<SymbolFile *> searched_symbol_files;
-      module_list.FindTypes(nullptr, name, exact_match, UINT32_MAX,
-                            searched_symbol_files, types);
-
-      for (uint32_t ti = 0, te = types.GetSize(); ti != te && !found; ++ti) {
-        lldb::TypeSP type = types.GetTypeAtIndex(ti);
-
-        if (!type)
-          continue;
-
-        CompilerType clang_type(type->GetFullCompilerType());
-
-        if (!ClangUtil::IsClangType(clang_type))
-          continue;
-
-        const TagType *tag_type =
-            ClangUtil::GetQualType(clang_type)->getAs<TagType>();
-
-        if (!tag_type)
-          continue;
-
-        TagDecl *candidate_tag_decl =
-            const_cast<TagDecl *>(tag_type->getDecl());
-
-        // We have found a type by basename and we need to make sure the decl
-        // contexts are the same before we can try to complete this type with
-        // another
-        if (!TypeSystemClang::DeclsAreEquivalent(tag_decl, candidate_tag_decl))
-          continue;
-
-        if (m_ast_importer_sp->CompleteTagDeclWithOrigin(tag_decl,
-                                                         candidate_tag_decl))
-          found = true;
-      }
-    }
+    if (TagDecl *alternate = FindCompleteType(tag_decl))
+      m_ast_importer_sp->CompleteTagDeclWithOrigin(tag_decl, alternate);
   }
 
   LLDB_LOG(log, "      [CTD] After:\n{0}", ClangUtil::DumpDecl(tag_decl));
@@ -484,16 +479,16 @@ void ClangASTSource::FindExternalLexicalDecls(
                    decl->getDeclKindName(), ast_dump);
       }
 
-      Decl *copied_decl = CopyDecl(decl);
+      CopyDecl(decl);
 
-      if (!copied_decl)
-        continue;
-
-      if (FieldDecl *copied_field = dyn_cast<FieldDecl>(copied_decl)) {
-        QualType copied_field_type = copied_field->getType();
-
-        m_ast_importer_sp->RequireCompleteType(copied_field_type);
-      }
+      // FIXME: We should add the copied decl to the 'decls' list. This would
+      // add the copied Decl into the DeclContext and make sure that we
+      // correctly propagate that we added some Decls back to Clang.
+      // By leaving 'decls' empty we incorrectly return false from
+      // DeclContext::LoadLexicalDeclsFromExternalStorage which might cause
+      // lookup issues later on.
+      // We can't just add them for now as the ASTImporter already added the
+      // decl into the DeclContext and this would add it twice.
     } else {
       SkippedDecls = true;
     }
@@ -686,12 +681,7 @@ void ClangASTSource::FillNamespaceMap(
     return;
   }
 
-  const ModuleList &target_images = m_target->GetImages();
-  std::lock_guard<std::recursive_mutex> guard(target_images.GetMutex());
-
-  for (size_t i = 0, e = target_images.GetSize(); i < e; ++i) {
-    lldb::ModuleSP image = target_images.GetModuleAtIndexUnlocked(i);
-
+  for (lldb::ModuleSP image : m_target->GetImages().Modules()) {
     if (!image)
       continue;
 
@@ -851,8 +841,8 @@ void ClangASTSource::FindDeclInModules(NameSearchContext &context,
                                        ConstString name) {
   Log *log(lldb_private::GetLogIfAllCategoriesSet(LIBLLDB_LOG_EXPRESSIONS));
 
-  ClangModulesDeclVendor *modules_decl_vendor =
-      m_target->GetClangModulesDeclVendor();
+  std::shared_ptr<ClangModulesDeclVendor> modules_decl_vendor =
+      GetClangModulesDeclVendor();
   if (!modules_decl_vendor)
     return;
 
@@ -1144,8 +1134,8 @@ void ClangASTSource::FindObjCMethodDecls(NameSearchContext &context) {
     // Check the modules only if the debug information didn't have a complete
     // interface.
 
-    if (ClangModulesDeclVendor *modules_decl_vendor =
-            m_target->GetClangModulesDeclVendor()) {
+    if (std::shared_ptr<ClangModulesDeclVendor> modules_decl_vendor =
+            GetClangModulesDeclVendor()) {
       ConstString interface_name(interface_decl->getNameAsString().c_str());
       bool append = false;
       uint32_t max_matches = 1;
@@ -1314,8 +1304,8 @@ void ClangASTSource::FindObjCPropertyAndIvarDecls(NameSearchContext &context) {
     // Check the modules only if the debug information didn't have a complete
     // interface.
 
-    ClangModulesDeclVendor *modules_decl_vendor =
-        m_target->GetClangModulesDeclVendor();
+    std::shared_ptr<ClangModulesDeclVendor> modules_decl_vendor =
+        GetClangModulesDeclVendor();
 
     if (!modules_decl_vendor)
       break;
@@ -1571,10 +1561,10 @@ bool ClangASTSource::layoutRecordType(const RecordDecl *record, uint64_t &size,
 
   if (log) {
     LLDB_LOG(log, "LRT returned:");
-    LLDB_LOG(log, "LRT   Original = (RecordDecl*)%p",
+    LLDB_LOG(log, "LRT   Original = (RecordDecl*){0}",
              static_cast<const void *>(origin_record.decl));
-    LLDB_LOG(log, "LRT   Size = %" PRId64, size);
-    LLDB_LOG(log, "LRT   Alignment = %" PRId64, alignment);
+    LLDB_LOG(log, "LRT   Size = {0}", size);
+    LLDB_LOG(log, "LRT   Alignment = {0}", alignment);
     LLDB_LOG(log, "LRT   Fields:");
     for (RecordDecl::field_iterator fi = record->field_begin(),
                                     fe = record->field_end();
@@ -1663,14 +1653,8 @@ void ClangASTSource::CompleteNamespaceMap(
                module_sp->GetFileSpec().GetFilename());
     }
   } else {
-    const ModuleList &target_images = m_target->GetImages();
-    std::lock_guard<std::recursive_mutex> guard(target_images.GetMutex());
-
     CompilerDeclContext null_namespace_decl;
-
-    for (size_t i = 0, e = target_images.GetSize(); i < e; ++i) {
-      lldb::ModuleSP image = target_images.GetModuleAtIndexUnlocked(i);
-
+    for (lldb::ModuleSP image : m_target->GetImages().Modules()) {
       if (!image)
         continue;
 
@@ -1746,12 +1730,8 @@ CompilerType ClangASTSource::GuardedCopyType(const CompilerType &src_type) {
   if (src_ast == nullptr)
     return CompilerType();
 
-  SetImportInProgress(true);
-
   QualType copied_qual_type = ClangUtil::GetQualType(
       m_ast_importer_sp->CopyType(*m_clang_ast_context, src_type));
-
-  SetImportInProgress(false);
 
   if (copied_qual_type.getAsOpaquePtr() &&
       copied_qual_type->getCanonicalTypeInternal().isNull())
@@ -1760,4 +1740,11 @@ CompilerType ClangASTSource::GuardedCopyType(const CompilerType &src_type) {
     return CompilerType();
 
   return m_clang_ast_context->GetType(copied_qual_type);
+}
+
+std::shared_ptr<ClangModulesDeclVendor>
+ClangASTSource::GetClangModulesDeclVendor() {
+  auto persistent_vars = llvm::cast<ClangPersistentVariables>(
+      m_target->GetPersistentExpressionStateForLanguage(lldb::eLanguageTypeC));
+  return persistent_vars->GetClangModulesDeclVendor();
 }

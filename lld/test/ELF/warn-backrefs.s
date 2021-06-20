@@ -20,8 +20,8 @@
 # RUN: ld.lld --warn-backrefs %t2.a %t1.o -o /dev/null 2>&1 | FileCheck %s
 # RUN: ld.lld --warn-backrefs %t2.a '-(' %t1.o '-)' -o /dev/null 2>&1 | FileCheck %s
 # RUN: ld.lld --warn-backrefs --warn-backrefs-exclude='*3.a' %t2.a %t1.o -o /dev/null 2>&1 | FileCheck %s
-# RUN: ld.lld --fatal-warnings --warn-backrefs --warn-backrefs-exclude='*2.a' %t2.a %t1.o -o /dev/null
-# RUN: ld.lld --fatal-warnings --warn-backrefs --warn-backrefs-exclude '*2.a' \
+# RUN: ld.lld --fatal-warnings --warn-backrefs --warn-backrefs-exclude='*2.a(*2.o)' %t2.a %t1.o -o /dev/null
+# RUN: ld.lld --fatal-warnings --warn-backrefs --warn-backrefs-exclude '*2.a(*2.o)' \
 # RUN:   --warn-backrefs-exclude not_exist %t2.a %t1.o -o /dev/null
 ## Without --warn-backrefs, --warn-backrefs-exclude is ignored.
 # RUN: ld.lld --fatal-warnings --warn-backrefs-exclude=not_exist %t2.a %t1.o -o /dev/null
@@ -35,7 +35,7 @@
 # RUN: echo 'GROUP("%t2.a")' > %t3.lds
 # RUN: ld.lld --warn-backrefs %t3.lds %t1.o -o /dev/null 2>&1 | FileCheck %s
 # RUN: ld.lld --fatal-warnings --warn-backrefs '-(' %t3.lds %t1.o '-)' -o /dev/null
-# RUN: ld.lld --fatal-warnings --warn-backrefs --warn-backrefs-exclude='*2.a' -o /dev/null %t3.lds %t1.o
+# RUN: ld.lld --fatal-warnings --warn-backrefs --warn-backrefs-exclude='*2.a(*2.o)' -o /dev/null %t3.lds %t1.o
 ## If a lazy definition appears after the backward reference, don't warn.
 # RUN: ld.lld --fatal-warnings --warn-backrefs %t3.lds %t1.o %t3.lds -o /dev/null
 
@@ -51,6 +51,12 @@
 
 # OBJECT: warning: backward reference detected: foo in {{.*}}1.o refers to {{.*}}2.o
 
+## Back reference from an fetched --start-lib to a previous --start-lib.
+# RUN: ld.lld -m elf_x86_64 -u _start --warn-backrefs --start-lib %/t2.o --end-lib \
+# RUN:   --start-lib %t1.o --end-lib -o /dev/null 2>&1 | FileCheck --check-prefix=OBJECT %s
+## --warn-backrefs-exclude=%/t2.o can be used for a fetched --start-lib.
+# RUN: ld.lld --fatal-warnings -m elf_x86_64 -u _start --warn-backrefs --warn-backrefs-exclude=%/t2.o --start-lib %/t2.o --end-lib --start-lib %t1.o --end-lib -o /dev/null
+
 ## Don't warn if the definition and the backward reference are in a group.
 # RUN: echo '.globl bar; bar:' | llvm-mc -filetype=obj -triple=x86_64 - -o %t3.o
 # RUN: echo '.globl foo; foo: call bar' | llvm-mc -filetype=obj -triple=x86_64 - -o %t4.o
@@ -59,6 +65,18 @@
 ## We don't report backward references to weak symbols as they can be overridden later.
 # RUN: echo '.weak foo; foo:' | llvm-mc -filetype=obj -triple=x86_64 - -o %tweak.o
 # RUN: ld.lld --fatal-warnings --warn-backrefs --start-lib %tweak.o --end-lib %t1.o %t2.o -o /dev/null
+
+## Check common symbols. A common sym might later be replaced by a non-common definition.
+# RUN: echo '.comm obj, 4' | llvm-mc -filetype=obj -triple=x86_64 -o %tcomm.o
+# RUN: echo '.type obj,@object; .data; .globl obj; .p2align 2; obj: .long 55; .size obj, 4' | llvm-mc -filetype=obj -triple=x86_64 -o %tstrong.o
+# RUN: echo '.globl foo; foo: movl obj(%rip), %eax' | llvm-mc -triple=x86_64 -filetype=obj -o %t5.o
+# RUN: llvm-ar rcs %tcomm.a %tcomm.o
+# RUN: llvm-ar rcs %tstrong.a %tstrong.o
+# RUN: ld.lld --warn-backrefs %tcomm.a %t1.o %t5.o 2>&1 -o /dev/null | FileCheck --check-prefix=COMM %s
+# RUN: ld.lld --fatal-warnings --warn-backrefs %tcomm.a %t1.o %t5.o %tstrong.a 2>&1 -o /dev/null
+# RUN: ld.lld --warn-backrefs --no-fortran-common %tcomm.a %t1.o %t5.o %tstrong.a 2>&1 -o /dev/null | FileCheck --check-prefix=COMM %s
+
+# COMM: ld.lld: warning: backward reference detected: obj in {{.*}}5.o refers to {{.*}}comm.a
 
 ## If a lazy definition appears after the backward reference, don't warn.
 ## A traditional Unix linker will resolve the reference to the later definition.

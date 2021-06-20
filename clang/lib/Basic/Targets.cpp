@@ -23,6 +23,7 @@
 #include "Targets/Hexagon.h"
 #include "Targets/Lanai.h"
 #include "Targets/Le64.h"
+#include "Targets/M68k.h"
 #include "Targets/MSP430.h"
 #include "Targets/Mips.h"
 #include "Targets/NVPTX.h"
@@ -34,6 +35,7 @@
 #include "Targets/Sparc.h"
 #include "Targets/SystemZ.h"
 #include "Targets/TCE.h"
+#include "Targets/VE.h"
 #include "Targets/WebAssembly.h"
 #include "Targets/X86.h"
 #include "Targets/XCore.h"
@@ -311,6 +313,16 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
       return new MipsTargetInfo(Triple, Opts);
     }
 
+  case llvm::Triple::m68k:
+    switch (os) {
+    case llvm::Triple::Linux:
+      return new LinuxTargetInfo<M68kTargetInfo>(Triple, Opts);
+    case llvm::Triple::NetBSD:
+      return new NetBSDTargetInfo<M68kTargetInfo>(Triple, Opts);
+    default:
+      return new M68kTargetInfo(Triple, Opts);
+    }
+
   case llvm::Triple::le32:
     switch (os) {
     case llvm::Triple::NaCl:
@@ -342,6 +354,16 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
       return new PPC32TargetInfo(Triple, Opts);
     }
 
+  case llvm::Triple::ppcle:
+    switch (os) {
+    case llvm::Triple::Linux:
+      return new LinuxTargetInfo<PPC32TargetInfo>(Triple, Opts);
+    case llvm::Triple::FreeBSD:
+      return new FreeBSDTargetInfo<PPC32TargetInfo>(Triple, Opts);
+    default:
+      return new PPC32TargetInfo(Triple, Opts);
+    }
+
   case llvm::Triple::ppc64:
     if (Triple.isOSDarwin())
       return new DarwinPPC64TargetInfo(Triple, Opts);
@@ -354,6 +376,8 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
       return new FreeBSDTargetInfo<PPC64TargetInfo>(Triple, Opts);
     case llvm::Triple::NetBSD:
       return new NetBSDTargetInfo<PPC64TargetInfo>(Triple, Opts);
+    case llvm::Triple::OpenBSD:
+      return new OpenBSDTargetInfo<PPC64TargetInfo>(Triple, Opts);
     case llvm::Triple::AIX:
       return new AIXPPC64TargetInfo(Triple, Opts);
     default:
@@ -364,8 +388,12 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
     switch (os) {
     case llvm::Triple::Linux:
       return new LinuxTargetInfo<PPC64TargetInfo>(Triple, Opts);
+    case llvm::Triple::FreeBSD:
+      return new FreeBSDTargetInfo<PPC64TargetInfo>(Triple, Opts);
     case llvm::Triple::NetBSD:
       return new NetBSDTargetInfo<PPC64TargetInfo>(Triple, Opts);
+    case llvm::Triple::OpenBSD:
+      return new OpenBSDTargetInfo<PPC64TargetInfo>(Triple, Opts);
     default:
       return new PPC64TargetInfo(Triple, Opts);
     }
@@ -395,6 +423,8 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
     switch (os) {
     case llvm::Triple::FreeBSD:
       return new FreeBSDTargetInfo<RISCV64TargetInfo>(Triple, Opts);
+    case llvm::Triple::OpenBSD:
+      return new OpenBSDTargetInfo<RISCV64TargetInfo>(Triple, Opts);
     case llvm::Triple::Fuchsia:
       return new FuchsiaTargetInfo<RISCV64TargetInfo>(Triple, Opts);
     case llvm::Triple::Linux:
@@ -411,8 +441,6 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
       return new SolarisTargetInfo<SparcV8TargetInfo>(Triple, Opts);
     case llvm::Triple::NetBSD:
       return new NetBSDTargetInfo<SparcV8TargetInfo>(Triple, Opts);
-    case llvm::Triple::OpenBSD:
-      return new OpenBSDTargetInfo<SparcV8TargetInfo>(Triple, Opts);
     case llvm::Triple::RTEMS:
       return new RTEMSTargetInfo<SparcV8TargetInfo>(Triple, Opts);
     default:
@@ -426,8 +454,6 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
       return new LinuxTargetInfo<SparcV8elTargetInfo>(Triple, Opts);
     case llvm::Triple::NetBSD:
       return new NetBSDTargetInfo<SparcV8elTargetInfo>(Triple, Opts);
-    case llvm::Triple::OpenBSD:
-      return new OpenBSDTargetInfo<SparcV8elTargetInfo>(Triple, Opts);
     case llvm::Triple::RTEMS:
       return new RTEMSTargetInfo<SparcV8elTargetInfo>(Triple, Opts);
     default:
@@ -454,6 +480,8 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
     switch (os) {
     case llvm::Triple::Linux:
       return new LinuxTargetInfo<SystemZTargetInfo>(Triple, Opts);
+    case llvm::Triple::ZOS:
+      return new ZOSTargetInfo<SystemZTargetInfo>(Triple, Opts);
     default:
       return new SystemZTargetInfo(Triple, Opts);
     }
@@ -576,13 +604,13 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
     }
 
   case llvm::Triple::spir: {
-    if (Triple.getOS() != llvm::Triple::UnknownOS ||
+    if (os != llvm::Triple::UnknownOS ||
         Triple.getEnvironment() != llvm::Triple::UnknownEnvironment)
       return nullptr;
     return new SPIR32TargetInfo(Triple, Opts);
   }
   case llvm::Triple::spir64: {
-    if (Triple.getOS() != llvm::Triple::UnknownOS ||
+    if (os != llvm::Triple::UnknownOS ||
         Triple.getEnvironment() != llvm::Triple::UnknownEnvironment)
       return nullptr;
     return new SPIR64TargetInfo(Triple, Opts);
@@ -592,7 +620,7 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
         Triple.getVendor() != llvm::Triple::UnknownVendor ||
         !Triple.isOSBinFormatWasm())
       return nullptr;
-    switch (Triple.getOS()) {
+    switch (os) {
       case llvm::Triple::WASI:
         return new WASITargetInfo<WebAssembly32TargetInfo>(Triple, Opts);
       case llvm::Triple::Emscripten:
@@ -607,7 +635,7 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
         Triple.getVendor() != llvm::Triple::UnknownVendor ||
         !Triple.isOSBinFormatWasm())
       return nullptr;
-    switch (Triple.getOS()) {
+    switch (os) {
       case llvm::Triple::WASI:
         return new WASITargetInfo<WebAssembly64TargetInfo>(Triple, Opts);
       case llvm::Triple::Emscripten:
@@ -622,6 +650,9 @@ TargetInfo *AllocateTarget(const llvm::Triple &Triple,
     return new LinuxTargetInfo<RenderScript32TargetInfo>(Triple, Opts);
   case llvm::Triple::renderscript64:
     return new LinuxTargetInfo<RenderScript64TargetInfo>(Triple, Opts);
+
+  case llvm::Triple::ve:
+    return new LinuxTargetInfo<VETargetInfo>(Triple, Opts);
   }
 }
 } // namespace targets
@@ -653,6 +684,17 @@ TargetInfo::CreateTargetInfo(DiagnosticsEngine &Diags,
     return nullptr;
   }
 
+  // Check the TuneCPU name if specified.
+  if (!Opts->TuneCPU.empty() &&
+      !Target->isValidTuneCPUName(Opts->TuneCPU)) {
+    Diags.Report(diag::err_target_unknown_cpu) << Opts->TuneCPU;
+    SmallVector<StringRef, 32> ValidList;
+    Target->fillValidTuneCPUList(ValidList);
+    if (!ValidList.empty())
+      Diags.Report(diag::note_valid_options) << llvm::join(ValidList, ", ");
+    return nullptr;
+  }
+
   // Set the target ABI if specified.
   if (!Opts->ABI.empty() && !Target->setABI(Opts->ABI)) {
     Diags.Report(diag::err_target_unknown_abi) << Opts->ABI;
@@ -667,14 +709,13 @@ TargetInfo::CreateTargetInfo(DiagnosticsEngine &Diags,
 
   // Compute the default target features, we need the target to handle this
   // because features may have dependencies on one another.
-  llvm::StringMap<bool> Features;
-  if (!Target->initFeatureMap(Features, Diags, Opts->CPU,
+  if (!Target->initFeatureMap(Opts->FeatureMap, Diags, Opts->CPU,
                               Opts->FeaturesAsWritten))
     return nullptr;
 
   // Add the features to the compile options.
   Opts->Features.clear();
-  for (const auto &F : Features)
+  for (const auto &F : Opts->FeatureMap)
     Opts->Features.push_back((F.getValue() ? "+" : "-") + F.getKey().str());
   // Sort here, so we handle the features in a predictable order. (This matters
   // when we're dealing with features that overlap.)
@@ -684,7 +725,7 @@ TargetInfo::CreateTargetInfo(DiagnosticsEngine &Diags,
     return nullptr;
 
   Target->setSupportedOpenCLOpts();
-  Target->setOpenCLExtensionOpts();
+  Target->setCommandLineOpenCLOpts();
   Target->setMaxAtomicWidth();
 
   if (!Target->validateTarget(Diags))
@@ -693,4 +734,38 @@ TargetInfo::CreateTargetInfo(DiagnosticsEngine &Diags,
   Target->CheckFixedPointBits();
 
   return Target.release();
+}
+/// validateOpenCLTarget  - Check that OpenCL target has valid
+/// options setting based on OpenCL version.
+bool TargetInfo::validateOpenCLTarget(const LangOptions &Opts,
+                                      DiagnosticsEngine &Diags) const {
+  const llvm::StringMap<bool> &OpenCLFeaturesMap = getSupportedOpenCLOpts();
+
+  auto diagnoseNotSupportedCore = [&](llvm::StringRef Name, auto... OptArgs) {
+    if (OpenCLOptions::isOpenCLOptionCoreIn(Opts, OptArgs...) &&
+        !hasFeatureEnabled(OpenCLFeaturesMap, Name))
+      Diags.Report(diag::warn_opencl_unsupported_core_feature)
+          << Name << Opts.OpenCLCPlusPlus
+          << Opts.getOpenCLVersionTuple().getAsString();
+  };
+#define OPENCL_GENERIC_EXTENSION(Ext, ...)                                     \
+  diagnoseNotSupportedCore(#Ext, __VA_ARGS__);
+#include "clang/Basic/OpenCLExtensions.def"
+
+  // Validate that feature macros are set properly for OpenCL C 3.0.
+  // In other cases assume that target is always valid.
+  if (Opts.OpenCLCPlusPlus || Opts.OpenCLVersion < 300)
+    return true;
+
+  // Feature and corresponding equivalent extension must be set
+  // simultaneously to the same value.
+  for (auto &ExtAndFeat : {std::make_pair("cl_khr_fp64", "__opencl_c_fp64")})
+    if (hasFeatureEnabled(OpenCLFeaturesMap, ExtAndFeat.first) !=
+        hasFeatureEnabled(OpenCLFeaturesMap, ExtAndFeat.second)) {
+      Diags.Report(diag::err_opencl_extension_and_feature_differs)
+          << ExtAndFeat.first << ExtAndFeat.second;
+      return false;
+    }
+
+  return true;
 }

@@ -61,8 +61,8 @@ define arm_aapcs_vfpcc void @test_frem(half* %p, half* %q) {
 ; CHECK-LABEL: test_frem:
 ; CHECK:         .save {r4, lr}
 ; CHECK-NEXT:    push {r4, lr}
-; CHECK-NEXT:    vldr.16 s2, [r1]
 ; CHECK-NEXT:    vldr.16 s0, [r0]
+; CHECK-NEXT:    vldr.16 s2, [r1]
 ; CHECK-NEXT:    mov r4, r0
 ; CHECK-NEXT:    vcvtb.f32.f16 s0, s0
 ; CHECK-NEXT:    vcvtb.f32.f16 s1, s2
@@ -242,7 +242,7 @@ define void @test_fpowi(half* %p, i32 %b) {
 ; CHECK-NEXT:    vstr.16 s0, [r4]
 ; CHECK-NEXT:    pop {r4, pc}
   %a = load half, half* %p, align 2
-  %r = call half @llvm.powi.f16(half %a, i32 %b)
+  %r = call half @llvm.powi.f16.i32(half %a, i32 %b)
   store half %r, half* %p
   ret void
 }
@@ -285,8 +285,8 @@ define void @test_pow(half* %p, half* %q) {
 ; CHECK-LABEL: test_pow:
 ; CHECK:         .save {r4, lr}
 ; CHECK-NEXT:    push {r4, lr}
-; CHECK-NEXT:    vldr.16 s2, [r1]
 ; CHECK-NEXT:    vldr.16 s0, [r0]
+; CHECK-NEXT:    vldr.16 s2, [r1]
 ; CHECK-NEXT:    mov r4, r0
 ; CHECK-NEXT:    vcvtb.f32.f16 s0, s0
 ; CHECK-NEXT:    vcvtb.f32.f16 s1, s2
@@ -587,7 +587,7 @@ define void @test_fmuladd(half* %p, half* %q, half* %r) {
 }
 
 declare half @llvm.sqrt.f16(half %a)
-declare half @llvm.powi.f16(half %a, i32 %b)
+declare half @llvm.powi.f16.i32(half %a, i32 %b)
 declare half @llvm.sin.f16(half %a)
 declare half @llvm.cos.f16(half %a)
 declare half @llvm.pow.f16(half %a, half %b)

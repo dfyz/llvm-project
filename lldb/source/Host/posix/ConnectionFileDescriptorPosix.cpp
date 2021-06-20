@@ -20,10 +20,10 @@
 #include "lldb/Utility/SelectHelper.h"
 #include "lldb/Utility/Timeout.h"
 
-#include <errno.h>
+#include <cerrno>
+#include <cstdlib>
+#include <cstring>
 #include <fcntl.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/types.h>
 
 #if LLDB_ENABLE_POSIX
@@ -76,7 +76,7 @@ llvm::Optional<llvm::StringRef> GetURLAddress(llvm::StringRef url,
 
 ConnectionFileDescriptor::ConnectionFileDescriptor(bool child_processes_inherit)
     : Connection(), m_pipe(), m_mutex(), m_shutting_down(false),
-      m_waiting_for_accept(false),
+
       m_child_processes_inherit(child_processes_inherit) {
   Log *log(lldb_private::GetLogIfAnyCategoriesSet(LIBLLDB_LOG_CONNECTION |
                                                   LIBLLDB_LOG_OBJECT));
@@ -209,7 +209,7 @@ ConnectionStatus ConnectionFileDescriptor::Connect(llvm::StringRef path,
           // this. For now, we assume we must assume we don't own it.
 
           std::unique_ptr<TCPSocket> tcp_socket;
-          tcp_socket.reset(new TCPSocket(fd, false, false));
+          tcp_socket = std::make_unique<TCPSocket>(fd, false, false);
           // Try and get a socket option from this file descriptor to see if
           // this is a socket and set m_is_socket accordingly.
           int resuse;

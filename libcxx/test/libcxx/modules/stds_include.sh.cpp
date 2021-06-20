@@ -15,9 +15,11 @@
 // are not modular
 // XFAIL: LIBCXX-WINDOWS-FIXME
 
-// FIXME: The <atomic> header is not supported for single-threaded systems,
-// but still gets built as part of the 'std' module, which breaks the build.
-// XFAIL: libcpp-has-no-threads
+// Some headers are not available when these features are disabled, but they
+// still get built as part of the 'std' module, which breaks the build.
+// UNSUPPORTED: libcpp-has-no-threads
+// UNSUPPORTED: libcpp-has-no-localization
+// UNSUPPORTED: libcpp-has-no-filesystem-library
 
 // REQUIRES: modules-support
 
@@ -26,9 +28,9 @@
 //        the same modules caches were reused across standard dialects.
 // RUN: %{cxx} %{flags} %{compile_flags} -fmodules -fcxx-modules -fsyntax-only -std=c++03 -DINVALIDATE_CACHE_CXX03 %s
 // RUN: %{cxx} %{flags} %{compile_flags} -fmodules -fcxx-modules -fsyntax-only -std=c++11 -DINVALIDATE_CACHE_CXX11 %s
-// RUN: %{cxx} %{flags} %{compile_flags} -fmodules -fcxx-modules -fsyntax-only -std=c++14 -DINVALIDATE_CACHE_CKK14 %s
+// RUN: %{cxx} %{flags} %{compile_flags} -fmodules -fcxx-modules -fsyntax-only -std=c++14 -DINVALIDATE_CACHE_CXX14 %s
 // RUN: %{cxx} %{flags} %{compile_flags} -fmodules -fcxx-modules -fsyntax-only -std=c++17 -DINVALIDATE_CACHE_CXX17 %s
-// RUN: %{cxx} %{flags} %{compile_flags} -fmodules -fcxx-modules -fsyntax-only -std=c++2a -DINVALIDATE_CACHE_CXX2A %s
+// RUN: %{cxx} %{flags} %{compile_flags} -fmodules -fcxx-modules -fsyntax-only -std=c++2a -DINVALIDATE_CACHE_CXX20 %s
 
 #include <vector>
 

@@ -1,4 +1,4 @@
-; RUN: llc -mtriple=aarch64-linux-gnu -mattr=sve < %s | FileCheck %s
+; RUN: llc -mtriple=aarch64-linux-gnu -mattr=sve -mattr=+use-experimental-zeroing-pseudos < %s | FileCheck %s
 
 ;
 ; FADD

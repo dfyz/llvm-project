@@ -14,7 +14,7 @@
 
 using namespace clang;
 
-LangOptions::LangOptions() {
+LangOptions::LangOptions() : LangStd(LangStandard::lang_unspecified) {
 #define LANGOPT(Name, Bits, Default, Description) Name = Default;
 #define ENUM_LANGOPT(Name, Type, Bits, Default, Description) set##Name(Default);
 #include "clang/Basic/LangOptions.def"
@@ -24,11 +24,11 @@ void LangOptions::resetNonModularOptions() {
 #define LANGOPT(Name, Bits, Default, Description)
 #define BENIGN_LANGOPT(Name, Bits, Default, Description) Name = Default;
 #define BENIGN_ENUM_LANGOPT(Name, Type, Bits, Default, Description) \
-  Name = Default;
+  Name = static_cast<unsigned>(Default);
 #include "clang/Basic/LangOptions.def"
 
   // These options do not affect AST generation.
-  SanitizerBlacklistFiles.clear();
+  NoSanitizeFiles.clear();
   XRayAlwaysInstrumentFiles.clear();
   XRayNeverInstrumentFiles.clear();
 
@@ -53,6 +53,17 @@ FPOptions FPOptions::defaultWithoutTrailingStorage(const LangOptions &LO) {
   return result;
 }
 
-bool FPOptions::requiresTrailingStorage(const LangOptions &LO) {
-  return getAsOpaqueInt() != defaultWithoutTrailingStorage(LO).getAsOpaqueInt();
+LLVM_DUMP_METHOD void FPOptions::dump() {
+#define OPTION(NAME, TYPE, WIDTH, PREVIOUS)                                    \
+  llvm::errs() << "\n " #NAME " " << get##NAME();
+#include "clang/Basic/FPOptions.def"
+  llvm::errs() << "\n";
+}
+
+LLVM_DUMP_METHOD void FPOptionsOverride::dump() {
+#define OPTION(NAME, TYPE, WIDTH, PREVIOUS)                                    \
+  if (has##NAME##Override())                                                   \
+    llvm::errs() << "\n " #NAME " Override is " << get##NAME##Override();
+#include "clang/Basic/FPOptions.def"
+  llvm::errs() << "\n";
 }

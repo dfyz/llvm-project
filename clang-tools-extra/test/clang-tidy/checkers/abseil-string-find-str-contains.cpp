@@ -226,29 +226,29 @@ void string_literal_and_char_ptr_tests() {
   // CHECK-FIXES: {{^[[:space:]]*}}!absl::StrContains(asv, cc);{{$}}
 }
 
-// Confirms that it does *not* match when the parameter to find() is a char,
-// because absl::StrContains is not implemented for char.
-void no_char_param_tests() {
+void char_param_tests() {
   std::string ss;
   ss.find('c') == std::string::npos;
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: use !absl::StrContains instead of
+  // CHECK-FIXES: {{^[[:space:]]*}}!absl::StrContains(ss, 'c');{{$}}
 
   std::string_view ssv;
   ssv.find('c') == std::string_view::npos;
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: use !absl::StrContains instead of
+  // CHECK-FIXES: {{^[[:space:]]*}}!absl::StrContains(ssv, 'c');{{$}}
 
   absl::string_view asv;
   asv.find('c') == absl::string_view::npos;
+  // CHECK-MESSAGES: :[[@LINE-1]]:3: warning: use !absl::StrContains instead of
+  // CHECK-FIXES: {{^[[:space:]]*}}!absl::StrContains(asv, 'c');{{$}}
 }
 
-#define COMPARE_MACRO(x, y) ((x) == (y))
-#define FIND_MACRO(x, y) ((x).find(y))
-#define FIND_COMPARE_MACRO(x, y, z) ((x).find(y) == (z))
+#define FOO(a, b, c, d) ((a).find(b) == std::string::npos ? (c) : (d))
 
-// Confirms that it does not match when a macro is involved.
-void no_macros() {
-  std::string s;
-  COMPARE_MACRO(s.find("a"), std::string::npos);
-  FIND_MACRO(s, "a") == std::string::npos;
-  FIND_COMPARE_MACRO(s, "a", std::string::npos);
+// Confirms that it does not match when a macro would be "torn" by the fix.
+void no_tearing_macros() {
+  std::string h = "helo";
+  FOO(h, "x", 5, 6);
 }
 
 // Confirms that it does not match when the pos parameter is non-zero.

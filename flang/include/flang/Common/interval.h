@@ -31,11 +31,25 @@ public:
   constexpr Interval &operator=(const Interval &) = default;
   constexpr Interval &operator=(Interval &&) = default;
 
+  constexpr bool operator<(const Interval &that) const {
+    return start_ < that.start_ ||
+        (start_ == that.start_ && size_ < that.size_);
+  }
+  constexpr bool operator<=(const Interval &that) const {
+    return start_ < that.start_ ||
+        (start_ == that.start_ && size_ <= that.size_);
+  }
   constexpr bool operator==(const Interval &that) const {
     return start_ == that.start_ && size_ == that.size_;
   }
   constexpr bool operator!=(const Interval &that) const {
     return !(*this == that);
+  }
+  constexpr bool operator>=(const Interval &that) const {
+    return !(*this < that);
+  }
+  constexpr bool operator>(const Interval &that) const {
+    return !(*this <= that);
   }
 
   constexpr const A &start() const { return start_; }
@@ -79,7 +93,7 @@ public:
     return x - start_;
   }
   A OffsetMember(std::size_t n) const {
-    CHECK(n < size_);
+    CHECK(n <= size_);
     return start_ + n;
   }
 

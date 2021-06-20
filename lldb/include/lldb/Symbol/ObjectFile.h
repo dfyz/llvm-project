@@ -91,6 +91,17 @@ public:
     eStrataJIT
   };
 
+  /// If we have a corefile binary hint, this enum
+  /// specifies the binary type which we can use to
+  /// select the correct DynamicLoader plugin.
+  enum BinaryType {
+    eBinaryTypeInvalid = 0,
+    eBinaryTypeUnknown,
+    eBinaryTypeKernel,    /// kernel binary
+    eBinaryTypeUser,      /// user process binary
+    eBinaryTypeStandalone /// standalone binary / firmware
+  };
+
   struct LoadableData {
     lldb::addr_t Dest;
     llvm::ArrayRef<uint8_t> Contents;
@@ -172,10 +183,10 @@ public:
                                        lldb::addr_t header_addr,
                                        lldb::DataBufferSP &file_data_sp);
 
-  static size_t GetModuleSpecifications(const FileSpec &file,
-                                        lldb::offset_t file_offset,
-                                        lldb::offset_t file_size,
-                                        ModuleSpecList &specs);
+  static size_t
+  GetModuleSpecifications(const FileSpec &file, lldb::offset_t file_offset,
+                          lldb::offset_t file_size, ModuleSpecList &specs,
+                          lldb::DataBufferSP data_sp = lldb::DataBufferSP());
 
   static size_t GetModuleSpecifications(const lldb_private::FileSpec &file,
                                         lldb::DataBufferSP &data_sp,
@@ -500,12 +511,17 @@ public:
   ///   If the uuid of the binary is specified, this will be set.
   ///   If no UUID is available, will be cleared.
   ///
+  /// \param[out] type
+  ///   Return the type of the binary, which will dictate which
+  ///   DynamicLoader plugin should be used.
+  ///
   /// \return
   ///   Returns true if either address or uuid has been set.
-  virtual bool GetCorefileMainBinaryInfo (lldb::addr_t &address, UUID &uuid) {
-      address = LLDB_INVALID_ADDRESS;
-      uuid.Clear();
-      return false;
+  virtual bool GetCorefileMainBinaryInfo(lldb::addr_t &address, UUID &uuid,
+                                         ObjectFile::BinaryType &type) {
+    address = LLDB_INVALID_ADDRESS;
+    uuid.Clear();
+    return false;
   }
 
   virtual lldb::RegisterContextSP
@@ -649,6 +665,22 @@ public:
 
   /// Creates a plugin-specific call frame info
   virtual std::unique_ptr<CallFrameInfo> CreateCallFrameInfo();
+
+  /// Load binaries listed in a corefile
+  ///
+  /// A corefile may have metadata listing binaries that can be loaded,
+  /// and the offsets at which they were loaded.  This method will try
+  /// to add them to the Target.  If any binaries were loaded,
+  ///
+  /// \param[in] process
+  ///     Process where to load binaries.
+  ///
+  /// \return
+  ///     Returns true if any binaries were loaded.
+
+  virtual bool LoadCoreFileImages(lldb_private::Process &process) {
+    return false;
+  }
 
 protected:
   // Member variables.

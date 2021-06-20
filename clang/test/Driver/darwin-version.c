@@ -60,17 +60,17 @@
 // RUN:   FileCheck --check-prefix=CHECK-VERSION-OSX4 %s
 // RUN: %clang -target i686-apple-darwin9 -mmacosx-version-min=10.4 -c %s -### 2>&1 | \
 // RUN:   FileCheck --check-prefix=CHECK-VERSION-OSX4 %s
-// CHECK-VERSION-OSX4: "i386-apple-macosx10.4.0"
+// CHECK-VERSION-OSX4: "i686-apple-macosx10.4.0"
 // RUN: %clang -target i686-apple-darwin9 -c %s -### 2>&1 | \
 // RUN:   FileCheck --check-prefix=CHECK-VERSION-OSX5 %s
 // RUN: %clang -target i686-apple-darwin9 -mmacosx-version-min=10.5 -c %s -### 2>&1 | \
 // RUN:   FileCheck --check-prefix=CHECK-VERSION-OSX5 %s
-// CHECK-VERSION-OSX5: "i386-apple-macosx10.5.0"
+// CHECK-VERSION-OSX5: "i686-apple-macosx10.5.0"
 // RUN: %clang -target i686-apple-darwin10 -c %s -### 2>&1 | \
 // RUN:   FileCheck --check-prefix=CHECK-VERSION-OSX6 %s
 // RUN: %clang -target i686-apple-darwin9 -mmacosx-version-min=10.6 -c %s -### 2>&1 | \
 // RUN:   FileCheck --check-prefix=CHECK-VERSION-OSX6 %s
-// CHECK-VERSION-OSX6: "i386-apple-macosx10.6.0"
+// CHECK-VERSION-OSX6: "i686-apple-macosx10.6.0"
 // RUN: %clang -target x86_64-apple-darwin14 -c %s -### 2>&1 | \
 // RUN:   FileCheck --check-prefix=CHECK-VERSION-OSX10 %s
 // RUN: %clang -target x86_64-apple-darwin -mmacosx-version-min=10.10 -c %s -### 2>&1 | \
@@ -100,7 +100,7 @@
 
 // Check environment variable gets interpreted correctly
 // RUN: env MACOSX_DEPLOYMENT_TARGET=10.5 IPHONEOS_DEPLOYMENT_TARGET=2.0 \
-// RUN:   %clang -target i386-apple-darwin9 -c %s -### 2>&1 | \
+// RUN:   %clang -target i686-apple-darwin9 -c %s -### 2>&1 | \
 // RUN:   FileCheck --check-prefix=CHECK-VERSION-OSX5 %s
 // RUN: env MACOSX_DEPLOYMENT_TARGET=10.5 IPHONEOS_DEPLOYMENT_TARGET=2.0 \
 // RUN:   %clang -target armv6-apple-darwin9 -c %s -### 2>&1 | \
@@ -305,3 +305,13 @@
 // RUN: %clang -target armv7k-apple-ios10.1-simulator -c %s -### 2>&1 | \
 // RUN:   FileCheck --check-prefix=CHECK-VERSION-TENV-SIM2 %s
 // CHECK-VERSION-TENV-SIM2: "thumbv7k-apple-ios10.1.0-simulator"
+
+
+// RUN: %clang -target x86_64-apple-macos11 -c %s -### 2>&1 | \
+// RUN:   FileCheck --check-prefix=CHECK-MACOS11 %s
+// RUN: %clang -target x86_64-apple-darwin20 -c %s -### 2>&1 | \
+// RUN:   FileCheck --check-prefix=CHECK-MACOS11 %s
+// RUN: %clang -target x86_64-apple-darwin -mmacos-version-min=11 -c %s -### 2>&1 | \
+// RUN:   FileCheck --check-prefix=CHECK-MACOS11 %s
+
+// CHECK-MACOS11: "x86_64-apple-macosx11.0.0"

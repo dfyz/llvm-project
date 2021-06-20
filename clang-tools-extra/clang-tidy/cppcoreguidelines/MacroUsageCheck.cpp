@@ -9,6 +9,7 @@
 #include "MacroUsageCheck.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Lex/PPCallbacks.h"
+#include "clang/Lex/Preprocessor.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Regex.h"
 #include <algorithm>
@@ -21,8 +22,8 @@ namespace cppcoreguidelines {
 namespace {
 
 bool isCapsOnly(StringRef Name) {
-  return std::all_of(Name.begin(), Name.end(), [](const char c) {
-    if (std::isupper(c) || std::isdigit(c) || c == '_')
+  return std::all_of(Name.begin(), Name.end(), [](const char C) {
+    if (std::isupper(C) || std::isdigit(C) || C == '_')
       return true;
     return false;
   });
@@ -31,8 +32,8 @@ bool isCapsOnly(StringRef Name) {
 class MacroUsageCallbacks : public PPCallbacks {
 public:
   MacroUsageCallbacks(MacroUsageCheck *Check, const SourceManager &SM,
-                      StringRef RegExp, bool CapsOnly, bool IgnoreCommandLine)
-      : Check(Check), SM(SM), RegExp(RegExp), CheckCapsOnly(CapsOnly),
+                      StringRef RegExpStr, bool CapsOnly, bool IgnoreCommandLine)
+      : Check(Check), SM(SM), RegExp(RegExpStr), CheckCapsOnly(CapsOnly),
         IgnoreCommandLineMacros(IgnoreCommandLine) {}
   void MacroDefined(const Token &MacroNameTok,
                     const MacroDirective *MD) override {
@@ -46,7 +47,9 @@ public:
       return;
 
     StringRef MacroName = MacroNameTok.getIdentifierInfo()->getName();
-    if (!CheckCapsOnly && !llvm::Regex(RegExp).match(MacroName))
+    if (MacroName == "__GCC_HAVE_DWARF2_CFI_ASM")
+      return;
+    if (!CheckCapsOnly && !RegExp.match(MacroName))
       Check->warnMacro(MD, MacroName);
 
     if (CheckCapsOnly && !isCapsOnly(MacroName))
@@ -56,7 +59,7 @@ public:
 private:
   MacroUsageCheck *Check;
   const SourceManager &SM;
-  StringRef RegExp;
+  const llvm::Regex RegExp;
   bool CheckCapsOnly;
   bool IgnoreCommandLineMacros;
 };

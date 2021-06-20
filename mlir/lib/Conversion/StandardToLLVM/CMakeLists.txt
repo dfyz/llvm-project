@@ -12,6 +12,10 @@ add_mlir_conversion_library(MLIRStandardToLLVM
   Core
 
   LINK_LIBS PUBLIC
+  MLIRAnalysis
+  MLIRDataLayoutInterfaces
   MLIRLLVMIR
+  MLIRMath
+  MLIRMemRef
   MLIRTransforms
   )

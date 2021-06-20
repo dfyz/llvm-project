@@ -55,13 +55,12 @@ using namespace llvm;
 
 #define DEBUG_TYPE "hwasan"
 
-static const char *const kHwasanModuleCtorName = "hwasan.module_ctor";
-static const char *const kHwasanNoteName = "hwasan.note";
-static const char *const kHwasanInitName = "__hwasan_init";
-static const char *const kHwasanPersonalityThunkName =
-    "__hwasan_personality_thunk";
+const char kHwasanModuleCtorName[] = "hwasan.module_ctor";
+const char kHwasanNoteName[] = "hwasan.note";
+const char kHwasanInitName[] = "__hwasan_init";
+const char kHwasanPersonalityThunkName[] = "__hwasan_personality_thunk";
 
-static const char *const kHwasanShadowMemoryDynamicAddress =
+const char kHwasanShadowMemoryDynamicAddress[] =
     "__hwasan_shadow_memory_dynamic_address";
 
 // Accesses sizes are powers of two: 1, 2, 4, 8, 16.
@@ -70,27 +69,27 @@ static const size_t kNumberOfAccessSizes = 5;
 static const size_t kDefaultShadowScale = 4;
 static const uint64_t kDynamicShadowSentinel =
     std::numeric_limits<uint64_t>::max();
-static const unsigned kPointerTagShift = 56;
 
 static const unsigned kShadowBaseAlignment = 32;
 
-static cl::opt<std::string> ClMemoryAccessCallbackPrefix(
-    "hwasan-memory-access-callback-prefix",
-    cl::desc("Prefix for memory access callbacks"), cl::Hidden,
-    cl::init("__hwasan_"));
+static cl::opt<std::string>
+    ClMemoryAccessCallbackPrefix("hwasan-memory-access-callback-prefix",
+                                 cl::desc("Prefix for memory access callbacks"),
+                                 cl::Hidden, cl::init("__hwasan_"));
 
-static cl::opt<bool>
-    ClInstrumentWithCalls("hwasan-instrument-with-calls",
-                cl::desc("instrument reads and writes with callbacks"),
-                cl::Hidden, cl::init(false));
+static cl::opt<bool> ClInstrumentWithCalls(
+    "hwasan-instrument-with-calls",
+    cl::desc("instrument reads and writes with callbacks"), cl::Hidden,
+    cl::init(false));
 
 static cl::opt<bool> ClInstrumentReads("hwasan-instrument-reads",
                                        cl::desc("instrument read instructions"),
                                        cl::Hidden, cl::init(true));
 
-static cl::opt<bool> ClInstrumentWrites(
-    "hwasan-instrument-writes", cl::desc("instrument write instructions"),
-    cl::Hidden, cl::init(true));
+static cl::opt<bool>
+    ClInstrumentWrites("hwasan-instrument-writes",
+                       cl::desc("instrument write instructions"), cl::Hidden,
+                       cl::init(true));
 
 static cl::opt<bool> ClInstrumentAtomics(
     "hwasan-instrument-atomics",
@@ -101,10 +100,10 @@ static cl::opt<bool> ClInstrumentByval("hwasan-instrument-byval",
                                        cl::desc("instrument byval arguments"),
                                        cl::Hidden, cl::init(true));
 
-static cl::opt<bool> ClRecover(
-    "hwasan-recover",
-    cl::desc("Enable recovery mode (continue-after-error)."),
-    cl::Hidden, cl::init(false));
+static cl::opt<bool>
+    ClRecover("hwasan-recover",
+              cl::desc("Enable recovery mode (continue-after-error)."),
+              cl::Hidden, cl::init(false));
 
 static cl::opt<bool> ClInstrumentStack("hwasan-instrument-stack",
                                        cl::desc("instrument stack (allocas)"),
@@ -131,10 +130,10 @@ static cl::opt<int> ClMatchAllTag(
     cl::desc("don't report bad accesses via pointers with this tag"),
     cl::Hidden, cl::init(-1));
 
-static cl::opt<bool> ClEnableKhwasan(
-    "hwasan-kernel",
-    cl::desc("Enable KernelHWAddressSanitizer instrumentation"),
-    cl::Hidden, cl::init(false));
+static cl::opt<bool>
+    ClEnableKhwasan("hwasan-kernel",
+                    cl::desc("Enable KernelHWAddressSanitizer instrumentation"),
+                    cl::Hidden, cl::init(false));
 
 // These flags allow to change the shadow mapping and control how shadow memory
 // is accessed. The shadow mapping looks like:
@@ -186,6 +185,11 @@ static cl::opt<bool> ClInlineAllChecks("hwasan-inline-all-checks",
                                        cl::desc("inline all checks"),
                                        cl::Hidden, cl::init(false));
 
+// Enabled from clang by "-fsanitize-hwaddress-experimental-aliasing".
+static cl::opt<bool> ClUsePageAliases("hwasan-experimental-use-page-aliases",
+                                      cl::desc("Use page aliasing in HWASan"),
+                                      cl::Hidden, cl::init(false));
+
 namespace {
 
 /// An instrumentation pass implementing detection of addressability bugs
@@ -193,24 +197,28 @@ namespace {
 class HWAddressSanitizer {
 public:
   explicit HWAddressSanitizer(Module &M, bool CompileKernel = false,
-                              bool Recover = false) : M(M) {
+                              bool Recover = false)
+      : M(M) {
     this->Recover = ClRecover.getNumOccurrences() > 0 ? ClRecover : Recover;
-    this->CompileKernel = ClEnableKhwasan.getNumOccurrences() > 0 ?
-        ClEnableKhwasan : CompileKernel;
+    this->CompileKernel = ClEnableKhwasan.getNumOccurrences() > 0
+                              ? ClEnableKhwasan
+                              : CompileKernel;
 
     initializeModule();
   }
 
   bool sanitizeFunction(Function &F);
   void initializeModule();
+  void createHwasanCtorComdat();
 
   void initializeCallbacks(Module &M);
 
+  Value *getOpaqueNoopCast(IRBuilder<> &IRB, Value *Val);
+
   Value *getDynamicShadowIfunc(IRBuilder<> &IRB);
-  Value *getDynamicShadowNonTls(IRBuilder<> &IRB);
+  Value *getShadowNonTls(IRBuilder<> &IRB);
 
   void untagPointerOperand(Instruction *I, Value *Addr);
-  Value *shadowBase();
   Value *memToShadow(Value *Shadow, IRBuilder<> &IRB);
   void instrumentMemAccessInline(Value *Ptr, bool IsWrite,
                                  unsigned AccessSizeIndex,
@@ -234,10 +242,13 @@ public:
   Value *getNextTagWithCall(IRBuilder<> &IRB);
   Value *getStackBaseTag(IRBuilder<> &IRB);
   Value *getAllocaTag(IRBuilder<> &IRB, Value *StackTag, AllocaInst *AI,
-                     unsigned AllocaNo);
+                      unsigned AllocaNo);
   Value *getUARTag(IRBuilder<> &IRB, Value *StackTag);
 
   Value *getHwasanThreadSlotPtr(IRBuilder<> &IRB, Type *Ty);
+  Value *applyTagMask(IRBuilder<> &IRB, Value *OldTag);
+  unsigned retagMask(unsigned AllocaNo);
+
   void emitPrologue(IRBuilder<> &IRB, bool WithFrameRecord);
 
   void instrumentGlobal(GlobalVariable *GV, uint8_t Tag);
@@ -260,13 +271,17 @@ private:
   /// If InTls is true, then
   ///   extern char *__hwasan_tls;
   ///   shadow = (mem>>Scale) + align_up(__hwasan_shadow, kShadowBaseAlignment)
+  ///
+  /// If WithFrameRecord is true, then __hwasan_tls will be used to access the
+  /// ring buffer for storing stack allocations on targets that support it.
   struct ShadowMapping {
     int Scale;
     uint64_t Offset;
     bool InGlobal;
     bool InTls;
+    bool WithFrameRecord;
 
-    void init(Triple &TargetTriple);
+    void init(Triple &TargetTriple, bool InstrumentWithCalls);
     unsigned getObjectAlignment() const { return 1U << Scale; }
   };
   ShadowMapping Mapping;
@@ -280,8 +295,18 @@ private:
 
   bool CompileKernel;
   bool Recover;
+  bool OutlinedChecks;
   bool UseShortGranules;
   bool InstrumentLandingPads;
+  bool InstrumentWithCalls;
+  bool InstrumentStack;
+  bool UsePageAliases;
+
+  bool HasMatchAllTag = false;
+  uint8_t MatchAllTag = 0;
+
+  unsigned PointerTagShift;
+  uint64_t TagMaskByte;
 
   Function *HwasanCtorFunction;
 
@@ -293,7 +318,7 @@ private:
 
   Constant *ShadowGlobal;
 
-  Value *LocalDynamicShadow = nullptr;
+  Value *ShadowBase = nullptr;
   Value *StackBaseTag = nullptr;
   GlobalValue *ThreadPtrGlobal = nullptr;
 };
@@ -365,6 +390,106 @@ PreservedAnalyses HWAddressSanitizerPass::run(Module &M,
   return PreservedAnalyses::all();
 }
 
+void HWAddressSanitizer::createHwasanCtorComdat() {
+  std::tie(HwasanCtorFunction, std::ignore) =
+      getOrCreateSanitizerCtorAndInitFunctions(
+          M, kHwasanModuleCtorName, kHwasanInitName,
+          /*InitArgTypes=*/{},
+          /*InitArgs=*/{},
+          // This callback is invoked when the functions are created the first
+          // time. Hook them into the global ctors list in that case:
+          [&](Function *Ctor, FunctionCallee) {
+            Comdat *CtorComdat = M.getOrInsertComdat(kHwasanModuleCtorName);
+            Ctor->setComdat(CtorComdat);
+            appendToGlobalCtors(M, Ctor, 0, Ctor);
+          });
+
+  // Create a note that contains pointers to the list of global
+  // descriptors. Adding a note to the output file will cause the linker to
+  // create a PT_NOTE program header pointing to the note that we can use to
+  // find the descriptor list starting from the program headers. A function
+  // provided by the runtime initializes the shadow memory for the globals by
+  // accessing the descriptor list via the note. The dynamic loader needs to
+  // call this function whenever a library is loaded.
+  //
+  // The reason why we use a note for this instead of a more conventional
+  // approach of having a global constructor pass a descriptor list pointer to
+  // the runtime is because of an order of initialization problem. With
+  // constructors we can encounter the following problematic scenario:
+  //
+  // 1) library A depends on library B and also interposes one of B's symbols
+  // 2) B's constructors are called before A's (as required for correctness)
+  // 3) during construction, B accesses one of its "own" globals (actually
+  //    interposed by A) and triggers a HWASAN failure due to the initialization
+  //    for A not having happened yet
+  //
+  // Even without interposition it is possible to run into similar situations in
+  // cases where two libraries mutually depend on each other.
+  //
+  // We only need one note per binary, so put everything for the note in a
+  // comdat. This needs to be a comdat with an .init_array section to prevent
+  // newer versions of lld from discarding the note.
+  //
+  // Create the note even if we aren't instrumenting globals. This ensures that
+  // binaries linked from object files with both instrumented and
+  // non-instrumented globals will end up with a note, even if a comdat from an
+  // object file with non-instrumented globals is selected. The note is harmless
+  // if the runtime doesn't support it, since it will just be ignored.
+  Comdat *NoteComdat = M.getOrInsertComdat(kHwasanModuleCtorName);
+
+  Type *Int8Arr0Ty = ArrayType::get(Int8Ty, 0);
+  auto Start =
+      new GlobalVariable(M, Int8Arr0Ty, true, GlobalVariable::ExternalLinkage,
+                         nullptr, "__start_hwasan_globals");
+  Start->setVisibility(GlobalValue::HiddenVisibility);
+  Start->setDSOLocal(true);
+  auto Stop =
+      new GlobalVariable(M, Int8Arr0Ty, true, GlobalVariable::ExternalLinkage,
+                         nullptr, "__stop_hwasan_globals");
+  Stop->setVisibility(GlobalValue::HiddenVisibility);
+  Stop->setDSOLocal(true);
+
+  // Null-terminated so actually 8 bytes, which are required in order to align
+  // the note properly.
+  auto *Name = ConstantDataArray::get(*C, "LLVM\0\0\0");
+
+  auto *NoteTy = StructType::get(Int32Ty, Int32Ty, Int32Ty, Name->getType(),
+                                 Int32Ty, Int32Ty);
+  auto *Note =
+      new GlobalVariable(M, NoteTy, /*isConstant=*/true,
+                         GlobalValue::PrivateLinkage, nullptr, kHwasanNoteName);
+  Note->setSection(".note.hwasan.globals");
+  Note->setComdat(NoteComdat);
+  Note->setAlignment(Align(4));
+  Note->setDSOLocal(true);
+
+  // The pointers in the note need to be relative so that the note ends up being
+  // placed in rodata, which is the standard location for notes.
+  auto CreateRelPtr = [&](Constant *Ptr) {
+    return ConstantExpr::getTrunc(
+        ConstantExpr::getSub(ConstantExpr::getPtrToInt(Ptr, Int64Ty),
+                             ConstantExpr::getPtrToInt(Note, Int64Ty)),
+        Int32Ty);
+  };
+  Note->setInitializer(ConstantStruct::getAnon(
+      {ConstantInt::get(Int32Ty, 8),                           // n_namesz
+       ConstantInt::get(Int32Ty, 8),                           // n_descsz
+       ConstantInt::get(Int32Ty, ELF::NT_LLVM_HWASAN_GLOBALS), // n_type
+       Name, CreateRelPtr(Start), CreateRelPtr(Stop)}));
+  appendToCompilerUsed(M, Note);
+
+  // Create a zero-length global in hwasan_globals so that the linker will
+  // always create start and stop symbols.
+  auto Dummy = new GlobalVariable(
+      M, Int8Arr0Ty, /*isConstantGlobal*/ true, GlobalVariable::PrivateLinkage,
+      Constant::getNullValue(Int8Arr0Ty), "hwasan.dummy.global");
+  Dummy->setSection("hwasan_globals");
+  Dummy->setComdat(NoteComdat);
+  Dummy->setMetadata(LLVMContext::MD_associated,
+                     MDNode::get(*C, ValueAsMetadata::get(Note)));
+  appendToCompilerUsed(M, Dummy);
+}
+
 /// Module-level initialization.
 ///
 /// inserts a call to __hwasan_init to the module's constructor list.
@@ -374,7 +499,17 @@ void HWAddressSanitizer::initializeModule() {
 
   TargetTriple = Triple(M.getTargetTriple());
 
-  Mapping.init(TargetTriple);
+  // x86_64 currently has two modes:
+  // - Intel LAM (default)
+  // - pointer aliasing (heap only)
+  bool IsX86_64 = TargetTriple.getArch() == Triple::x86_64;
+  UsePageAliases = ClUsePageAliases && IsX86_64;
+  InstrumentWithCalls = IsX86_64 ? true : ClInstrumentWithCalls;
+  InstrumentStack = UsePageAliases ? false : ClInstrumentStack;
+  PointerTagShift = IsX86_64 ? 57 : 56;
+  TagMaskByte = IsX86_64 ? 0x3F : 0xFF;
+
+  Mapping.init(TargetTriple, InstrumentWithCalls);
 
   C = &(M.getContext());
   IRBuilder<> IRB(*C);
@@ -393,6 +528,19 @@ void HWAddressSanitizer::initializeModule() {
 
   UseShortGranules =
       ClUseShortGranules.getNumOccurrences() ? ClUseShortGranules : NewRuntime;
+  OutlinedChecks =
+      TargetTriple.isAArch64() && TargetTriple.isOSBinFormatELF() &&
+      (ClInlineAllChecks.getNumOccurrences() ? !ClInlineAllChecks : !Recover);
+
+  if (ClMatchAllTag.getNumOccurrences()) {
+    if (ClMatchAllTag != -1) {
+      HasMatchAllTag = true;
+      MatchAllTag = ClMatchAllTag & 0xFF;
+    }
+  } else if (CompileKernel) {
+    HasMatchAllTag = true;
+    MatchAllTag = 0xFF;
+  }
 
   // If we don't have personality function support, fall back to landing pads.
   InstrumentLandingPads = ClInstrumentLandingPads.getNumOccurrences()
@@ -400,22 +548,11 @@ void HWAddressSanitizer::initializeModule() {
                               : !NewRuntime;
 
   if (!CompileKernel) {
-    std::tie(HwasanCtorFunction, std::ignore) =
-        getOrCreateSanitizerCtorAndInitFunctions(
-            M, kHwasanModuleCtorName, kHwasanInitName,
-            /*InitArgTypes=*/{},
-            /*InitArgs=*/{},
-            // This callback is invoked when the functions are created the first
-            // time. Hook them into the global ctors list in that case:
-            [&](Function *Ctor, FunctionCallee) {
-              Comdat *CtorComdat = M.getOrInsertComdat(kHwasanModuleCtorName);
-              Ctor->setComdat(CtorComdat);
-              appendToGlobalCtors(M, Ctor, 0, Ctor);
-            });
-
+    createHwasanCtorComdat();
     bool InstrumentGlobals =
         ClGlobals.getNumOccurrences() ? ClGlobals : NewRuntime;
-    if (InstrumentGlobals)
+
+    if (InstrumentGlobals && !UsePageAliases)
       instrumentGlobals();
 
     bool InstrumentPersonalityFunctions =
@@ -483,20 +620,27 @@ void HWAddressSanitizer::initializeCallbacks(Module &M) {
       M.getOrInsertFunction("__hwasan_handle_vfork", IRB.getVoidTy(), IntptrTy);
 }
 
-Value *HWAddressSanitizer::getDynamicShadowIfunc(IRBuilder<> &IRB) {
+Value *HWAddressSanitizer::getOpaqueNoopCast(IRBuilder<> &IRB, Value *Val) {
   // An empty inline asm with input reg == output reg.
   // An opaque no-op cast, basically.
-  InlineAsm *Asm = InlineAsm::get(
-      FunctionType::get(Int8PtrTy, {ShadowGlobal->getType()}, false),
-      StringRef(""), StringRef("=r,0"),
-      /*hasSideEffects=*/false);
-  return IRB.CreateCall(Asm, {ShadowGlobal}, ".hwasan.shadow");
+  // This prevents code bloat as a result of rematerializing trivial definitions
+  // such as constants or global addresses at every load and store.
+  InlineAsm *Asm =
+      InlineAsm::get(FunctionType::get(Int8PtrTy, {Val->getType()}, false),
+                     StringRef(""), StringRef("=r,0"),
+                     /*hasSideEffects=*/false);
+  return IRB.CreateCall(Asm, {Val}, ".hwasan.shadow");
 }
 
-Value *HWAddressSanitizer::getDynamicShadowNonTls(IRBuilder<> &IRB) {
-  // Generate code only when dynamic addressing is needed.
+Value *HWAddressSanitizer::getDynamicShadowIfunc(IRBuilder<> &IRB) {
+  return getOpaqueNoopCast(IRB, ShadowGlobal);
+}
+
+Value *HWAddressSanitizer::getShadowNonTls(IRBuilder<> &IRB) {
   if (Mapping.Offset != kDynamicShadowSentinel)
-    return nullptr;
+    return getOpaqueNoopCast(
+        IRB, ConstantExpr::getIntToPtr(
+                 ConstantInt::get(IntptrTy, Mapping.Offset), Int8PtrTy));
 
   if (Mapping.InGlobal) {
     return getDynamicShadowIfunc(IRB);
@@ -532,37 +676,36 @@ void HWAddressSanitizer::getInterestingMemoryOperands(
     return;
 
   // Do not instrument the load fetching the dynamic shadow address.
-  if (LocalDynamicShadow == I)
+  if (ShadowBase == I)
     return;
 
   if (LoadInst *LI = dyn_cast<LoadInst>(I)) {
     if (!ClInstrumentReads || ignoreAccess(LI->getPointerOperand()))
       return;
     Interesting.emplace_back(I, LI->getPointerOperandIndex(), false,
-                             LI->getType(), LI->getAlignment());
+                             LI->getType(), LI->getAlign());
   } else if (StoreInst *SI = dyn_cast<StoreInst>(I)) {
     if (!ClInstrumentWrites || ignoreAccess(SI->getPointerOperand()))
       return;
     Interesting.emplace_back(I, SI->getPointerOperandIndex(), true,
-                             SI->getValueOperand()->getType(),
-                             SI->getAlignment());
+                             SI->getValueOperand()->getType(), SI->getAlign());
   } else if (AtomicRMWInst *RMW = dyn_cast<AtomicRMWInst>(I)) {
     if (!ClInstrumentAtomics || ignoreAccess(RMW->getPointerOperand()))
       return;
     Interesting.emplace_back(I, RMW->getPointerOperandIndex(), true,
-                             RMW->getValOperand()->getType(), 0);
+                             RMW->getValOperand()->getType(), None);
   } else if (AtomicCmpXchgInst *XCHG = dyn_cast<AtomicCmpXchgInst>(I)) {
     if (!ClInstrumentAtomics || ignoreAccess(XCHG->getPointerOperand()))
       return;
     Interesting.emplace_back(I, XCHG->getPointerOperandIndex(), true,
-                             XCHG->getCompareOperand()->getType(), 0);
+                             XCHG->getCompareOperand()->getType(), None);
   } else if (auto CI = dyn_cast<CallInst>(I)) {
     for (unsigned ArgNo = 0; ArgNo < CI->getNumArgOperands(); ArgNo++) {
       if (!ClInstrumentByval || !CI->isByValArgument(ArgNo) ||
           ignoreAccess(CI->getArgOperand(ArgNo)))
         continue;
       Type *Ty = CI->getParamByValType(ArgNo);
-      Interesting.emplace_back(I, ArgNo, false, Ty, 1);
+      Interesting.emplace_back(I, ArgNo, false, Ty, Align(1));
     }
   }
 }
@@ -587,7 +730,7 @@ static size_t TypeSizeToSizeIndex(uint32_t TypeSize) {
 }
 
 void HWAddressSanitizer::untagPointerOperand(Instruction *I, Value *Addr) {
-  if (TargetTriple.isAArch64())
+  if (TargetTriple.isAArch64() || TargetTriple.getArch() == Triple::x86_64)
     return;
 
   IRBuilder<> IRB(I);
@@ -597,53 +740,50 @@ void HWAddressSanitizer::untagPointerOperand(Instruction *I, Value *Addr) {
   I->setOperand(getPointerOperandIndex(I), UntaggedPtr);
 }
 
-Value *HWAddressSanitizer::shadowBase() {
-  if (LocalDynamicShadow)
-    return LocalDynamicShadow;
-  return ConstantExpr::getIntToPtr(ConstantInt::get(IntptrTy, Mapping.Offset),
-                                   Int8PtrTy);
-}
-
 Value *HWAddressSanitizer::memToShadow(Value *Mem, IRBuilder<> &IRB) {
   // Mem >> Scale
   Value *Shadow = IRB.CreateLShr(Mem, Mapping.Scale);
   if (Mapping.Offset == 0)
     return IRB.CreateIntToPtr(Shadow, Int8PtrTy);
   // (Mem >> Scale) + Offset
-  return IRB.CreateGEP(Int8Ty, shadowBase(), Shadow);
+  return IRB.CreateGEP(Int8Ty, ShadowBase, Shadow);
 }
 
 void HWAddressSanitizer::instrumentMemAccessInline(Value *Ptr, bool IsWrite,
                                                    unsigned AccessSizeIndex,
                                                    Instruction *InsertBefore) {
-  const int64_t AccessInfo = Recover * 0x20 + IsWrite * 0x10 + AccessSizeIndex;
+  assert(!UsePageAliases);
+  const int64_t AccessInfo =
+      (CompileKernel << HWASanAccessInfo::CompileKernelShift) +
+      (HasMatchAllTag << HWASanAccessInfo::HasMatchAllShift) +
+      (MatchAllTag << HWASanAccessInfo::MatchAllShift) +
+      (Recover << HWASanAccessInfo::RecoverShift) +
+      (IsWrite << HWASanAccessInfo::IsWriteShift) +
+      (AccessSizeIndex << HWASanAccessInfo::AccessSizeShift);
   IRBuilder<> IRB(InsertBefore);
 
-  if (!ClInlineAllChecks && TargetTriple.isAArch64() &&
-      TargetTriple.isOSBinFormatELF() && !Recover) {
+  if (OutlinedChecks) {
     Module *M = IRB.GetInsertBlock()->getParent()->getParent();
     Ptr = IRB.CreateBitCast(Ptr, Int8PtrTy);
     IRB.CreateCall(Intrinsic::getDeclaration(
                        M, UseShortGranules
                               ? Intrinsic::hwasan_check_memaccess_shortgranules
                               : Intrinsic::hwasan_check_memaccess),
-                   {shadowBase(), Ptr, ConstantInt::get(Int32Ty, AccessInfo)});
+                   {ShadowBase, Ptr, ConstantInt::get(Int32Ty, AccessInfo)});
     return;
   }
 
   Value *PtrLong = IRB.CreatePointerCast(Ptr, IntptrTy);
-  Value *PtrTag = IRB.CreateTrunc(IRB.CreateLShr(PtrLong, kPointerTagShift),
+  Value *PtrTag = IRB.CreateTrunc(IRB.CreateLShr(PtrLong, PointerTagShift),
                                   IRB.getInt8Ty());
   Value *AddrLong = untagPointer(IRB, PtrLong);
   Value *Shadow = memToShadow(AddrLong, IRB);
   Value *MemTag = IRB.CreateLoad(Int8Ty, Shadow);
   Value *TagMismatch = IRB.CreateICmpNE(PtrTag, MemTag);
 
-  int matchAllTag = ClMatchAllTag.getNumOccurrences() > 0 ?
-      ClMatchAllTag : (CompileKernel ? 0xFF : -1);
-  if (matchAllTag != -1) {
-    Value *TagNotIgnored = IRB.CreateICmpNE(PtrTag,
-        ConstantInt::get(PtrTag->getType(), matchAllTag));
+  if (HasMatchAllTag) {
+    Value *TagNotIgnored = IRB.CreateICmpNE(
+        PtrTag, ConstantInt::get(PtrTag->getType(), MatchAllTag));
     TagMismatch = IRB.CreateAnd(TagMismatch, TagNotIgnored);
   }
 
@@ -665,7 +805,8 @@ void HWAddressSanitizer::instrumentMemAccessInline(Value *Ptr, bool IsWrite,
   Value *PtrLowBitsOOB = IRB.CreateICmpUGE(PtrLowBits, MemTag);
   SplitBlockAndInsertIfThen(PtrLowBitsOOB, CheckTerm, false,
                             MDBuilder(*C).createBranchWeights(1, 100000),
-                            nullptr, nullptr, CheckFailTerm->getParent());
+                            (DomTreeUpdater *)nullptr, nullptr,
+                            CheckFailTerm->getParent());
 
   IRB.SetInsertPoint(CheckTerm);
   Value *InlineTagAddr = IRB.CreateOr(AddrLong, 15);
@@ -674,30 +815,33 @@ void HWAddressSanitizer::instrumentMemAccessInline(Value *Ptr, bool IsWrite,
   Value *InlineTagMismatch = IRB.CreateICmpNE(PtrTag, InlineTag);
   SplitBlockAndInsertIfThen(InlineTagMismatch, CheckTerm, false,
                             MDBuilder(*C).createBranchWeights(1, 100000),
-                            nullptr, nullptr, CheckFailTerm->getParent());
+                            (DomTreeUpdater *)nullptr, nullptr,
+                            CheckFailTerm->getParent());
 
   IRB.SetInsertPoint(CheckFailTerm);
   InlineAsm *Asm;
   switch (TargetTriple.getArch()) {
-    case Triple::x86_64:
-      // The signal handler will find the data address in rdi.
-      Asm = InlineAsm::get(
-          FunctionType::get(IRB.getVoidTy(), {PtrLong->getType()}, false),
-          "int3\nnopl " + itostr(0x40 + AccessInfo) + "(%rax)",
-          "{rdi}",
-          /*hasSideEffects=*/true);
-      break;
-    case Triple::aarch64:
-    case Triple::aarch64_be:
-      // The signal handler will find the data address in x0.
-      Asm = InlineAsm::get(
-          FunctionType::get(IRB.getVoidTy(), {PtrLong->getType()}, false),
-          "brk #" + itostr(0x900 + AccessInfo),
-          "{x0}",
-          /*hasSideEffects=*/true);
-      break;
-    default:
-      report_fatal_error("unsupported architecture");
+  case Triple::x86_64:
+    // The signal handler will find the data address in rdi.
+    Asm = InlineAsm::get(
+        FunctionType::get(IRB.getVoidTy(), {PtrLong->getType()}, false),
+        "int3\nnopl " +
+            itostr(0x40 + (AccessInfo & HWASanAccessInfo::RuntimeMask)) +
+            "(%rax)",
+        "{rdi}",
+        /*hasSideEffects=*/true);
+    break;
+  case Triple::aarch64:
+  case Triple::aarch64_be:
+    // The signal handler will find the data address in x0.
+    Asm = InlineAsm::get(
+        FunctionType::get(IRB.getVoidTy(), {PtrLong->getType()}, false),
+        "brk #" + itostr(0x900 + (AccessInfo & HWASanAccessInfo::RuntimeMask)),
+        "{x0}",
+        /*hasSideEffects=*/true);
+    break;
+  default:
+    report_fatal_error("unsupported architecture");
   }
   IRB.CreateCall(Asm, PtrLong);
   if (Recover)
@@ -728,15 +872,15 @@ bool HWAddressSanitizer::instrumentMemAccess(InterestingMemoryOperand &O) {
   LLVM_DEBUG(dbgs() << "Instrumenting: " << O.getInsn() << "\n");
 
   if (O.MaybeMask)
-    return false; //FIXME
+    return false; // FIXME
 
   IRBuilder<> IRB(O.getInsn());
   if (isPowerOf2_64(O.TypeSize) &&
-      (O.TypeSize / 8 <= (1UL << (kNumberOfAccessSizes - 1))) &&
-      (O.Alignment >= (1UL << Mapping.Scale) || O.Alignment == 0 ||
-       O.Alignment >= O.TypeSize / 8)) {
+      (O.TypeSize / 8 <= (1ULL << (kNumberOfAccessSizes - 1))) &&
+      (!O.Alignment || *O.Alignment >= (1ULL << Mapping.Scale) ||
+       *O.Alignment >= O.TypeSize / 8)) {
     size_t AccessSizeIndex = TypeSizeToSizeIndex(O.TypeSize);
-    if (ClInstrumentWithCalls) {
+    if (InstrumentWithCalls) {
       IRB.CreateCall(HwasanMemoryAccessCallback[O.IsWrite][AccessSizeIndex],
                      IRB.CreatePointerCast(Addr, IntptrTy));
     } else {
@@ -764,14 +908,14 @@ static uint64_t getAllocaSizeInBytes(const AllocaInst &AI) {
   return SizeInBytes * ArraySize;
 }
 
-bool HWAddressSanitizer::tagAlloca(IRBuilder<> &IRB, AllocaInst *AI,
-                                   Value *Tag, size_t Size) {
+bool HWAddressSanitizer::tagAlloca(IRBuilder<> &IRB, AllocaInst *AI, Value *Tag,
+                                   size_t Size) {
   size_t AlignedSize = alignTo(Size, Mapping.getObjectAlignment());
   if (!UseShortGranules)
     Size = AlignedSize;
 
   Value *JustTag = IRB.CreateTrunc(Tag, IRB.getInt8Ty());
-  if (ClInstrumentWithCalls) {
+  if (InstrumentWithCalls) {
     IRB.CreateCall(HwasanTagMemoryFunc,
                    {IRB.CreatePointerCast(AI, Int8PtrTy), JustTag,
                     ConstantInt::get(IntptrTy, AlignedSize)});
@@ -798,7 +942,10 @@ bool HWAddressSanitizer::tagAlloca(IRBuilder<> &IRB, AllocaInst *AI,
   return true;
 }
 
-static unsigned RetagMask(unsigned AllocaNo) {
+unsigned HWAddressSanitizer::retagMask(unsigned AllocaNo) {
+  if (TargetTriple.getArch() == Triple::x86_64)
+    return AllocaNo & TagMaskByte;
+
   // A list of 8-bit numbers that have at most one run of non-zero bits.
   // x = x ^ (mask << 56) can be encoded as a single armv8 instruction for these
   // masks.
@@ -814,6 +961,16 @@ static unsigned RetagMask(unsigned AllocaNo) {
                                  60, 28,  12,  4,   126, 254, 62,  30,  14,
                                  6,  2,   127, 63,  31,  15,  7,   3,   1};
   return FastMasks[AllocaNo % (sizeof(FastMasks) / sizeof(FastMasks[0]))];
+}
+
+Value *HWAddressSanitizer::applyTagMask(IRBuilder<> &IRB, Value *OldTag) {
+  if (TargetTriple.getArch() == Triple::x86_64) {
+    Constant *TagMask = ConstantInt::get(IntptrTy, TagMaskByte);
+    Value *NewTag = IRB.CreateAnd(OldTag, TagMask);
+    return NewTag;
+  }
+  // aarch64 uses 8-bit tags, so no mask is needed.
+  return OldTag;
 }
 
 Value *HWAddressSanitizer::getNextTagWithCall(IRBuilder<> &IRB) {
@@ -839,8 +996,9 @@ Value *HWAddressSanitizer::getStackBaseTag(IRBuilder<> &IRB) {
   // between functions).
   Value *StackPointerLong = IRB.CreatePointerCast(StackPointer, IntptrTy);
   Value *StackTag =
-      IRB.CreateXor(StackPointerLong, IRB.CreateLShr(StackPointerLong, 20),
-                    "hwasan.stack.base.tag");
+      applyTagMask(IRB, IRB.CreateXor(StackPointerLong,
+                                      IRB.CreateLShr(StackPointerLong, 20)));
+  StackTag->setName("hwasan.stack.base.tag");
   return StackTag;
 }
 
@@ -849,7 +1007,7 @@ Value *HWAddressSanitizer::getAllocaTag(IRBuilder<> &IRB, Value *StackTag,
   if (ClGenerateTagsWithCalls)
     return getNextTagWithCall(IRB);
   return IRB.CreateXor(StackTag,
-                       ConstantInt::get(IntptrTy, RetagMask(AllocaNo)));
+                       ConstantInt::get(IntptrTy, retagMask(AllocaNo)));
 }
 
 Value *HWAddressSanitizer::getUARTag(IRBuilder<> &IRB, Value *StackTag) {
@@ -857,22 +1015,23 @@ Value *HWAddressSanitizer::getUARTag(IRBuilder<> &IRB, Value *StackTag) {
     return ConstantInt::get(IntptrTy, 0);
   if (ClGenerateTagsWithCalls)
     return getNextTagWithCall(IRB);
-  return IRB.CreateXor(StackTag, ConstantInt::get(IntptrTy, 0xFFU));
+  return IRB.CreateXor(StackTag, ConstantInt::get(IntptrTy, TagMaskByte));
 }
 
 // Add a tag to an address.
 Value *HWAddressSanitizer::tagPointer(IRBuilder<> &IRB, Type *Ty,
                                       Value *PtrLong, Value *Tag) {
+  assert(!UsePageAliases);
   Value *TaggedPtrLong;
   if (CompileKernel) {
     // Kernel addresses have 0xFF in the most significant byte.
-    Value *ShiftedTag = IRB.CreateOr(
-        IRB.CreateShl(Tag, kPointerTagShift),
-        ConstantInt::get(IntptrTy, (1ULL << kPointerTagShift) - 1));
+    Value *ShiftedTag =
+        IRB.CreateOr(IRB.CreateShl(Tag, PointerTagShift),
+                     ConstantInt::get(IntptrTy, (1ULL << PointerTagShift) - 1));
     TaggedPtrLong = IRB.CreateAnd(PtrLong, ShiftedTag);
   } else {
-    // Userspace can simply do OR (tag << 56);
-    Value *ShiftedTag = IRB.CreateShl(Tag, kPointerTagShift);
+    // Userspace can simply do OR (tag << PointerTagShift);
+    Value *ShiftedTag = IRB.CreateShl(Tag, PointerTagShift);
     TaggedPtrLong = IRB.CreateOr(PtrLong, ShiftedTag);
   }
   return IRB.CreateIntToPtr(TaggedPtrLong, Ty);
@@ -880,15 +1039,18 @@ Value *HWAddressSanitizer::tagPointer(IRBuilder<> &IRB, Type *Ty,
 
 // Remove tag from an address.
 Value *HWAddressSanitizer::untagPointer(IRBuilder<> &IRB, Value *PtrLong) {
+  assert(!UsePageAliases);
   Value *UntaggedPtrLong;
   if (CompileKernel) {
     // Kernel addresses have 0xFF in the most significant byte.
-    UntaggedPtrLong = IRB.CreateOr(PtrLong,
-        ConstantInt::get(PtrLong->getType(), 0xFFULL << kPointerTagShift));
+    UntaggedPtrLong =
+        IRB.CreateOr(PtrLong, ConstantInt::get(PtrLong->getType(),
+                                               0xFFULL << PointerTagShift));
   } else {
     // Userspace addresses have 0x00.
-    UntaggedPtrLong = IRB.CreateAnd(PtrLong,
-        ConstantInt::get(PtrLong->getType(), ~(0xFFULL << kPointerTagShift)));
+    UntaggedPtrLong =
+        IRB.CreateAnd(PtrLong, ConstantInt::get(PtrLong->getType(),
+                                                ~(0xFFULL << PointerTagShift)));
   }
   return UntaggedPtrLong;
 }
@@ -909,20 +1071,17 @@ Value *HWAddressSanitizer::getHwasanThreadSlotPtr(IRBuilder<> &IRB, Type *Ty) {
   if (ThreadPtrGlobal)
     return ThreadPtrGlobal;
 
-
   return nullptr;
 }
 
 void HWAddressSanitizer::emitPrologue(IRBuilder<> &IRB, bool WithFrameRecord) {
-  if (!Mapping.InTls) {
-    LocalDynamicShadow = getDynamicShadowNonTls(IRB);
-    return;
-  }
+  if (!Mapping.InTls)
+    ShadowBase = getShadowNonTls(IRB);
+  else if (!WithFrameRecord && TargetTriple.isAndroid())
+    ShadowBase = getDynamicShadowIfunc(IRB);
 
-  if (!WithFrameRecord && TargetTriple.isAndroid()) {
-    LocalDynamicShadow = getDynamicShadowIfunc(IRB);
+  if (!WithFrameRecord && ShadowBase)
     return;
-  }
 
   Value *SlotPtr = getHwasanThreadSlotPtr(IRB, IntptrTy);
   assert(SlotPtr);
@@ -978,15 +1137,17 @@ void HWAddressSanitizer::emitPrologue(IRBuilder<> &IRB, bool WithFrameRecord) {
     IRB.CreateStore(ThreadLongNew, SlotPtr);
   }
 
-  // Get shadow base address by aligning RecordPtr up.
-  // Note: this is not correct if the pointer is already aligned.
-  // Runtime library will make sure this never happens.
-  LocalDynamicShadow = IRB.CreateAdd(
-      IRB.CreateOr(
-          ThreadLongMaybeUntagged,
-          ConstantInt::get(IntptrTy, (1ULL << kShadowBaseAlignment) - 1)),
-      ConstantInt::get(IntptrTy, 1), "hwasan.shadow");
-  LocalDynamicShadow = IRB.CreateIntToPtr(LocalDynamicShadow, Int8PtrTy);
+  if (!ShadowBase) {
+    // Get shadow base address by aligning RecordPtr up.
+    // Note: this is not correct if the pointer is already aligned.
+    // Runtime library will make sure this never happens.
+    ShadowBase = IRB.CreateAdd(
+        IRB.CreateOr(
+            ThreadLongMaybeUntagged,
+            ConstantInt::get(IntptrTy, (1ULL << kShadowBaseAlignment) - 1)),
+        ConstantInt::get(IntptrTy, 1), "hwasan.shadow");
+    ShadowBase = IRB.CreateIntToPtr(ShadowBase, Int8PtrTy);
+  }
 }
 
 Value *HWAddressSanitizer::readRegister(IRBuilder<> &IRB, StringRef Name) {
@@ -1039,10 +1200,11 @@ bool HWAddressSanitizer::instrumentStack(
       // Tag offset logically applies to the alloca pointer, and it makes sense
       // to put it at the beginning of the expression.
       SmallVector<uint64_t, 8> NewOps = {dwarf::DW_OP_LLVM_tag_offset,
-                                         RetagMask(N)};
-      DDI->setArgOperand(
-          2, MetadataAsValue::get(*C, DIExpression::prependOpcodes(
-                                          DDI->getExpression(), NewOps)));
+                                         retagMask(N)};
+      auto Locations = DDI->location_ops();
+      unsigned LocNo = std::distance(Locations.begin(), find(Locations, AI));
+      DDI->setExpression(
+          DIExpression::appendOpsToArg(DDI->getExpression(), NewOps, LocNo));
     }
 
     size_t Size = getAllocaSizeInBytes(*AI);
@@ -1087,13 +1249,13 @@ bool HWAddressSanitizer::sanitizeFunction(Function &F) {
 
   SmallVector<InterestingMemoryOperand, 16> OperandsToInstrument;
   SmallVector<MemIntrinsic *, 16> IntrinToInstrument;
-  SmallVector<AllocaInst*, 8> AllocasToInstrument;
-  SmallVector<Instruction*, 8> RetVec;
-  SmallVector<Instruction*, 8> LandingPadVec;
+  SmallVector<AllocaInst *, 8> AllocasToInstrument;
+  SmallVector<Instruction *, 8> RetVec;
+  SmallVector<Instruction *, 8> LandingPadVec;
   DenseMap<AllocaInst *, std::vector<DbgVariableIntrinsic *>> AllocaDbgMap;
   for (auto &BB : F) {
     for (auto &Inst : BB) {
-      if (ClInstrumentStack)
+      if (InstrumentStack)
         if (AllocaInst *AI = dyn_cast<AllocaInst>(&Inst)) {
           if (isInterestingAlloca(*AI))
             AllocasToInstrument.push_back(AI);
@@ -1104,10 +1266,10 @@ bool HWAddressSanitizer::sanitizeFunction(Function &F) {
           isa<CleanupReturnInst>(Inst))
         RetVec.push_back(&Inst);
 
-      if (auto *DDI = dyn_cast<DbgVariableIntrinsic>(&Inst))
-        if (auto *Alloca =
-                dyn_cast_or_null<AllocaInst>(DDI->getVariableLocation()))
-          AllocaDbgMap[Alloca].push_back(DDI);
+      if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(&Inst))
+        for (Value *V : DVI->location_ops())
+          if (auto *Alloca = dyn_cast_or_null<AllocaInst>(V))
+            AllocaDbgMap[Alloca].push_back(DVI);
 
       if (InstrumentLandingPads && isa<LandingPadInst>(Inst))
         LandingPadVec.push_back(&Inst);
@@ -1121,36 +1283,36 @@ bool HWAddressSanitizer::sanitizeFunction(Function &F) {
 
   initializeCallbacks(*F.getParent());
 
+  bool Changed = false;
+
   if (!LandingPadVec.empty())
-    instrumentLandingPads(LandingPadVec);
+    Changed |= instrumentLandingPads(LandingPadVec);
 
   if (AllocasToInstrument.empty() && F.hasPersonalityFn() &&
       F.getPersonalityFn()->getName() == kHwasanPersonalityThunkName) {
     // __hwasan_personality_thunk is a no-op for functions without an
     // instrumented stack, so we can drop it.
     F.setPersonalityFn(nullptr);
+    Changed = true;
   }
 
   if (AllocasToInstrument.empty() && OperandsToInstrument.empty() &&
       IntrinToInstrument.empty())
-    return false;
+    return Changed;
 
-  assert(!LocalDynamicShadow);
+  assert(!ShadowBase);
 
   Instruction *InsertPt = &*F.getEntryBlock().begin();
   IRBuilder<> EntryIRB(InsertPt);
   emitPrologue(EntryIRB,
                /*WithFrameRecord*/ ClRecordStackHistory &&
-                   !AllocasToInstrument.empty());
+                   Mapping.WithFrameRecord && !AllocasToInstrument.empty());
 
-  bool Changed = false;
   if (!AllocasToInstrument.empty()) {
     Value *StackTag =
         ClGenerateTagsWithCalls ? nullptr : getStackBaseTag(EntryIRB);
-    Changed |= instrumentStack(AllocasToInstrument, AllocaDbgMap, RetVec,
-                               StackTag);
+    instrumentStack(AllocasToInstrument, AllocaDbgMap, RetVec, StackTag);
   }
-
   // Pad and align each of the allocas that we instrumented to stop small
   // uninteresting allocas from hiding in instrumented alloca's padding and so
   // that we have enough space to store real tags for short granules.
@@ -1183,14 +1345,18 @@ bool HWAddressSanitizer::sanitizeFunction(Function &F) {
   }
 
   if (!AllocaToPaddedAllocaMap.empty()) {
-    for (auto &BB : F)
-      for (auto &Inst : BB)
-        if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(&Inst))
-          if (auto *AI =
-                  dyn_cast_or_null<AllocaInst>(DVI->getVariableLocation()))
-            if (auto *NewAI = AllocaToPaddedAllocaMap.lookup(AI))
-              DVI->setArgOperand(
-                  0, MetadataAsValue::get(*C, LocalAsMetadata::get(NewAI)));
+    for (auto &BB : F) {
+      for (auto &Inst : BB) {
+        if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(&Inst)) {
+          for (Value *V : DVI->location_ops()) {
+            if (auto *AI = dyn_cast_or_null<AllocaInst>(V)) {
+              if (auto *NewAI = AllocaToPaddedAllocaMap.lookup(AI))
+                DVI->replaceVariableLocationOp(V, NewAI);
+            }
+          }
+        }
+      }
+    }
     for (auto &P : AllocaToPaddedAllocaMap)
       P.first->eraseFromParent();
   }
@@ -1211,21 +1377,21 @@ bool HWAddressSanitizer::sanitizeFunction(Function &F) {
   }
 
   for (auto &Operand : OperandsToInstrument)
-    Changed |= instrumentMemAccess(Operand);
+    instrumentMemAccess(Operand);
 
   if (ClInstrumentMemIntrinsics && !IntrinToInstrument.empty()) {
     for (auto Inst : IntrinToInstrument)
       instrumentMemIntrinsic(cast<MemIntrinsic>(Inst));
-    Changed = true;
   }
 
-  LocalDynamicShadow = nullptr;
+  ShadowBase = nullptr;
   StackBaseTag = nullptr;
 
-  return Changed;
+  return true;
 }
 
 void HWAddressSanitizer::instrumentGlobal(GlobalVariable *GV, uint8_t Tag) {
+  assert(!UsePageAliases);
   Constant *Initializer = GV->getInitializer();
   uint64_t SizeInBytes =
       M.getDataLayout().getTypeAllocSize(Initializer->getType());
@@ -1291,7 +1457,7 @@ void HWAddressSanitizer::instrumentGlobal(GlobalVariable *GV, uint8_t Tag) {
   Constant *Aliasee = ConstantExpr::getIntToPtr(
       ConstantExpr::getAdd(
           ConstantExpr::getPtrToInt(NewGV, Int64Ty),
-          ConstantInt::get(Int64Ty, uint64_t(Tag) << kPointerTagShift)),
+          ConstantInt::get(Int64Ty, uint64_t(Tag) << PointerTagShift)),
       GV->getType());
   auto *Alias = GlobalAlias::create(GV->getValueType(), GV->getAddressSpace(),
                                     GV->getLinkage(), "", Aliasee, &M);
@@ -1302,85 +1468,6 @@ void HWAddressSanitizer::instrumentGlobal(GlobalVariable *GV, uint8_t Tag) {
 }
 
 void HWAddressSanitizer::instrumentGlobals() {
-  // Start by creating a note that contains pointers to the list of global
-  // descriptors. Adding a note to the output file will cause the linker to
-  // create a PT_NOTE program header pointing to the note that we can use to
-  // find the descriptor list starting from the program headers. A function
-  // provided by the runtime initializes the shadow memory for the globals by
-  // accessing the descriptor list via the note. The dynamic loader needs to
-  // call this function whenever a library is loaded.
-  //
-  // The reason why we use a note for this instead of a more conventional
-  // approach of having a global constructor pass a descriptor list pointer to
-  // the runtime is because of an order of initialization problem. With
-  // constructors we can encounter the following problematic scenario:
-  //
-  // 1) library A depends on library B and also interposes one of B's symbols
-  // 2) B's constructors are called before A's (as required for correctness)
-  // 3) during construction, B accesses one of its "own" globals (actually
-  //    interposed by A) and triggers a HWASAN failure due to the initialization
-  //    for A not having happened yet
-  //
-  // Even without interposition it is possible to run into similar situations in
-  // cases where two libraries mutually depend on each other.
-  //
-  // We only need one note per binary, so put everything for the note in a
-  // comdat. This need to be a comdat with an .init_array section to prevent
-  // newer versions of lld from discarding the note.
-  Comdat *NoteComdat = M.getOrInsertComdat(kHwasanModuleCtorName);
-
-  Type *Int8Arr0Ty = ArrayType::get(Int8Ty, 0);
-  auto Start =
-      new GlobalVariable(M, Int8Arr0Ty, true, GlobalVariable::ExternalLinkage,
-                         nullptr, "__start_hwasan_globals");
-  Start->setVisibility(GlobalValue::HiddenVisibility);
-  Start->setDSOLocal(true);
-  auto Stop =
-      new GlobalVariable(M, Int8Arr0Ty, true, GlobalVariable::ExternalLinkage,
-                         nullptr, "__stop_hwasan_globals");
-  Stop->setVisibility(GlobalValue::HiddenVisibility);
-  Stop->setDSOLocal(true);
-
-  // Null-terminated so actually 8 bytes, which are required in order to align
-  // the note properly.
-  auto *Name = ConstantDataArray::get(*C, "LLVM\0\0\0");
-
-  auto *NoteTy = StructType::get(Int32Ty, Int32Ty, Int32Ty, Name->getType(),
-                                 Int32Ty, Int32Ty);
-  auto *Note =
-      new GlobalVariable(M, NoteTy, /*isConstantGlobal=*/true,
-                         GlobalValue::PrivateLinkage, nullptr, kHwasanNoteName);
-  Note->setSection(".note.hwasan.globals");
-  Note->setComdat(NoteComdat);
-  Note->setAlignment(Align(4));
-  Note->setDSOLocal(true);
-
-  // The pointers in the note need to be relative so that the note ends up being
-  // placed in rodata, which is the standard location for notes.
-  auto CreateRelPtr = [&](Constant *Ptr) {
-    return ConstantExpr::getTrunc(
-        ConstantExpr::getSub(ConstantExpr::getPtrToInt(Ptr, Int64Ty),
-                             ConstantExpr::getPtrToInt(Note, Int64Ty)),
-        Int32Ty);
-  };
-  Note->setInitializer(ConstantStruct::getAnon(
-      {ConstantInt::get(Int32Ty, 8),                           // n_namesz
-       ConstantInt::get(Int32Ty, 8),                           // n_descsz
-       ConstantInt::get(Int32Ty, ELF::NT_LLVM_HWASAN_GLOBALS), // n_type
-       Name, CreateRelPtr(Start), CreateRelPtr(Stop)}));
-  appendToCompilerUsed(M, Note);
-
-  // Create a zero-length global in hwasan_globals so that the linker will
-  // always create start and stop symbols.
-  auto Dummy = new GlobalVariable(
-      M, Int8Arr0Ty, /*isConstantGlobal*/ true, GlobalVariable::PrivateLinkage,
-      Constant::getNullValue(Int8Arr0Ty), "hwasan.dummy.global");
-  Dummy->setSection("hwasan_globals");
-  Dummy->setComdat(NoteComdat);
-  Dummy->setMetadata(LLVMContext::MD_associated,
-                     MDNode::get(*C, ValueAsMetadata::get(Note)));
-  appendToCompilerUsed(M, Dummy);
-
   std::vector<GlobalVariable *> Globals;
   for (GlobalVariable &GV : M.globals()) {
     if (GV.isDeclarationForLinker() || GV.getName().startswith("llvm.") ||
@@ -1404,7 +1491,7 @@ void HWAddressSanitizer::instrumentGlobals() {
   Hasher.update(M.getSourceFileName());
   MD5::MD5Result Hash;
   Hasher.final(Hash);
-  uint8_t Tag = Hash[0];
+  uint8_t Tag = Hash[0] & TagMaskByte;
 
   for (GlobalVariable *GV : Globals) {
     // Skip tag 0 in order to avoid collisions with untagged memory.
@@ -1477,27 +1564,40 @@ void HWAddressSanitizer::instrumentPersonalityFunctions() {
   }
 }
 
-void HWAddressSanitizer::ShadowMapping::init(Triple &TargetTriple) {
+void HWAddressSanitizer::ShadowMapping::init(Triple &TargetTriple,
+                                             bool InstrumentWithCalls) {
   Scale = kDefaultShadowScale;
-  if (ClMappingOffset.getNumOccurrences() > 0) {
-    InGlobal = false;
-    InTls = false;
-    Offset = ClMappingOffset;
-  } else if (ClEnableKhwasan || ClInstrumentWithCalls) {
+  if (TargetTriple.isOSFuchsia()) {
+    // Fuchsia is always PIE, which means that the beginning of the address
+    // space is always available.
     InGlobal = false;
     InTls = false;
     Offset = 0;
+    WithFrameRecord = true;
+  } else if (ClMappingOffset.getNumOccurrences() > 0) {
+    InGlobal = false;
+    InTls = false;
+    Offset = ClMappingOffset;
+    WithFrameRecord = false;
+  } else if (ClEnableKhwasan || InstrumentWithCalls) {
+    InGlobal = false;
+    InTls = false;
+    Offset = 0;
+    WithFrameRecord = false;
   } else if (ClWithIfunc) {
     InGlobal = true;
     InTls = false;
     Offset = kDynamicShadowSentinel;
+    WithFrameRecord = false;
   } else if (ClWithTls) {
     InGlobal = false;
     InTls = true;
     Offset = kDynamicShadowSentinel;
+    WithFrameRecord = true;
   } else {
     InGlobal = false;
     InTls = false;
     Offset = kDynamicShadowSentinel;
+    WithFrameRecord = false;
   }
 }

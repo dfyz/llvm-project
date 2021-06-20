@@ -10,8 +10,8 @@ add_clang_library(clangTidyReadabilityModule
   ContainerSizeEmptyCheck.cpp
   ConvertMemberFunctionsToStatic.cpp
   DeleteNullPointerCheck.cpp
-  DeletedDefaultCheck.cpp
   ElseAfterReturnCheck.cpp
+  FunctionCognitiveComplexityCheck.cpp
   FunctionSizeCheck.cpp
   IdentifierNamingCheck.cpp
   ImplicitBoolConversionCheck.cpp
@@ -47,6 +47,9 @@ add_clang_library(clangTidyReadabilityModule
   LINK_LIBS
   clangTidy
   clangTidyUtils
+
+  DEPENDS
+  omp_gen
   )
 
 clang_target_link_libraries(clangTidyReadabilityModule

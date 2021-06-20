@@ -2,24 +2,25 @@
 from lldbsuite.test.lldbtest import *
 import os
 import vscode
+import time
 
 
 class VSCodeTestCaseBase(TestBase):
 
     NO_DEBUG_INFO_TESTCASE = True
 
-    def create_debug_adaptor(self):
+    def create_debug_adaptor(self, lldbVSCodeEnv=None):
         '''Create the Visual Studio Code debug adaptor'''
         self.assertTrue(os.path.exists(self.lldbVSCodeExec),
                         'lldb-vscode must exist')
         log_file_path = self.getBuildArtifact('vscode.txt')
         self.vscode = vscode.DebugAdaptor(
             executable=self.lldbVSCodeExec, init_commands=self.setUpCommands(),
-            log_file=log_file_path)
+            log_file=log_file_path, env=lldbVSCodeEnv)
 
-    def build_and_create_debug_adaptor(self):
+    def build_and_create_debug_adaptor(self, lldbVSCodeEnv=None):
         self.build()
-        self.create_debug_adaptor()
+        self.create_debug_adaptor(lldbVSCodeEnv)
 
     def set_source_breakpoints(self, source_path, lines, condition=None,
                                hitCondition=None):
@@ -52,6 +53,13 @@ class VSCodeTestCaseBase(TestBase):
             breakpoint_ids.append('%i' % (breakpoint['id']))
         return breakpoint_ids
 
+    def waitUntil(self, condition_callback):
+        for _ in range(20):
+            if condition_callback():
+                return True
+            time.sleep(0.5)
+        return False
+
     def verify_breakpoint_hit(self, breakpoint_ids):
         '''Wait for the process we are debugging to stop, and verify we hit
            any breakpoint location in the "breakpoint_ids" array.
@@ -77,7 +85,6 @@ class VSCodeTestCaseBase(TestBase):
                 # the right breakpoint matches and not worry about the actual
                 # location.
                 description = body['description']
-                print("description: %s" % (description))
                 for breakpoint_id in breakpoint_ids:
                     match_desc = 'breakpoint %s.' % (breakpoint_id)
                     if match_desc in description:
@@ -179,6 +186,9 @@ class VSCodeTestCaseBase(TestBase):
     def get_console(self, timeout=0.0):
         return self.vscode.get_output('console', timeout=timeout)
 
+    def collect_console(self, duration):
+        return self.vscode.collect_output('console', duration=duration)
+
     def get_local_as_int(self, name, threadId=None):
         value = self.vscode.get_local_variable_value(name, threadId=threadId)
         if value.startswith('0x'):
@@ -239,14 +249,17 @@ class VSCodeTestCaseBase(TestBase):
 
     def attach(self, program=None, pid=None, waitFor=None, trace=None,
                initCommands=None, preRunCommands=None, stopCommands=None,
-               exitCommands=None, attachCommands=None, coreFile=None):
+               exitCommands=None, attachCommands=None, coreFile=None,
+               disconnectAutomatically=True, terminateCommands=None,
+               postRunCommands=None):
         '''Build the default Makefile target, create the VSCode debug adaptor,
            and attach to the process.
         '''
         # Make sure we disconnect and terminate the VSCode debug adaptor even
         # if we throw an exception during the test case.
         def cleanup():
-            self.vscode.request_disconnect(terminateDebuggee=True)
+            if disconnectAutomatically:
+                self.vscode.request_disconnect(terminateDebuggee=True)
             self.vscode.terminate()
 
         # Execute the cleanup function during test case tear down.
@@ -257,7 +270,8 @@ class VSCodeTestCaseBase(TestBase):
             program=program, pid=pid, waitFor=waitFor, trace=trace,
             initCommands=initCommands, preRunCommands=preRunCommands,
             stopCommands=stopCommands, exitCommands=exitCommands,
-            attachCommands=attachCommands, coreFile=coreFile)
+            attachCommands=attachCommands, terminateCommands=terminateCommands,
+            coreFile=coreFile, postRunCommands=postRunCommands)
         if not (response and response['success']):
             self.assertTrue(response['success'],
                             'attach failed (%s)' % (response['message']))
@@ -266,15 +280,18 @@ class VSCodeTestCaseBase(TestBase):
                stopOnEntry=False, disableASLR=True,
                disableSTDIO=False, shellExpandArguments=False,
                trace=False, initCommands=None, preRunCommands=None,
-               stopCommands=None, exitCommands=None,sourcePath=None,
-               debuggerRoot=None, launchCommands=None, sourceMap=None):
+               stopCommands=None, exitCommands=None, terminateCommands=None,
+               sourcePath=None, debuggerRoot=None, launchCommands=None,
+               sourceMap=None, disconnectAutomatically=True, runInTerminal=False,
+               expectFailure=False, postRunCommands=None):
         '''Sending launch request to vscode
         '''
 
         # Make sure we disconnect and terminate the VSCode debug adapter,
         # if we throw an exception during the test case
         def cleanup():
-            self.vscode.request_disconnect(terminateDebuggee=True)
+            if disconnectAutomatically:
+                self.vscode.request_disconnect(terminateDebuggee=True)
             self.vscode.terminate()
 
         # Execute the cleanup function during test case tear down.
@@ -296,27 +313,46 @@ class VSCodeTestCaseBase(TestBase):
             preRunCommands=preRunCommands,
             stopCommands=stopCommands,
             exitCommands=exitCommands,
+            terminateCommands=terminateCommands,
             sourcePath=sourcePath,
             debuggerRoot=debuggerRoot,
             launchCommands=launchCommands,
-            sourceMap=sourceMap)
+            sourceMap=sourceMap,
+            runInTerminal=runInTerminal,
+            expectFailure=expectFailure,
+            postRunCommands=postRunCommands)
+
+        if expectFailure:
+            return response
+
         if not (response and response['success']):
             self.assertTrue(response['success'],
                             'launch failed (%s)' % (response['message']))
+        # We need to trigger a request_configurationDone after we've successfully
+        # attached a runInTerminal process to finish initialization.
+        if runInTerminal:
+            self.vscode.request_configurationDone()
+        return response
+
 
     def build_and_launch(self, program, args=None, cwd=None, env=None,
                          stopOnEntry=False, disableASLR=True,
                          disableSTDIO=False, shellExpandArguments=False,
                          trace=False, initCommands=None, preRunCommands=None,
                          stopCommands=None, exitCommands=None,
-                         sourcePath=None, debuggerRoot=None):
+                         terminateCommands=None, sourcePath=None,
+                         debuggerRoot=None, runInTerminal=False,
+                         disconnectAutomatically=True, postRunCommands=None,
+                         lldbVSCodeEnv=None):
         '''Build the default Makefile target, create the VSCode debug adaptor,
            and launch the process.
         '''
-        self.build_and_create_debug_adaptor()
+        self.build_and_create_debug_adaptor(lldbVSCodeEnv)
         self.assertTrue(os.path.exists(program), 'executable must exist')
 
-        self.launch(program, args, cwd, env, stopOnEntry, disableASLR,
+        return self.launch(program, args, cwd, env, stopOnEntry, disableASLR,
                     disableSTDIO, shellExpandArguments, trace,
                     initCommands, preRunCommands, stopCommands, exitCommands,
-                    sourcePath, debuggerRoot)
+                    terminateCommands, sourcePath, debuggerRoot, runInTerminal=runInTerminal,
+                    disconnectAutomatically=disconnectAutomatically,
+                    postRunCommands=postRunCommands)

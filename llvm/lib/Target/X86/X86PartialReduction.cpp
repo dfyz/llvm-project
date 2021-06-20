@@ -68,7 +68,7 @@ bool X86PartialReduction::tryMAddReplacement(Instruction *Op) {
     return false;
 
   // Need at least 8 elements.
-  if (cast<VectorType>(Op->getType())->getNumElements() < 8)
+  if (cast<FixedVectorType>(Op->getType())->getNumElements() < 8)
     return false;
 
   // Element type should be i32.
@@ -136,7 +136,7 @@ bool X86PartialReduction::tryMAddReplacement(Instruction *Op) {
 
   IRBuilder<> Builder(Mul);
 
-  auto *MulTy = cast<VectorType>(Op->getType());
+  auto *MulTy = cast<FixedVectorType>(Op->getType());
   unsigned NumElts = MulTy->getNumElements();
 
   // Extract even elements and odd elements and add them together. This will
@@ -211,7 +211,7 @@ bool X86PartialReduction::trySADReplacement(Instruction *Op) {
 
   IRBuilder<> Builder(SI);
 
-  auto *OpTy = cast<VectorType>(Op->getType());
+  auto *OpTy = cast<FixedVectorType>(Op->getType());
   unsigned NumElts = OpTy->getNumElements();
 
   unsigned IntrinsicNumElts;
@@ -265,7 +265,7 @@ bool X86PartialReduction::trySADReplacement(Instruction *Op) {
   unsigned Stages = Log2_32(NumSplits);
   for (unsigned s = Stages; s > 0; --s) {
     unsigned NumConcatElts =
-        cast<VectorType>(Ops[0]->getType())->getNumElements() * 2;
+        cast<FixedVectorType>(Ops[0]->getType())->getNumElements() * 2;
     for (unsigned i = 0; i != 1U << (s - 1); ++i) {
       SmallVector<int, 64> ConcatMask(NumConcatElts);
       std::iota(ConcatMask.begin(), ConcatMask.end(), 0);
@@ -275,13 +275,14 @@ bool X86PartialReduction::trySADReplacement(Instruction *Op) {
 
   // At this point the final value should be in Ops[0]. Now we need to adjust
   // it to the final original type.
-  NumElts = cast<VectorType>(OpTy)->getNumElements();
+  NumElts = cast<FixedVectorType>(OpTy)->getNumElements();
   if (NumElts == 2) {
     // Extract down to 2 elements.
     Ops[0] = Builder.CreateShuffleVector(Ops[0], Ops[0], ArrayRef<int>{0, 1});
   } else if (NumElts >= 8) {
     SmallVector<int, 32> ConcatMask(NumElts);
-    unsigned SubElts = cast<VectorType>(Ops[0]->getType())->getNumElements();
+    unsigned SubElts =
+        cast<FixedVectorType>(Ops[0]->getType())->getNumElements();
     for (unsigned i = 0; i != SubElts; ++i)
       ConcatMask[i] = i;
     for (unsigned i = SubElts; i != NumElts; ++i)
@@ -309,7 +310,7 @@ static Value *matchAddReduction(const ExtractElementInst &EE) {
   if (!BO || BO->getOpcode() != Instruction::Add || !BO->hasOneUse())
     return nullptr;
 
-  unsigned NumElems = cast<VectorType>(BO->getType())->getNumElements();
+  unsigned NumElems = cast<FixedVectorType>(BO->getType())->getNumElements();
   // Ensure the reduction size is a power of 2.
   if (!isPowerOf2_32(NumElems))
     return nullptr;
@@ -391,8 +392,7 @@ static void collectLeaves(Value *Root, SmallVectorImpl<Instruction *> &Leaves) {
         break;
 
       // Push incoming values to the worklist.
-      for (Value *InV : PN->incoming_values())
-        Worklist.push_back(InV);
+      append_range(Worklist, PN->incoming_values());
 
       continue;
     }
@@ -401,8 +401,7 @@ static void collectLeaves(Value *Root, SmallVectorImpl<Instruction *> &Leaves) {
       if (BO->getOpcode() == Instruction::Add) {
         // Simple case. Single use, just push its operands to the worklist.
         if (BO->hasNUses(BO == Root ? 2 : 1)) {
-          for (Value *Op : BO->operands())
-            Worklist.push_back(Op);
+          append_range(Worklist, BO->operands());
           continue;
         }
 
@@ -425,8 +424,7 @@ static void collectLeaves(Value *Root, SmallVectorImpl<Instruction *> &Leaves) {
             continue;
 
           // The phi forms a loop with this Add, push its operands.
-          for (Value *Op : BO->operands())
-            Worklist.push_back(Op);
+          append_range(Worklist, BO->operands());
         }
       }
     }

@@ -44,9 +44,9 @@ typedef std::shared_ptr<RSKernelDescriptor> RSKernelDescriptorSP;
 typedef std::shared_ptr<RSScriptGroupDescriptor> RSScriptGroupDescriptorSP;
 
 struct RSCoordinate {
-  uint32_t x, y, z;
+  uint32_t x = 0, y = 0, z = 0;
 
-  RSCoordinate() : x(), y(), z(){};
+  RSCoordinate(){};
 
   bool operator==(const lldb_renderscript::RSCoordinate &rhs) {
     return x == rhs.x && y == rhs.y && z == rhs.z;
@@ -428,7 +428,8 @@ protected:
 
   void InitSearchFilter(lldb::TargetSP target) {
     if (!m_filtersp)
-      m_filtersp.reset(new SearchFilterForUnconstrainedSearches(target));
+      m_filtersp =
+          std::make_shared<SearchFilterForUnconstrainedSearches>(target);
   }
 
   void FixupScriptDetails(lldb_renderscript::RSModuleDescriptorSP rsmodule_sp);

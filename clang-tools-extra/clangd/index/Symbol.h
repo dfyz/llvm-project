@@ -186,7 +186,8 @@ public:
   const_iterator end() const { return Symbols.end(); }
   const_iterator find(const SymbolID &SymID) const;
 
-  size_t size() const { return Symbols.size(); }
+  using size_type = size_t;
+  size_type size() const { return Symbols.size(); }
   bool empty() const { return Symbols.empty(); }
   // Estimates the total memory usage.
   size_t bytes() const {
@@ -231,6 +232,8 @@ private:
   llvm::BumpPtrAllocator Arena; // Owns Symbol data that the Symbols do not.
   std::vector<Symbol> Symbols;  // Sorted by SymbolID to allow lookup.
 };
+
+llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const SymbolSlab &Slab);
 
 } // namespace clangd
 } // namespace clang

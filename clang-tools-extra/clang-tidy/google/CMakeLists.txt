@@ -16,7 +16,6 @@ add_clang_library(clangTidyGoogleModule
   GlobalVariableDeclarationCheck.cpp
   GoogleTidyModule.cpp
   IntegerTypesCheck.cpp
-  NonConstReferences.cpp
   OverloadedUnaryAndCheck.cpp
   TodoCommentCheck.cpp
   UnnamedNamespaceInHeaderCheck.cpp
@@ -27,6 +26,9 @@ add_clang_library(clangTidyGoogleModule
   clangTidy
   clangTidyReadabilityModule
   clangTidyUtils
+
+  DEPENDS
+  omp_gen
   )
 
 clang_target_link_libraries(clangTidyGoogleModule

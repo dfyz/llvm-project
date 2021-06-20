@@ -11,8 +11,8 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_INDIRECTTHUNKS_H
-#define LLVM_INDIRECTTHUNKS_H
+#ifndef LLVM_CODEGEN_INDIRECTTHUNKS_H
+#define LLVM_CODEGEN_INDIRECTTHUNKS_H
 
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
@@ -27,7 +27,8 @@ template <typename Derived> class ThunkInserter {
 protected:
   bool InsertedThunks;
   void doInitialization(Module &M) {}
-  void createThunkFunction(MachineModuleInfo &MMI, StringRef Name);
+  void createThunkFunction(MachineModuleInfo &MMI, StringRef Name,
+                           bool Comdat = true);
 
 public:
   void init(Module &M) {
@@ -40,17 +41,21 @@ public:
 
 template <typename Derived>
 void ThunkInserter<Derived>::createThunkFunction(MachineModuleInfo &MMI,
-                                                 StringRef Name) {
+                                                 StringRef Name, bool Comdat) {
   assert(Name.startswith(getDerived().getThunkPrefix()) &&
          "Created a thunk with an unexpected prefix!");
 
   Module &M = const_cast<Module &>(*MMI.getModule());
   LLVMContext &Ctx = M.getContext();
   auto Type = FunctionType::get(Type::getVoidTy(Ctx), false);
-  Function *F =
-      Function::Create(Type, GlobalValue::LinkOnceODRLinkage, Name, &M);
-  F->setVisibility(GlobalValue::HiddenVisibility);
-  F->setComdat(M.getOrInsertComdat(Name));
+  Function *F = Function::Create(Type,
+                                 Comdat ? GlobalValue::LinkOnceODRLinkage
+                                        : GlobalValue::InternalLinkage,
+                                 Name, &M);
+  if (Comdat) {
+    F->setVisibility(GlobalValue::HiddenVisibility);
+    F->setComdat(M.getOrInsertComdat(Name));
+  }
 
   // Add Attributes so that we don't create a frame, unwind information, or
   // inline.
@@ -65,14 +70,14 @@ void ThunkInserter<Derived>::createThunkFunction(MachineModuleInfo &MMI,
 
   Builder.CreateRetVoid();
 
-  // MachineFunctions/MachineBasicBlocks aren't created automatically for the
-  // IR-level constructs we already made. Create them and insert them into the
-  // module.
+  // MachineFunctions aren't created automatically for the IR-level constructs
+  // we already made. Create them and insert them into the module.
   MachineFunction &MF = MMI.getOrCreateMachineFunction(*F);
-  MachineBasicBlock *EntryMBB = MF.CreateMachineBasicBlock(Entry);
+  // A MachineBasicBlock must not be created for the Entry block; code
+  // generation from an empty naked function in C source code also does not
+  // generate one.  At least GlobalISel asserts if this invariant isn't
+  // respected.
 
-  // Insert EntryMBB into MF. It's not in the module until we do this.
-  MF.insert(MF.end(), EntryMBB);
   // Set MF properties. We never use vregs...
   MF.getProperties().set(MachineFunctionProperties::Property::NoVRegs);
 }

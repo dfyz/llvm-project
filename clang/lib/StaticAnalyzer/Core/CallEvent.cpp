@@ -86,7 +86,7 @@ QualType CallEvent::getResultType() const {
   case VK_XValue:
     ResultTy = Ctx.getRValueReferenceType(ResultTy);
     break;
-  case VK_RValue:
+  case VK_PRValue:
     // No adjustment is necessary.
     break;
   }
@@ -523,7 +523,7 @@ CallEvent::getReturnValueUnderConstruction() const {
   if (!CC)
     return None;
 
-  ExprEngine::EvalCallOptions CallOpts;
+  EvalCallOptions CallOpts;
   ExprEngine &Engine = getState()->getStateManager().getOwningEngine();
   SVal RetVal =
     Engine.computeObjectUnderConstruction(getOriginExpr(), getState(),
@@ -687,7 +687,7 @@ void CXXInstanceCall::getExtraInvalidatedValues(
     // base class decl, rather than the class of the instance which needs to be
     // checked for mutable fields.
     // TODO: We might as well look at the dynamic type of the object.
-    const Expr *Ex = getCXXThisExpr()->ignoreParenBaseCasts();
+    const Expr *Ex = getCXXThisExpr()->IgnoreParenBaseCasts();
     QualType T = Ex->getType();
     if (T->isPointerType()) // Arrow or implicit-this syntax?
       T = T->getPointeeType();

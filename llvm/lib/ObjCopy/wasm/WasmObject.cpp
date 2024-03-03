@@ -24,6 +24,14 @@ void Object::addSectionWithOwnedContents(
   OwnedContents.emplace_back(std::move(Content));
 }
 
+void Object::replaceSectionContent(Section &Section,
+                                   std::unique_ptr<MemoryBuffer> &&Content) {
+  Section.Contents = ArrayRef<uint8_t>(
+      reinterpret_cast<const uint8_t *>(Content->getBufferStart()),
+      Content->getBufferSize());
+  OwnedContents.emplace_back(std::move(Content));
+}
+
 void Object::removeSections(function_ref<bool(const Section &)> ToRemove) {
   // TODO: remove reloc sections for the removed section, handle symbols, etc.
   llvm::erase_if(Sections, ToRemove);

@@ -59,17 +59,15 @@ Expected<const WasmConfig &> ConfigManager::getWasmConfig() const {
       !Common.SymbolsPrefixRemove.empty() ||
       !Common.AllocSectionsPrefix.empty() ||
       Common.DiscardMode != DiscardType::None || !Common.SymbolsToAdd.empty() ||
-      !Common.SymbolsToGlobalize.empty() || !Common.SymbolsToLocalize.empty() ||
       !Common.SymbolsToKeep.empty() || !Common.SymbolsToRemove.empty() ||
       !Common.UnneededSymbolsToRemove.empty() ||
-      !Common.SymbolsToWeaken.empty() || !Common.SymbolsToKeepGlobal.empty() ||
+      !Common.SymbolsToWeaken.empty() ||
       !Common.SectionsToRename.empty() || !Common.SetSectionAlignment.empty() ||
       !Common.SetSectionFlags.empty() || !Common.SetSectionType.empty() ||
-      !Common.SymbolsToRename.empty() || Common.GapFill != 0 ||
+      Common.GapFill != 0 ||
       Common.PadTo != 0)
     return createStringError(llvm::errc::invalid_argument,
-                             "only flags for section dumping, removal, and "
-                             "addition are supported");
+                             "option is not supported for WASM");
 
   return Wasm;
 }

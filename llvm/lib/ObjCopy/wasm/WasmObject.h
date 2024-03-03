@@ -35,6 +35,8 @@ struct Object {
 
   void addSectionWithOwnedContents(Section NewSection,
                                    std::unique_ptr<MemoryBuffer> &&Content);
+  void replaceSectionContent(Section &Section,
+                             std::unique_ptr<MemoryBuffer> &&Content);
   void removeSections(function_ref<bool(const Section &)> ToRemove);
 
 private:
